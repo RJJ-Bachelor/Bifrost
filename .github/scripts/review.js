@@ -169,19 +169,42 @@ function formatLoadedFiles(loadedFilesMap) {
   return parts.join("\n\n");
 }
 
+function getRepositoryFileList() {
+  try {
+    const output = execSync("git ls-files", { encoding: "utf-8" });
+    const IGNORED_EXTENSIONS = [
+      ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+      ".pdf", ".zip", ".tar.gz", ".lock", ".dll", ".exe",
+      ".ttf", ".woff", ".woff2"
+    ];
+
+    return output
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => {
+        if (!line) return false;
+        if (line.startsWith(".github/") || line.startsWith(".githooks/") || line.startsWith(".")) return false;
+        return !IGNORED_EXTENSIONS.some((ext) => line.toLowerCase().endsWith(ext));
+      })
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
 function buildSystemInstruction(mode, hasFileContext = false) {
   let contextRule = "";
   let verdictEnum = "";
 
   if (mode === "TRIAGE") {
     contextRule = `6. **Eskalering & Kontekstbehov:**
-* Hvis du mangler overblik over en eller flere filer for at kunne vurdere ændringerne (f.eks. for at tjekke constructor/dependency injection, interfaces, klassedefinitioner eller omgivende metoder), SKAL du sætte "verdict": "NEED_CONTEXT", liste filerne i "requested_files" og give en kort begrundelse i "context_reason".
+* Hvis du mangler overblik over en eller flere filer for at kunne vurdere ændringerne (f.eks. for at tjekke constructor/dependency injection, interfaces, klassedefinitioner eller omgivende metoder), SKAL du sætte "verdict": "NEED_CONTEXT", liste de præcise relative filstier fra 'Repository Files' i "requested_files" og give en kort begrundelse i "context_reason".
 * Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), SKAL du sætte "verdict": "ESCALATE".
 * Hvis ændringerne i diff'et er klare og du har tilstrækkelig viden, SKAL du levere en fuld anmeldelse med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
   } else if (mode === "HEAVY_INVESTIGATE") {
     contextRule = `6. **Supplerende fil-efterspørgsel:**
-* Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de specifikke filer i "requested_files" og forklare hvorfor i "context_reason".
+* Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de præcise filstier fra 'Repository Files' i "requested_files" og forklare hvorfor i "context_reason".
 * Hvis du allerede har tilstrækkelig information i diff'et og den hidtidige kontekst, SKAL du levere det endelige review med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NEED_CONTEXT"`;
   } else {
@@ -503,6 +526,7 @@ async function run() {
   }
 
   const reviewDiff = filterDiff(diff);
+  const repoFiles = getRepositoryFileList();
 
   const prompt = `
 PR Title: ${pr.title}
@@ -513,6 +537,11 @@ ${projectContext || "No additional project context provided."}
 
 Historical Review Feedback:
 ${historicalFeedback || "No previous review comments."}
+
+Repository Files (Exact relative paths available for requested_files):
+\`\`\`text
+${repoFiles || "No files available."}
+\`\`\`
 
 Git Diff:
 \`\`\`diff
