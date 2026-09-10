@@ -13,6 +13,7 @@ const GITHUB_API = "https://api.github.com";
 // Model Pools
 const FAST_MODEL = "gemini-3.5-flash-lite";
 const HEAVY_MODELS = [
+  "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash"
