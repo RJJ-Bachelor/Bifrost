@@ -52,6 +52,7 @@ function extractAndCleanJson(rawText) {
   if (!rawText) return null;
 
   let cleaned = rawText
+    .replace(/<\|channel\>thought[\s\S]*?<channel\|>/g, "")
     .replace(/```(?:json)?\s*([\s\S]*?)\s*```/gi, "$1")
     .replace(/`(\{[^`]*\})`/g, "$1")
     .trim();
@@ -275,14 +276,21 @@ ${triageComplexityField}  "pr_summary_description": "Kort struktureret beskrivel
 }
 
 function extractFilePathFromDiffHeader(headerLine) {
-  const match = headerLine.match(/^diff --git\s+["']?[ab]\/(.+?)\s+["']?[ab]\/(.+?)(?:["']|\s|$)/);
-  if (!match) return "";
-  const pathA = match[1].replace(/^["']|["']$/g, "").trim();
-  const pathB = match[2].replace(/^["']|["']$/g, "").trim();
-  if (pathB && pathB !== "dev/null" && pathB !== "/dev/null") {
-    return pathB;
+  // Case 1: Quoted paths, e.g. diff --git "a/foo bar.cs" "b/foo bar.cs"
+  const quotedMatch = headerLine.match(/^diff --git\s+"[ab]\/(.+?)"\s+"[ab]\/(.+?)"/);
+  if (quotedMatch) {
+    const b = quotedMatch[2].trim();
+    return b !== "dev/null" ? b : quotedMatch[1].trim();
   }
-  return pathA !== "dev/null" && pathA !== "/dev/null" ? pathA : "";
+
+  // Case 2: Unquoted paths, e.g. diff --git a/foo/bar.cs b/foo/bar.cs
+  const unquotedMatch = headerLine.match(/^diff --git\s+[ab]\/(.+?)\s+[ab]\/(.+)/);
+  if (unquotedMatch) {
+    const b = unquotedMatch[2].trim();
+    return b !== "dev/null" ? b : unquotedMatch[1].trim();
+  }
+
+  return "";
 }
 
 const FAST_PATH_MIN_LINES = 160;
