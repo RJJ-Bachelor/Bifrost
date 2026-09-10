@@ -30,6 +30,7 @@ jobs:
       - name: Checkout repository on PR branch
         uses: actions/checkout@v4
         with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
           fetch-depth: 0
 
       - name: Setup Node.js

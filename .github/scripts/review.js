@@ -11,17 +11,17 @@ const CONTEXT_FILE_PATH = path.join(process.cwd(), "docs", "PROJECT_CONTEXT.md")
 const GITHUB_API = "https://api.github.com";
 
 // Model Pools
-const FAST_MODEL = "gemini-3.5-flash-lite";
-const HEAVY_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash"
-];
-const FALLBACK_MODELS = [
+const LIGHT_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemma-4-31b-it",
   "gemma-4-26b-a4b-it"
+];
+const HEAVY_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash"
 ];
 
 async function githubFetch(endpoint, options = {}) {
@@ -99,23 +99,143 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
   }
 
   const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
+  const rawText = answerPart?.text;
 
   if (!expectJson) {
     return rawText ? rawText.trim() : null;
   }
 
-  return extractAndCleanJson(rawText);
+  const parsedJson = extractAndCleanJson(rawText);
+  if (!parsedJson && rawText) {
+    console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
+  }
+  return parsedJson;
 }
 
-function buildSystemInstruction(allowEscalation) {
-  const escalationRule = allowEscalation
-    ? `6. **Eskalering:** Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), og du vurderer, at en tungere ræsonneringsmodel bør overtage analysen, SKAL du sætte "verdict": "ESCALATE". Vær ærlig og brug kun ESCALATE ved reel høj kompleksitet.`
-    : `6. **Ingen eskalering:** Du SKAL levere en fuld anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere.`;
+function loadRequestedFiles(requestedFiles, loadedFilesMap) {
+  if (!Array.isArray(requestedFiles) || requestedFiles.length === 0) {
+    return 0;
+  }
 
-  const verdictEnum = allowEscalation
-    ? `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE"`
-    : `"APPROVE" | "REQUEST_CHANGES" | "COMMENT"`;
+  const MAX_FILE_SIZE = 100 * 1024; // 100 KB limit per file
+  const IGNORED_EXTENSIONS = [
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+    ".lock", ".pdf", ".zip", ".tar.gz", ".dll", ".exe",
+    ".ttf", ".woff", ".woff2"
+  ];
+  let newFilesCount = 0;
+
+  for (const rawPath of requestedFiles) {
+    if (typeof rawPath !== "string") continue;
+    const cleanPath = rawPath.replace(/[`'"]/g, "").replace(/^[ab]\//, "").trim();
+    if (!cleanPath || cleanPath === "docs/PROJECT_CONTEXT.md") continue;
+    if (loadedFilesMap.has(cleanPath)) continue;
+    if (IGNORED_EXTENSIONS.some((ext) => cleanPath.toLowerCase().endsWith(ext))) continue;
+
+    // Prevent path traversal outside the repository
+    const fullPath = path.resolve(process.cwd(), cleanPath);
+    if (!fullPath.startsWith(process.cwd() + path.sep)) {
+      console.warn(`Path traversal attempt blocked: ${cleanPath}`);
+      continue;
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`Requested file not found on disk: ${cleanPath}`);
+      continue;
+    }
+
+    try {
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory() || stat.size > MAX_FILE_SIZE) continue;
+
+      const content = fs.readFileSync(fullPath, "utf-8");
+      loadedFilesMap.set(cleanPath, content);
+      newFilesCount++;
+    } catch (err) {
+      console.warn(`Could not read requested file ${cleanPath}: ${err.message}`);
+    }
+  }
+
+  return newFilesCount;
+}
+
+function formatLoadedFiles(loadedFilesMap) {
+  if (!loadedFilesMap || loadedFilesMap.size === 0) {
+    return "";
+  }
+  const parts = [];
+  for (const [filePath, content] of loadedFilesMap.entries()) {
+    parts.push(`#### File: \`${filePath}\`\n\`\`\`\n${content}\n\`\`\``);
+  }
+  return parts.join("\n\n");
+}
+
+function getRepositoryFileList() {
+  try {
+    const output = execSync("git ls-files", { encoding: "utf-8" });
+    const IGNORED_EXTENSIONS = [
+      ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+      ".pdf", ".zip", ".tar.gz", ".lock", ".dll", ".exe",
+      ".ttf", ".woff", ".woff2"
+    ];
+
+    return output
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => {
+        if (!line) return false;
+        if (line.startsWith(".github/") || line.startsWith(".githooks/") || line.startsWith(".")) return false;
+        return !IGNORED_EXTENSIONS.some((ext) => line.toLowerCase().endsWith(ext));
+      })
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
+function buildSystemInstruction(mode, hasFileContext = false) {
+  let contextRule = "";
+  let verdictEnum = "";
+
+  if (mode === "TRIAGE") {
+    contextRule = `6. **Obligatorisk kompleksitets-score og eskalering:**
+Du SKAL starte dit JSON-svar med at evaluere PR'ens kompleksitet ("complexity_evaluation") ud fra denne faste rubrik:
+* **Score 1-3 (Lav / Trivial):** Stavefejl, dokumentation, simple bugfixes i 1 fil (< 30 linjer), små CSS/tekst-ændringer.
+  -> Du håndterer og godkender/kommenterer selv koden ("APPROVE" / "REQUEST_CHANGES" / "COMMENT").
+* **Score 4-5 (Moderat):** Enkelt nyt endpoint eller metode inden for et kendt mønster.
+  -> Du håndterer den selv, medmindre du mangler en konkret fil (sæt da "verdict": "NEED_CONTEXT").
+* **Score 6-8 (Høj kompleksitet):** Ændringer på tværs af lag (Domain, Application, Api), nye interfaces/services, database/EF Core ændringer, async/concurrency.
+  -> Du SKAL eskalere til en heavy model! Sæt "verdict": "ESCALATE" (eller "NEED_CONTEXT" hvis du mangler specifikke filer fra 'Repository Files').
+* **Score 9-10 (Kritisk):** Dybe refactorings, nye kernemoduler, ændring af auth/sikkerhed, globale middlewares.
+  -> Du SKAL sætte "verdict": "ESCALATE".
+
+Hvis "scope_score" >= 6 eller "cross_layer_impact" er true, må du ALDRIG godkende selv. Du SKAL eskalere.`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
+  } else if (mode === "HEAVY_INVESTIGATE") {
+    contextRule = `6. **Supplerende fil-efterspørgsel:**
+* Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de præcise filstier fra 'Repository Files' i "requested_files" og forklare hvorfor i "context_reason".
+* Hvis du allerede har tilstrækkelig information i diff'et og den hidtidige kontekst, SKAL du levere det endelige review med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NEED_CONTEXT"`;
+  } else {
+    contextRule = `6. **Endelig anmeldelse:** Du SKAL levere en fuld og endelig anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere eller bede om yderligere filer.`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT"`;
+  }
+
+  const fileContextSection = hasFileContext
+    ? `\n* **Supplerende fil-kontekst:** Du har fået det fulde indhold af udvalgte filer under 'Requested File Contents'. Brug denne kontekst til at forstå arkitektur og afhængigheder, men fokuser dine fund og kommentarer på de konkrete ændringer i 'Git Diff'.`
+    : "";
+
+  const triageComplexityField = mode === "TRIAGE"
+    ? `  "complexity_evaluation": {
+    "scope_score": 1-10,
+    "cross_layer_impact": true | false,
+    "has_unseen_dependencies": true | false,
+    "reasoning": "Kort begrundelse for scoren (1 linje)"
+  },
+`
+    : "";
 
   return `
 Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt i softwareteknologi (Bifrost).
@@ -126,7 +246,7 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
   1. Start med ros for gode løsninger (kun hvis der rent faktisk er noget at rose). HOLD DET HELT KORT (max to linjer!).
   2. Gennemgå konkrete fejl, mangler eller arkitekturbrud.
   3. Afslut med en opmuntrende og konstruktiv bemærkning (igen helt kort (ikke mere end en linje)).
-* **INGEN STØJ:** Find ALDRIG på ligegyldige nitpicks. Hvis koden er god, så godkend den kortfattet.
+* **INGEN STØJ:** Find ALDRIG på ligegyldige nitpicks. Hvis koden er god, så godkend den kortfattet.${fileContextSection}
 
 ## Fokusområder
 1. **Engelsk i kodebasen:** Verificer at alle kodekommentarer, logbeskeder, fejltekster, variabel-/klassenavne og dokumentation i koden er skrevet 100% på **engelsk**.
@@ -134,13 +254,15 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 3. **Clean Architecture & Mappestruktur:** Tjek at afhængigheder peger indad. Ingen databasekald i controllers eller forretningslogik i forkerte lag.
 4. **Tests (Non-blocking):** Gør venligt opmærksom på manglende tests ved ændret kerneforretningslogik.
 5. **Opfølgning på historik:** Tjek om tidligere påpegede fejl er blevet udbedret.
-${escalationRule}
+${contextRule}
 
 ## Output Format (JSON)
 Du SKAL svare i dette JSON-skema:
 {
-  "pr_summary_description": "Kort struktureret beskrivelse af PR'ens formål og ændringer (på dansk)",
+${triageComplexityField}  "pr_summary_description": "Kort struktureret beskrivelse af PR'ens formål og ændringer (på dansk)",
   "verdict": ${verdictEnum},
+  "requested_files": ["sti/til/fil.cs"],
+  "context_reason": "Kort forklaring på hvorfor du mangler kontekst (kun relevant ved NEED_CONTEXT)",
   "summary": "Den samlede anmeldelse med sandwich-modellen (Markdown)",
   "inline_comments": [
     {
@@ -153,84 +275,250 @@ Du SKAL svare i dette JSON-skema:
 `;
 }
 
-async function performReview(prompt) {
-  // Phase 1: Fast triage with gemini-3.5-flash-lite
-  console.log(`Evaluating PR with fast triage model (${FAST_MODEL})...`);
-  try {
-    const fastInstruction = buildSystemInstruction(true);
-    const result = await requestGeminiModel(FAST_MODEL, prompt, fastInstruction, true);
-
-    if (result && result.verdict === "ESCALATE") {
-      console.log(`⚡ ${FAST_MODEL} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
-    } else if (result) {
-      console.log(`✅ Review successfully completed by ${FAST_MODEL}`);
-      return result;
-    }
-  } catch (err) {
-    console.warn(`Fast triage with ${FAST_MODEL} failed (${err.message}). Proceeding to model queue...`);
+function extractFilePathFromDiffHeader(headerLine) {
+  // Case 1: Quoted paths, e.g. diff --git "a/foo bar.cs" "b/foo bar.cs"
+  const quotedMatch = headerLine.match(/^diff --git\s+"[ab]\/(.+?)"\s+"[ab]\/(.+?)"/);
+  if (quotedMatch) {
+    const b = quotedMatch[2].trim();
+    return b !== "dev/null" ? b : quotedMatch[1].trim();
   }
 
-  // Phase 2: Try Heavy Models
+  // Case 2: Unquoted paths, e.g. diff --git a/foo/bar.cs b/foo/bar.cs
+  const unquotedMatch = headerLine.match(/^diff --git\s+[ab]\/(.+?)\s+[ab]\/(.+)/);
+  if (unquotedMatch) {
+    const b = unquotedMatch[2].trim();
+    return b !== "dev/null" ? b : unquotedMatch[1].trim();
+  }
+
+  return "";
+}
+
+const FAST_PATH_MIN_LINES = 160;
+const FAST_PATH_MIN_CHARS = 8000;
+
+function shouldFastPath(diffText) {
+  if (!diffText) return false;
+
+  const chunks = diffText.split(/(?=^diff --git )/m);
+  let substantiveAddedLines = 0;
+  let substantiveChars = 0;
+
+  for (const chunk of chunks) {
+    if (!chunk.trim()) continue;
+
+    const firstLine = chunk.split("\n")[0] || "";
+    const filePath = extractFilePathFromDiffHeader(firstLine);
+
+    // Skip EF Core migration schema files from triggering fast-path
+    if (filePath && (filePath.includes("/Migrations/") || filePath.includes("\\Migrations\\"))) {
+      continue;
+    }
+
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      // Only count added lines (+), strictly ignore deletions (-) and diff headers (+++)
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        const content = line.substring(1).trim();
+        // Skip empty lines, standalone brackets, and single-line / comment lines
+        if (
+          !content ||
+          content === "{" ||
+          content === "}" ||
+          content === "};" ||
+          content.startsWith("//") ||
+          content.startsWith("/*") ||
+          content.startsWith("*") ||
+          content.startsWith("#")
+        ) {
+          continue;
+        }
+        substantiveAddedLines++;
+        substantiveChars += content.length;
+      }
+    }
+  }
+
+  if (substantiveAddedLines > FAST_PATH_MIN_LINES || substantiveChars > FAST_PATH_MIN_CHARS) {
+    console.log(`⚡ Substantial PR detected (${substantiveAddedLines} substantive added lines, ${substantiveChars} chars in core files). Fast-pathing directly to heavy reasoning models.`);
+    return true;
+  }
+
+  return false;
+}
+
+async function performReview(basePrompt, diffText = "") {
+  const loadedFiles = new Map();
+  let escalated = shouldFastPath(diffText);
+
+  // Phase 1: Fast triage with light models (LIGHT_MODELS)
+  if (!escalated) {
+    console.log("Evaluating PR with light triage models...");
+    for (const model of LIGHT_MODELS) {
+      try {
+        console.log(`Attempting triage with light model: ${model}...`);
+        const fastInstruction = buildSystemInstruction("TRIAGE", false);
+        const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
+
+        if (result) {
+          if (result.complexity_evaluation) {
+            const comp = result.complexity_evaluation;
+            const score = Number(comp.scope_score) || 0;
+            const isCrossLayer = comp.cross_layer_impact === true || String(comp.cross_layer_impact).toLowerCase() === "true";
+            const hasUnseen = comp.has_unseen_dependencies === true || String(comp.has_unseen_dependencies).toLowerCase() === "true";
+
+            console.log(`📊 PR Complexity [${model}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
+            if (comp.reasoning) {
+              console.log(`   Reasoning: ${comp.reasoning}`);
+            }
+
+            // Programmatic safety guardrail: If model rated complexity >= 6 or cross-layer impact, enforce escalation
+            if ((score >= 6 || isCrossLayer) && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
+              console.log(`⚡ Complexity evaluation (score: ${score}/10, cross-layer: ${isCrossLayer}) requires heavy reasoning model. Overriding verdict to ESCALATE.`);
+              result.verdict = "ESCALATE";
+            }
+          }
+
+          if (result.verdict === "NEED_CONTEXT") {
+            console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+            if (result.context_reason) {
+              console.log(`   Reason: ${result.context_reason}`);
+            }
+            loadRequestedFiles(result.requested_files, loadedFiles);
+            console.log("⚡ Escalating review to heavy model pool with requested file context...");
+            escalated = true;
+            break;
+          } else if (result.verdict === "ESCALATE") {
+            console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
+            escalated = true;
+            break;
+          } else {
+            console.log(`✅ Review successfully completed by light model: ${model}`);
+            return result;
+          }
+        }
+      } catch (err) {
+        console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
+      }
+    }
+  }
+
+  if (!escalated) {
+    console.warn("All light triage models failed or were unavailable. Falling back directly to heavy models...");
+  }
+
+  // Phase 2: Try Heavy Models (with controlled 2-round deep context investigation)
+  console.log("Attempting review with heavy reasoning models...");
   for (const model of HEAVY_MODELS) {
     try {
       console.log(`Attempting deep review with heavy model: ${model}...`);
-      const heavyInstruction = buildSystemInstruction(false);
-      const result = await requestGeminiModel(model, prompt, heavyInstruction, true);
-      if (result) {
+
+      // Round 1: Heavy model receives current context and can either complete review or request deeper context
+      let filesText = formatLoadedFiles(loadedFiles);
+      let heavyPrompt = filesText
+        ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`
+        : basePrompt;
+
+      const investigateInstruction = buildSystemInstruction("HEAVY_INVESTIGATE", loadedFiles.size > 0);
+      let result = await requestGeminiModel(model, heavyPrompt, investigateInstruction, true);
+
+      if (result && result.verdict === "NEED_CONTEXT") {
+        console.log(`⚡ ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        if (result.context_reason) {
+          console.log(`   Reason: ${result.context_reason}`);
+        }
+        const addedCount = loadRequestedFiles(result.requested_files, loadedFiles);
+        if (addedCount > 0) {
+          console.log(`Loaded ${addedCount} additional file(s) into context. Executing final evaluation round with ${model}...`);
+          filesText = formatLoadedFiles(loadedFiles);
+          heavyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`;
+        }
+
+        // Round 2: Forced final review (cannot request additional context)
+        const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+        result = await requestGeminiModel(model, heavyPrompt, finalInstruction, true);
+      }
+
+      if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
         console.log(`✅ Review successfully completed by heavy model: ${model}`);
         return result;
       }
     } catch (err) {
-      console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next...`);
+      console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next heavy model...`);
     }
   }
 
-  // Phase 3: Fallback queue with forced review (no escalation allowed)
-  console.log("Heavy models unavailable. Falling back to standard model queue with forced review...");
-  for (const model of FALLBACK_MODELS) {
+  // Phase 3: Emergency fallback queue with forced review on light models (no escalation allowed)
+  console.log("All heavy models failed. Falling back to light models with forced review as emergency backup...");
+  const emergencyFilesText = formatLoadedFiles(loadedFiles);
+  const emergencyPrompt = emergencyFilesText
+    ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${emergencyFilesText}\n`
+    : basePrompt;
+
+  for (const model of LIGHT_MODELS) {
     try {
-      console.log(`Attempting fallback review with: ${model}...`);
-      const fallbackInstruction = buildSystemInstruction(false);
-      const result = await requestGeminiModel(model, prompt, fallbackInstruction, true);
-      if (result) {
-        console.log(`✅ Review successfully completed by fallback model: ${model}`);
+      console.log(`Attempting emergency review with light model: ${model}...`);
+      const fallbackInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+      const result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+      if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
+        console.log(`✅ Review successfully completed by emergency light model: ${model}`);
         return result;
       }
     } catch (err) {
-      console.warn(`Fallback model ${model} failed (${err.message}). Trying next...`);
+      console.warn(`Emergency fallback model ${model} failed (${err.message}). Trying next...`);
     }
   }
 
   throw new Error("All review models in all tiers failed.");
 }
 
+const IGNORED_DIFF_PATTERNS = [
+  /(?:^|[\\/])docs[\\/]PROJECT_CONTEXT\.md$/i,
+  /package-lock\.json$/i,
+  /packages\.lock\.json$/i,
+  /yarn\.lock$/i,
+  /pnpm-lock\.yaml$/i,
+  /\.Designer\.cs$/i,
+  /ModelSnapshot\.cs$/i,
+  /\.min\.(js|css)$/i,
+  /\.map$/i
+];
+
 function filterDiff(diffText) {
   return diffText
     .split(/(?=^diff --git )/m)
-    .filter((chunk) => !chunk.includes("docs/PROJECT_CONTEXT.md"))
+    .filter((chunk) => {
+      const firstLine = chunk.split("\n")[0] || "";
+      const filePath = extractFilePathFromDiffHeader(firstLine);
+      if (!filePath) return true;
+      return !IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(filePath));
+    })
     .join("");
 }
 
 function parseDiffLines(diffText) {
   const fileLinesMap = new Map();
-  const fileDiffs = diffText.split(/^diff --git /m);
+  const fileDiffs = diffText.split(/(?=^diff --git )/m);
 
   for (const fileDiff of fileDiffs) {
     if (!fileDiff.trim()) continue;
-    const match = fileDiff.match(/^[a-b]\/(.+?)\s+[a-b]\/(.+)/m);
-    if (!match) continue;
-    const filePath = match[2].trim();
+    const firstLine = fileDiff.split("\n")[0] || "";
+    const filePath = extractFilePathFromDiffHeader(firstLine);
+    if (!filePath) continue;
 
     const addedLines = [];
     let currentNewLine = 0;
+    let inHunk = false;
     const lines = fileDiff.split("\n");
 
     for (const line of lines) {
       const hunkHeader = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
       if (hunkHeader) {
         currentNewLine = parseInt(hunkHeader[1], 10);
+        inHunk = true;
         continue;
       }
+
+      if (!inHunk) continue;
 
       if (line.startsWith("+") && !line.startsWith("+++")) {
         addedLines.push({
@@ -248,16 +536,24 @@ function parseDiffLines(diffText) {
   return fileLinesMap;
 }
 
-function matchSnippetToLine(fileLinesMap, filePath, snippet) {
-  const addedLines = fileLinesMap.get(filePath);
-  if (!addedLines || !snippet) return null;
+function matchSnippetToLine(fileLinesMap, rawPath, snippet) {
+  if (!rawPath || !snippet) return null;
+
+  // Clean up relative prefixes like ./, leading /, or a/ / b/ git prefixes
+  const cleanPath = rawPath.replace(/[`'"]/g, "").replace(/^\.?\//, "").replace(/^[ab]\//, "").trim();
+  const addedLines = fileLinesMap.get(cleanPath);
+  if (!addedLines) return null;
 
   const normalizedSnippet = snippet.trim();
+  if (!normalizedSnippet) return null;
+
   const exactMatch = addedLines.find((item) => item.content === normalizedSnippet);
   if (exactMatch) return exactMatch.line;
 
+  // Prevent matching empty lines or matching against empty snippets
   const partialMatch = addedLines.find(
-    (item) => item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content)
+    (item) => item.content.length > 0 &&
+      (item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content))
   );
   return partialMatch ? partialMatch.line : null;
 }
@@ -294,7 +590,7 @@ ${diff}
     let response = null;
     let usedModel = null;
 
-    for (const model of [FAST_MODEL, ...FALLBACK_MODELS]) {
+    for (const model of [...LIGHT_MODELS, ...HEAVY_MODELS]) {
       try {
         response = await requestGeminiModel(model, prompt, systemInstruction, false);
         if (response) {
@@ -349,6 +645,15 @@ async function run() {
     headers: { "Accept": "application/vnd.github.v3.diff" }
   });
 
+  // Ensure local repository is checked out to the PR branch commit so on-demand file reads match PR state
+  try {
+    console.log(`Checking out PR branch ${pr.head.ref} (${pr.head.sha})...`);
+    execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    execSync(`git checkout ${pr.head.sha}`, { stdio: "ignore" });
+  } catch (err) {
+    console.warn(`Could not checkout PR branch locally (${err.message}). Reading disk files will use current branch.`);
+  }
+
   const previousComments = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/comments`);
   const historicalFeedback = Array.isArray(previousComments)
     ? previousComments.map((c) => `[File: ${c.path} Line: ${c.line}]: ${c.body}`).join("\n")
@@ -360,6 +665,7 @@ async function run() {
   }
 
   const reviewDiff = filterDiff(diff);
+  const repoFiles = getRepositoryFileList();
 
   const prompt = `
 PR Title: ${pr.title}
@@ -371,13 +677,18 @@ ${projectContext || "No additional project context provided."}
 Historical Review Feedback:
 ${historicalFeedback || "No previous review comments."}
 
+Repository Files (Exact relative paths available for requested_files):
+\`\`\`text
+${repoFiles || "No files available."}
+\`\`\`
+
 Git Diff:
 \`\`\`diff
 ${reviewDiff}
 \`\`\`
 `;
 
-  const aiResult = await performReview(prompt);
+  const aiResult = await performReview(prompt, reviewDiff);
 
   if (!pr.body || pr.body.trim().length === 0) {
     if (aiResult.pr_summary_description) {
@@ -397,16 +708,19 @@ ${reviewDiff}
 
   if (Array.isArray(aiResult.inline_comments)) {
     for (const item of aiResult.inline_comments) {
-      const line = matchSnippetToLine(fileLinesMap, item.path, item.snippet);
+      const cleanPath = typeof item.path === "string"
+        ? item.path.replace(/[`'"]/g, "").replace(/^\.?\//, "").replace(/^[ab]\//, "").trim()
+        : "";
+      const line = matchSnippetToLine(fileLinesMap, cleanPath, item.snippet);
       if (line) {
         validComments.push({
-          path: item.path,
+          path: cleanPath,
           line: line,
           side: "RIGHT",
           body: item.comment
         });
       } else {
-        unmatchedComments.push(`* **${item.path}:** ${item.comment}`);
+        unmatchedComments.push(`* **${cleanPath || item.path}:** ${item.comment}`);
       }
     }
   }
@@ -434,21 +748,27 @@ ${reviewDiff}
       })
     });
   } catch (err) {
-    if (reviewEvent === "APPROVE" && err.message.includes("422")) {
-      console.warn("GitHub Actions is restricted from submitting formal APPROVE. Falling back to COMMENT review event...");
-      await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          commit_id: targetCommitSha,
-          event: "COMMENT",
-          body: `> **Status: ✅ Approved by AI Reviewer**\n\n${finalSummary}`,
-          comments: validComments
-        })
-      });
-    } else {
-      throw err;
-    }
+    console.warn(`Submitting review failed (${err.message}). Falling back to top-level comment review...`);
+
+    // If inline comments were rejected by GitHub diff context or APPROVE was disallowed (e.g. 422),
+    // append all inline comments into summary body and submit as a top-level COMMENT review
+    const fallbackSummary = validComments.length > 0
+      ? `${finalSummary}\n\n### 📝 Inline kommentarer\n` + validComments.map((c) => `* **\`${c.path}:${c.line}\`**: ${c.body}`).join("\n")
+      : finalSummary;
+
+    const fallbackBody = reviewEvent === "APPROVE"
+      ? `> **Status: ✅ Approved by AI Reviewer**\n\n${fallbackSummary}`
+      : fallbackSummary;
+
+    await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commit_id: targetCommitSha,
+        event: "COMMENT",
+        body: fallbackBody
+      })
+    });
   }
 
   console.log(`Review submitted with verdict: ${reviewEvent}`);
