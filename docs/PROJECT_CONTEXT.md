@@ -17,4 +17,4 @@ Bifrost is a software engineering bachelor project focused on building a scalabl
 - **Core Rule:** Dependencies must always point inward. No database calls in controllers.
 
 ## 4. Modules & Domain Services
-*(This section is automatically updated by the review bot during reviews)*
+- **Student Module:** Manages student entities, registration, and profile operations, including the `Student` domain entity, `StudentService` application service, and `IStudentRepository` interface.
