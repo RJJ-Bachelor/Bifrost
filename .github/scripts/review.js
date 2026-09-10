@@ -109,14 +109,59 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
   return extractAndCleanJson(rawText);
 }
 
-function buildSystemInstruction(allowEscalation) {
-  const escalationRule = allowEscalation
-    ? `6. **Eskalering:** Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), og du vurderer, at en tungere ræsonneringsmodel bør overtage analysen, SKAL du sætte "verdict": "ESCALATE". Vær ærlig og brug kun ESCALATE ved reel høj kompleksitet.`
-    : `6. **Ingen eskalering:** Du SKAL levere en fuld anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere.`;
+function readRequestedFiles(requestedFiles) {
+  if (!Array.isArray(requestedFiles) || requestedFiles.length === 0) {
+    return "";
+  }
 
-  const verdictEnum = allowEscalation
-    ? `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE"`
-    : `"APPROVE" | "REQUEST_CHANGES" | "COMMENT"`;
+  const MAX_FILE_SIZE = 100 * 1024; // 100 KB limit per file
+  const IGNORED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".lock", ".ico", ".pdf", ".dll", ".exe"];
+  const fileContents = [];
+
+  for (const rawPath of requestedFiles) {
+    if (typeof rawPath !== "string") continue;
+    const cleanPath = rawPath.replace(/[`'"]/g, "").replace(/^[ab]\//, "").trim();
+    if (!cleanPath || cleanPath === "docs/PROJECT_CONTEXT.md") continue;
+    if (IGNORED_EXTENSIONS.some((ext) => cleanPath.toLowerCase().endsWith(ext))) continue;
+
+    const fullPath = path.join(process.cwd(), cleanPath);
+    if (!fs.existsSync(fullPath)) {
+      console.warn(`Requested file not found on disk: ${cleanPath}`);
+      continue;
+    }
+
+    try {
+      const stat = fs.statSync(fullPath);
+      if (stat.isDirectory() || stat.size > MAX_FILE_SIZE) continue;
+
+      const content = fs.readFileSync(fullPath, "utf-8");
+      fileContents.push(`#### File: \`${cleanPath}\`\n\`\`\`\n${content}\n\`\`\``);
+    } catch (err) {
+      console.warn(`Could not read requested file ${cleanPath}: ${err.message}`);
+    }
+  }
+
+  return fileContents.join("\n\n");
+}
+
+function buildSystemInstruction(allowEscalation, hasFileContext = false) {
+  let escalationRule = "";
+  let verdictEnum = "";
+
+  if (allowEscalation) {
+    escalationRule = `6. **Eskalering & Kontekstbehov:**
+* Hvis du mangler overblik over en eller flere filer for at kunne vurdere ændringerne (f.eks. for at tjekke constructor/dependency injection, interfaces, klassedefinitioner eller omgivende metoder), SKAL du sætte "verdict": "NEED_CONTEXT", liste filerne i "requested_files" og give en kort begrundelse i "context_reason".
+* Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), SKAL du sætte "verdict": "ESCALATE".
+* Hvis ændringerne i diff'et er klare og du har tilstrækkelig viden, SKAL du levere en fuld anmeldelse med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
+  } else {
+    escalationRule = `6. **Ingen eskalering:** Du SKAL levere en fuld og endelig anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere eller bede om yderligere kontekst.`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT"`;
+  }
+
+  const fileContextSection = hasFileContext
+    ? `\n* **Supplerende fil-kontekst:** Du har fået det fulde indhold af udvalgte filer under 'Requested File Contents'. Brug denne kontekst til at forstå arkitektur og afhængigheder, men fokuser dine fund og kommentarer på de konkrete ændringer i 'Git Diff'.`
+    : "";
 
   return `
 Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt i softwareteknologi (Bifrost).
@@ -127,7 +172,7 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
   1. Start med ros for gode løsninger (kun hvis der rent faktisk er noget at rose). HOLD DET HELT KORT (max to linjer!).
   2. Gennemgå konkrete fejl, mangler eller arkitekturbrud.
   3. Afslut med en opmuntrende og konstruktiv bemærkning (igen helt kort (ikke mere end en linje)).
-* **INGEN STØJ:** Find ALDRIG på ligegyldige nitpicks. Hvis koden er god, så godkend den kortfattet.
+* **INGEN STØJ:** Find ALDRIG på ligegyldige nitpicks. Hvis koden er god, så godkend den kortfattet.${fileContextSection}
 
 ## Fokusområder
 1. **Engelsk i kodebasen:** Verificer at alle kodekommentarer, logbeskeder, fejltekster, variabel-/klassenavne og dokumentation i koden er skrevet 100% på **engelsk**.
@@ -142,6 +187,8 @@ Du SKAL svare i dette JSON-skema:
 {
   "pr_summary_description": "Kort struktureret beskrivelse af PR'ens formål og ændringer (på dansk)",
   "verdict": ${verdictEnum},
+  "requested_files": ["sti/til/fil.cs"],
+  "context_reason": "Kort forklaring på hvorfor du mangler kontekst (kun relevant ved NEED_CONTEXT)",
   "summary": "Den samlede anmeldelse med sandwich-modellen (Markdown)",
   "inline_comments": [
     {
@@ -154,14 +201,23 @@ Du SKAL svare i dette JSON-skema:
 `;
 }
 
-async function performReview(prompt) {
+async function performReview(basePrompt) {
   // Phase 1: Fast triage with gemini-3.5-flash-lite
   console.log(`Evaluating PR with fast triage model (${FAST_MODEL})...`);
+  let requestedFilesContext = "";
+
   try {
     const fastInstruction = buildSystemInstruction(true);
-    const result = await requestGeminiModel(FAST_MODEL, prompt, fastInstruction, true);
+    const result = await requestGeminiModel(FAST_MODEL, basePrompt, fastInstruction, true);
 
-    if (result && result.verdict === "ESCALATE") {
+    if (result && result.verdict === "NEED_CONTEXT") {
+      console.log(`⚡ ${FAST_MODEL} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+      if (result.context_reason) {
+        console.log(`   Reason: ${result.context_reason}`);
+      }
+      requestedFilesContext = readRequestedFiles(result.requested_files);
+      console.log(`⚡ Escalating review to heavy model pool with requested file context...`);
+    } else if (result && result.verdict === "ESCALATE") {
       console.log(`⚡ ${FAST_MODEL} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
     } else if (result) {
       console.log(`✅ Review successfully completed by ${FAST_MODEL}`);
@@ -171,12 +227,19 @@ async function performReview(prompt) {
     console.warn(`Fast triage with ${FAST_MODEL} failed (${err.message}). Proceeding to model queue...`);
   }
 
-  // Phase 2: Try Heavy Models
+  // Build enriched prompt if specific files were requested
+  let heavyPrompt = basePrompt;
+  const hasFileContext = Boolean(requestedFilesContext && requestedFilesContext.trim().length > 0);
+  if (hasFileContext) {
+    heavyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${requestedFilesContext}\n`;
+  }
+
+  // Phase 2: Try Heavy Models (heavy model takes over and performs complete review)
   for (const model of HEAVY_MODELS) {
     try {
       console.log(`Attempting deep review with heavy model: ${model}...`);
-      const heavyInstruction = buildSystemInstruction(false);
-      const result = await requestGeminiModel(model, prompt, heavyInstruction, true);
+      const heavyInstruction = buildSystemInstruction(false, hasFileContext);
+      const result = await requestGeminiModel(model, heavyPrompt, heavyInstruction, true);
       if (result) {
         console.log(`✅ Review successfully completed by heavy model: ${model}`);
         return result;
@@ -191,8 +254,8 @@ async function performReview(prompt) {
   for (const model of FALLBACK_MODELS) {
     try {
       console.log(`Attempting fallback review with: ${model}...`);
-      const fallbackInstruction = buildSystemInstruction(false);
-      const result = await requestGeminiModel(model, prompt, fallbackInstruction, true);
+      const fallbackInstruction = buildSystemInstruction(false, hasFileContext);
+      const result = await requestGeminiModel(model, heavyPrompt, fallbackInstruction, true);
       if (result) {
         console.log(`✅ Review successfully completed by fallback model: ${model}`);
         return result;
@@ -349,6 +412,15 @@ async function run() {
   const diff = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`, {
     headers: { "Accept": "application/vnd.github.v3.diff" }
   });
+
+  // Ensure local repository is checked out to the PR branch commit so on-demand file reads match PR state
+  try {
+    console.log(`Checking out PR branch ${pr.head.ref} (${pr.head.sha})...`);
+    execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    execSync(`git checkout ${pr.head.sha}`, { stdio: "ignore" });
+  } catch (err) {
+    console.warn(`Could not checkout PR branch locally (${err.message}). Reading disk files will use current branch.`);
+  }
 
   const previousComments = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/comments`);
   const historicalFeedback = Array.isArray(previousComments)
