@@ -204,7 +204,7 @@ Du SKAL starte dit JSON-svar med at evaluere PR'ens kompleksitet ("complexity_ev
 * **Score 4-5 (Moderat):** Enkelt nyt endpoint eller metode inden for et kendt mønster.
   -> Du håndterer den selv, medmindre du mangler en konkret fil (sæt da "verdict": "NEED_CONTEXT").
 * **Score 6-8 (Høj kompleksitet):** Ændringer på tværs af lag (Domain, Application, Api), nye interfaces/services, database/EF Core ændringer, async/concurrency.
-  -> Du SKAL eskalere til Gemini 3.8 Flash! Sæt "verdict": "ESCALATE" (eller "NEED_CONTEXT" hvis du mangler specifikke filer fra 'Repository Files').
+  -> Du SKAL eskalere til en heavy model! Sæt "verdict": "ESCALATE" (eller "NEED_CONTEXT" hvis du mangler specifikke filer fra 'Repository Files').
 * **Score 9-10 (Kritisk):** Dybe refactorings, nye kernemoduler, ændring af auth/sikkerhed, globale middlewares.
   -> Du SKAL sætte "verdict": "ESCALATE".
 
@@ -272,26 +272,74 @@ ${triageComplexityField}  "pr_summary_description": "Kort struktureret beskrivel
 `;
 }
 
-const MAX_TRIAGE_LINES = 120;
-const MAX_TRIAGE_CHARS = 6000;
+function extractFilePathFromDiffHeader(headerLine) {
+  const match = headerLine.match(/^diff --git\s+["']?[ab]\/(.+?)\s+["']?[ab]\/(.+?)(?:["']|\s|$)/);
+  if (!match) return "";
+  const pathA = match[1].replace(/^["']|["']$/g, "").trim();
+  const pathB = match[2].replace(/^["']|["']$/g, "").trim();
+  if (pathB && pathB !== "dev/null" && pathB !== "/dev/null") {
+    return pathB;
+  }
+  return pathA !== "dev/null" && pathA !== "/dev/null" ? pathA : "";
+}
+
+const FAST_PATH_MIN_LINES = 160;
+const FAST_PATH_MIN_CHARS = 8000;
+
+function shouldFastPath(diffText) {
+  if (!diffText) return false;
+
+  const chunks = diffText.split(/(?=^diff --git )/m);
+  let substantiveAddedLines = 0;
+  let substantiveChars = 0;
+
+  for (const chunk of chunks) {
+    if (!chunk.trim()) continue;
+
+    const firstLine = chunk.split("\n")[0] || "";
+    const filePath = extractFilePathFromDiffHeader(firstLine);
+
+    // Skip EF Core migration schema files from triggering fast-path
+    if (filePath && (filePath.includes("/Migrations/") || filePath.includes("\\Migrations\\"))) {
+      continue;
+    }
+
+    substantiveChars += chunk.length;
+
+    const lines = chunk.split("\n");
+    for (const line of lines) {
+      // Only count added lines (+), strictly ignore deletions (-) and diff headers (+++)
+      if (line.startsWith("+") && !line.startsWith("+++")) {
+        const content = line.substring(1).trim();
+        // Skip empty lines, standalone brackets, and single-line / comment lines
+        if (
+          !content ||
+          content === "{" ||
+          content === "}" ||
+          content === "};" ||
+          content.startsWith("//") ||
+          content.startsWith("/*") ||
+          content.startsWith("*") ||
+          content.startsWith("#")
+        ) {
+          continue;
+        }
+        substantiveAddedLines++;
+      }
+    }
+  }
+
+  if (substantiveAddedLines > FAST_PATH_MIN_LINES || substantiveChars > FAST_PATH_MIN_CHARS) {
+    console.log(`⚡ Substantial PR detected (${substantiveAddedLines} substantive added lines, ${substantiveChars} chars in core files). Fast-pathing directly to heavy reasoning models.`);
+    return true;
+  }
+
+  return false;
+}
 
 async function performReview(basePrompt, diffText = "") {
   const loadedFiles = new Map();
-  let escalated = false;
-
-  // Fast-Path: Skip triage if PR is obviously large in lines or characters
-  if (diffText) {
-    const changedLines = diffText
-      .split("\n")
-      .filter((l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---")))
-      .length;
-    const diffChars = diffText.length;
-
-    if (changedLines > MAX_TRIAGE_LINES || diffChars > MAX_TRIAGE_CHARS) {
-      console.log(`⚡ Substantial PR detected (${changedLines} changed lines, ${diffChars} chars). Fast-pathing directly to heavy reasoning models.`);
-      escalated = true;
-    }
-  }
+  let escalated = shouldFastPath(diffText);
 
   // Phase 1: Fast triage with light models (LIGHT_MODELS)
   if (!escalated) {
@@ -414,33 +462,56 @@ async function performReview(basePrompt, diffText = "") {
   throw new Error("All review models in all tiers failed.");
 }
 
+const IGNORED_DIFF_PATTERNS = [
+  /docs\/PROJECT_CONTEXT\.md/i,
+  /package-lock\.json$/i,
+  /packages\.lock\.json$/i,
+  /yarn\.lock$/i,
+  /pnpm-lock\.yaml$/i,
+  /\.Designer\.cs$/i,
+  /ModelSnapshot\.cs$/i,
+  /\.min\.(js|css)$/i,
+  /\.map$/i
+];
+
 function filterDiff(diffText) {
   return diffText
     .split(/(?=^diff --git )/m)
-    .filter((chunk) => !chunk.includes("docs/PROJECT_CONTEXT.md"))
+    .filter((chunk) => {
+      const firstLine = chunk.split("\n")[0] || "";
+      const filePath = extractFilePathFromDiffHeader(firstLine);
+      if (filePath && IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(filePath))) {
+        return false;
+      }
+      return !chunk.includes("docs/PROJECT_CONTEXT.md");
+    })
     .join("");
 }
 
 function parseDiffLines(diffText) {
   const fileLinesMap = new Map();
-  const fileDiffs = diffText.split(/^diff --git /m);
+  const fileDiffs = diffText.split(/(?=^diff --git )/m);
 
   for (const fileDiff of fileDiffs) {
     if (!fileDiff.trim()) continue;
-    const match = fileDiff.match(/^[a-b]\/(.+?)\s+[a-b]\/(.+)/m);
-    if (!match) continue;
-    const filePath = match[2].trim();
+    const firstLine = fileDiff.split("\n")[0] || "";
+    const filePath = extractFilePathFromDiffHeader(firstLine);
+    if (!filePath) continue;
 
     const addedLines = [];
     let currentNewLine = 0;
+    let inHunk = false;
     const lines = fileDiff.split("\n");
 
     for (const line of lines) {
       const hunkHeader = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
       if (hunkHeader) {
         currentNewLine = parseInt(hunkHeader[1], 10);
+        inHunk = true;
         continue;
       }
+
+      if (!inHunk) continue;
 
       if (line.startsWith("+") && !line.startsWith("+++")) {
         addedLines.push({
