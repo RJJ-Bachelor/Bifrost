@@ -98,7 +98,9 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
   }
 
   const data = await response.json();
-  const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
+  const rawText = answerPart?.text;
 
   if (!expectJson) {
     return rawText ? rawText.trim() : null;
@@ -304,8 +306,6 @@ function shouldFastPath(diffText) {
       continue;
     }
 
-    substantiveChars += chunk.length;
-
     const lines = chunk.split("\n");
     for (const line of lines) {
       // Only count added lines (+), strictly ignore deletions (-) and diff headers (+++)
@@ -325,6 +325,7 @@ function shouldFastPath(diffText) {
           continue;
         }
         substantiveAddedLines++;
+        substantiveChars += content.length;
       }
     }
   }
@@ -529,9 +530,13 @@ function parseDiffLines(diffText) {
   return fileLinesMap;
 }
 
-function matchSnippetToLine(fileLinesMap, filePath, snippet) {
-  const addedLines = fileLinesMap.get(filePath);
-  if (!addedLines || !snippet) return null;
+function matchSnippetToLine(fileLinesMap, rawPath, snippet) {
+  if (!rawPath || !snippet) return null;
+
+  // Clean up relative prefixes like ./, leading /, or a/ / b/ git prefixes
+  const cleanPath = rawPath.replace(/[`'"]/g, "").replace(/^\.?\//, "").replace(/^[ab]\//, "").trim();
+  const addedLines = fileLinesMap.get(cleanPath);
+  if (!addedLines) return null;
 
   const normalizedSnippet = snippet.trim();
   if (!normalizedSnippet) return null;
@@ -697,16 +702,19 @@ ${reviewDiff}
 
   if (Array.isArray(aiResult.inline_comments)) {
     for (const item of aiResult.inline_comments) {
-      const line = matchSnippetToLine(fileLinesMap, item.path, item.snippet);
+      const cleanPath = typeof item.path === "string"
+        ? item.path.replace(/[`'"]/g, "").replace(/^\.?\//, "").replace(/^[ab]\//, "").trim()
+        : "";
+      const line = matchSnippetToLine(fileLinesMap, cleanPath, item.snippet);
       if (line) {
         validComments.push({
-          path: item.path,
+          path: cleanPath,
           line: line,
           side: "RIGHT",
           body: item.comment
         });
       } else {
-        unmatchedComments.push(`* **${item.path}:** ${item.comment}`);
+        unmatchedComments.push(`* **${cleanPath || item.path}:** ${item.comment}`);
       }
     }
   }
@@ -734,21 +742,27 @@ ${reviewDiff}
       })
     });
   } catch (err) {
-    if (reviewEvent === "APPROVE" && err.message.includes("422")) {
-      console.warn("GitHub Actions is restricted from submitting formal APPROVE. Falling back to COMMENT review event...");
-      await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          commit_id: targetCommitSha,
-          event: "COMMENT",
-          body: `> **Status: ✅ Approved by AI Reviewer**\n\n${finalSummary}`,
-          comments: validComments
-        })
-      });
-    } else {
-      throw err;
-    }
+    console.warn(`Submitting review failed (${err.message}). Falling back to top-level comment review...`);
+
+    // If inline comments were rejected by GitHub diff context or APPROVE was disallowed (e.g. 422),
+    // append all inline comments into summary body and submit as a top-level COMMENT review
+    const fallbackSummary = validComments.length > 0
+      ? `${finalSummary}\n\n### 📝 Inline kommentarer\n` + validComments.map((c) => `* **\`${c.path}:${c.line}\`**: ${c.body}`).join("\n")
+      : finalSummary;
+
+    const fallbackBody = reviewEvent === "APPROVE"
+      ? `> **Status: ✅ Approved by AI Reviewer**\n\n${fallbackSummary}`
+      : fallbackSummary;
+
+    await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commit_id: targetCommitSha,
+        event: "COMMENT",
+        body: fallbackBody
+      })
+    });
   }
 
   console.log(`Review submitted with verdict: ${reviewEvent}`);
