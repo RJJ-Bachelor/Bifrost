@@ -53,7 +53,6 @@ function extractAndCleanJson(rawText) {
   if (!rawText) return null;
 
   let cleaned = rawText
-    .replace(/<\|channel\>thought[\s\S]*?<channel\|>/g, "")
     .replace(/```(?:json)?\s*([\s\S]*?)\s*```/gi, "$1")
     .replace(/`(\{[^`]*\})`/g, "$1")
     .trim();
@@ -106,7 +105,11 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
     return rawText ? rawText.trim() : null;
   }
 
-  return extractAndCleanJson(rawText);
+  const parsedJson = extractAndCleanJson(rawText);
+  if (!parsedJson && rawText) {
+    console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
+  }
+  return parsedJson;
 }
 
 function readRequestedFiles(requestedFiles) {
@@ -115,7 +118,11 @@ function readRequestedFiles(requestedFiles) {
   }
 
   const MAX_FILE_SIZE = 100 * 1024; // 100 KB limit per file
-  const IGNORED_EXTENSIONS = [".png", ".jpg", ".jpeg", ".lock", ".ico", ".pdf", ".dll", ".exe"];
+  const IGNORED_EXTENSIONS = [
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
+    ".lock", ".pdf", ".zip", ".tar.gz", ".dll", ".exe",
+    ".ttf", ".woff", ".woff2"
+  ];
   const fileContents = [];
 
   for (const rawPath of requestedFiles) {
@@ -124,7 +131,13 @@ function readRequestedFiles(requestedFiles) {
     if (!cleanPath || cleanPath === "docs/PROJECT_CONTEXT.md") continue;
     if (IGNORED_EXTENSIONS.some((ext) => cleanPath.toLowerCase().endsWith(ext))) continue;
 
-    const fullPath = path.join(process.cwd(), cleanPath);
+    // Prevent path traversal outside the repository
+    const fullPath = path.resolve(process.cwd(), cleanPath);
+    if (!fullPath.startsWith(process.cwd() + path.sep)) {
+      console.warn(`Path traversal attempt blocked: ${cleanPath}`);
+      continue;
+    }
+
     if (!fs.existsSync(fullPath)) {
       console.warn(`Requested file not found on disk: ${cleanPath}`);
       continue;
@@ -317,11 +330,15 @@ function matchSnippetToLine(fileLinesMap, filePath, snippet) {
   if (!addedLines || !snippet) return null;
 
   const normalizedSnippet = snippet.trim();
+  if (!normalizedSnippet) return null;
+
   const exactMatch = addedLines.find((item) => item.content === normalizedSnippet);
   if (exactMatch) return exactMatch.line;
 
+  // Prevent matching empty lines or matching against empty snippets
   const partialMatch = addedLines.find(
-    (item) => item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content)
+    (item) => item.content.length > 0 &&
+      (item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content))
   );
   return partialMatch ? partialMatch.line : null;
 }
