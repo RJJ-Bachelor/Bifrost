@@ -272,57 +272,76 @@ ${triageComplexityField}  "pr_summary_description": "Kort struktureret beskrivel
 `;
 }
 
-async function performReview(basePrompt) {
+const MAX_TRIAGE_LINES = 120;
+const MAX_TRIAGE_CHARS = 6000;
+
+async function performReview(basePrompt, diffText = "") {
   const loadedFiles = new Map();
   let escalated = false;
 
+  // Fast-Path: Skip triage if PR is obviously large in lines or characters
+  if (diffText) {
+    const changedLines = diffText
+      .split("\n")
+      .filter((l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---")))
+      .length;
+    const diffChars = diffText.length;
+
+    if (changedLines > MAX_TRIAGE_LINES || diffChars > MAX_TRIAGE_CHARS) {
+      console.log(`⚡ Substantial PR detected (${changedLines} changed lines, ${diffChars} chars). Fast-pathing directly to heavy reasoning models.`);
+      escalated = true;
+    }
+  }
+
   // Phase 1: Fast triage with light models (LIGHT_MODELS)
-  console.log("Evaluating PR with light triage models...");
-  for (const model of LIGHT_MODELS) {
-    try {
-      console.log(`Attempting triage with light model: ${model}...`);
-      const fastInstruction = buildSystemInstruction("TRIAGE", false);
-      const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
+  if (!escalated) {
+    console.log("Evaluating PR with light triage models...");
+    for (const model of LIGHT_MODELS) {
+      try {
+        console.log(`Attempting triage with light model: ${model}...`);
+        const fastInstruction = buildSystemInstruction("TRIAGE", false);
+        const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
 
-      if (result) {
-        if (result.complexity_evaluation) {
-          const comp = result.complexity_evaluation;
-          const score = Number(comp.scope_score) || 0;
-          const isCrossLayer = comp.cross_layer_impact === true || String(comp.cross_layer_impact).toLowerCase() === "true";
-          const hasUnseen = comp.has_unseen_dependencies === true || String(comp.has_unseen_dependencies).toLowerCase() === "true";
+        if (result) {
+          if (result.complexity_evaluation) {
+            const comp = result.complexity_evaluation;
+            const score = Number(comp.scope_score) || 0;
+            const isCrossLayer = comp.cross_layer_impact === true || String(comp.cross_layer_impact).toLowerCase() === "true";
+            const hasUnseen = comp.has_unseen_dependencies === true || String(comp.has_unseen_dependencies).toLowerCase() === "true";
 
-          console.log(`📊 PR Complexity [${model}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
-          if (comp.reasoning) {
-            console.log(`   Reasoning: ${comp.reasoning}`);
+            console.log(`📊 PR Complexity [${model}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
+            if (comp.reasoning) {
+              console.log(`   Reasoning: ${comp.reasoning}`);
+            }
+
+            // Programmatic safety guardrail: If model rated complexity >= 6 or cross-layer impact, enforce escalation
+            if ((score >= 6 || isCrossLayer) && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
+              console.log(`⚡ Complexity evaluation (score: ${score}/10, cross-layer: ${isCrossLayer}) requires heavy reasoning model. Overriding verdict to ESCALATE.`);
+              result.verdict = "ESCALATE";
+            }
           }
 
-          // Programmatic safety guardrail: If model rated complexity >= 6 or cross-layer impact, enforce escalation
-          if ((score >= 6 || isCrossLayer) && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
-            console.log(`⚡ Complexity evaluation (score: ${score}/10, cross-layer: ${isCrossLayer}) requires heavy reasoning model. Overriding verdict to ESCALATE.`);
-            result.verdict = "ESCALATE";
+          if (result.verdict === "NEED_CONTEXT") {
+            console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+            if (result.context_reason) {
+              console.log(`   Reason: ${result.context_reason}`);
+            }
+            loadRequestedFiles(result.requested_files, loadedFiles);
+            console.log("⚡ Escalating review to heavy model pool with requested file context...");
+            escalated = true;
+            break;
+          } else if (result.verdict === "ESCALATE") {
+            console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
+            escalated = true;
+            break;
+          } else {
+            console.log(`✅ Review successfully completed by light model: ${model}`);
+            return result;
           }
         }
-
-        if (result.verdict === "NEED_CONTEXT") {
-          console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
-          if (result.context_reason) {
-            console.log(`   Reason: ${result.context_reason}`);
-          }
-          loadRequestedFiles(result.requested_files, loadedFiles);
-          console.log("⚡ Escalating review to heavy model pool with requested file context...");
-          escalated = true;
-          break;
-        } else if (result.verdict === "ESCALATE") {
-          console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
-          escalated = true;
-          break;
-        } else {
-          console.log(`✅ Review successfully completed by light model: ${model}`);
-          return result;
-        }
+      } catch (err) {
+        console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
       }
-    } catch (err) {
-      console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
     }
   }
 
@@ -587,7 +606,7 @@ ${reviewDiff}
 \`\`\`
 `;
 
-  const aiResult = await performReview(prompt);
+  const aiResult = await performReview(prompt, reviewDiff);
 
   if (!pr.body || pr.body.trim().length === 0) {
     if (aiResult.pr_summary_description) {
