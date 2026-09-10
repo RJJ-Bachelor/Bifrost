@@ -472,7 +472,7 @@ async function performReview(basePrompt, diffText = "") {
 }
 
 const IGNORED_DIFF_PATTERNS = [
-  /docs\/PROJECT_CONTEXT\.md/i,
+  /(?:^|[\\/])docs[\\/]PROJECT_CONTEXT\.md$/i,
   /package-lock\.json$/i,
   /packages\.lock\.json$/i,
   /yarn\.lock$/i,
@@ -489,10 +489,8 @@ function filterDiff(diffText) {
     .filter((chunk) => {
       const firstLine = chunk.split("\n")[0] || "";
       const filePath = extractFilePathFromDiffHeader(firstLine);
-      if (filePath && IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(filePath))) {
-        return false;
-      }
-      return !chunk.includes("docs/PROJECT_CONTEXT.md");
+      if (!filePath) return true;
+      return !IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(filePath));
     })
     .join("");
 }
