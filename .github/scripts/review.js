@@ -11,18 +11,17 @@ const CONTEXT_FILE_PATH = path.join(process.cwd(), "docs", "PROJECT_CONTEXT.md")
 const GITHUB_API = "https://api.github.com";
 
 // Model Pools
-const FAST_MODEL = "gemini-3.5-flash-lite";
+const LIGHT_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemma-4-31b-it",
+  "gemma-4-26b-a4b-it"
+];
 const HEAVY_MODELS = [
   "gemini-3.8-flash",
   "gemini-3.7-flash",
   "gemini-3.6-flash",
   "gemini-3.5-flash"
-];
-const FALLBACK_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemma-4-31b-it",
-  "gemma-4-26b-a4b-it"
 ];
 
 async function githubFetch(endpoint, options = {}) {
@@ -215,29 +214,41 @@ Du SKAL svare i dette JSON-skema:
 }
 
 async function performReview(basePrompt) {
-  // Phase 1: Fast triage with gemini-3.5-flash-lite
-  console.log(`Evaluating PR with fast triage model (${FAST_MODEL})...`);
   let requestedFilesContext = "";
+  let escalated = false;
 
-  try {
-    const fastInstruction = buildSystemInstruction(true);
-    const result = await requestGeminiModel(FAST_MODEL, basePrompt, fastInstruction, true);
+  // Phase 1: Fast triage with light models (LIGHT_MODELS)
+  console.log("Evaluating PR with light triage models...");
+  for (const model of LIGHT_MODELS) {
+    try {
+      console.log(`Attempting triage with light model: ${model}...`);
+      const fastInstruction = buildSystemInstruction(true);
+      const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
 
-    if (result && result.verdict === "NEED_CONTEXT") {
-      console.log(`⚡ ${FAST_MODEL} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
-      if (result.context_reason) {
-        console.log(`   Reason: ${result.context_reason}`);
+      if (result && result.verdict === "NEED_CONTEXT") {
+        console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+        if (result.context_reason) {
+          console.log(`   Reason: ${result.context_reason}`);
+        }
+        requestedFilesContext = readRequestedFiles(result.requested_files);
+        console.log("⚡ Escalating review to heavy model pool with requested file context...");
+        escalated = true;
+        break;
+      } else if (result && result.verdict === "ESCALATE") {
+        console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
+        escalated = true;
+        break;
+      } else if (result) {
+        console.log(`✅ Review successfully completed by light model: ${model}`);
+        return result;
       }
-      requestedFilesContext = readRequestedFiles(result.requested_files);
-      console.log(`⚡ Escalating review to heavy model pool with requested file context...`);
-    } else if (result && result.verdict === "ESCALATE") {
-      console.log(`⚡ ${FAST_MODEL} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
-    } else if (result) {
-      console.log(`✅ Review successfully completed by ${FAST_MODEL}`);
-      return result;
+    } catch (err) {
+      console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
     }
-  } catch (err) {
-    console.warn(`Fast triage with ${FAST_MODEL} failed (${err.message}). Proceeding to model queue...`);
+  }
+
+  if (!escalated) {
+    console.warn("All light triage models failed or were unavailable. Falling back directly to heavy models...");
   }
 
   // Build enriched prompt if specific files were requested
@@ -248,6 +259,7 @@ async function performReview(basePrompt) {
   }
 
   // Phase 2: Try Heavy Models (heavy model takes over and performs complete review)
+  console.log("Attempting review with heavy reasoning models...");
   for (const model of HEAVY_MODELS) {
     try {
       console.log(`Attempting deep review with heavy model: ${model}...`);
@@ -258,23 +270,23 @@ async function performReview(basePrompt) {
         return result;
       }
     } catch (err) {
-      console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next...`);
+      console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next heavy model...`);
     }
   }
 
-  // Phase 3: Fallback queue with forced review (no escalation allowed)
-  console.log("Heavy models unavailable. Falling back to standard model queue with forced review...");
-  for (const model of FALLBACK_MODELS) {
+  // Phase 3: Emergency fallback queue with forced review on light models (no escalation allowed)
+  console.log("All heavy models failed. Falling back to light models with forced review as emergency backup...");
+  for (const model of LIGHT_MODELS) {
     try {
-      console.log(`Attempting fallback review with: ${model}...`);
+      console.log(`Attempting emergency review with light model: ${model}...`);
       const fallbackInstruction = buildSystemInstruction(false, hasFileContext);
       const result = await requestGeminiModel(model, heavyPrompt, fallbackInstruction, true);
       if (result) {
-        console.log(`✅ Review successfully completed by fallback model: ${model}`);
+        console.log(`✅ Review successfully completed by emergency light model: ${model}`);
         return result;
       }
     } catch (err) {
-      console.warn(`Fallback model ${model} failed (${err.message}). Trying next...`);
+      console.warn(`Emergency fallback model ${model} failed (${err.message}). Trying next...`);
     }
   }
 
@@ -375,7 +387,7 @@ ${diff}
     let response = null;
     let usedModel = null;
 
-    for (const model of [FAST_MODEL, ...FALLBACK_MODELS]) {
+    for (const model of [...LIGHT_MODELS, ...HEAVY_MODELS]) {
       try {
         response = await requestGeminiModel(model, prompt, systemInstruction, false);
         if (response) {
