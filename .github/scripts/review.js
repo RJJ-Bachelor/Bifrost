@@ -197,10 +197,18 @@ function buildSystemInstruction(mode, hasFileContext = false) {
   let verdictEnum = "";
 
   if (mode === "TRIAGE") {
-    contextRule = `6. **Eskalering & Kontekstbehov:**
-* Hvis du mangler overblik over en eller flere filer for at kunne vurdere ændringerne (f.eks. for at tjekke constructor/dependency injection, interfaces, klassedefinitioner eller omgivende metoder), SKAL du sætte "verdict": "NEED_CONTEXT", liste de præcise relative filstier fra 'Repository Files' i "requested_files" og give en kort begrundelse i "context_reason".
-* Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), SKAL du sætte "verdict": "ESCALATE".
-* Hvis ændringerne i diff'et er klare og du har tilstrækkelig viden, SKAL du levere en fuld anmeldelse med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
+    contextRule = `6. **Obligatorisk kompleksitets-score og eskalering:**
+Du SKAL starte dit JSON-svar med at evaluere PR'ens kompleksitet ("complexity_evaluation") ud fra denne faste rubrik:
+* **Score 1-3 (Lav / Trivial):** Stavefejl, dokumentation, simple bugfixes i 1 fil (< 30 linjer), små CSS/tekst-ændringer.
+  -> Du håndterer og godkender/kommenterer selv koden ("APPROVE" / "REQUEST_CHANGES" / "COMMENT").
+* **Score 4-5 (Moderat):** Enkelt nyt endpoint eller metode inden for et kendt mønster.
+  -> Du håndterer den selv, medmindre du mangler en konkret fil (sæt da "verdict": "NEED_CONTEXT").
+* **Score 6-8 (Høj kompleksitet):** Ændringer på tværs af lag (Domain, Application, Api), nye interfaces/services, database/EF Core ændringer, async/concurrency.
+  -> Du SKAL eskalere til Gemini 3.8 Flash! Sæt "verdict": "ESCALATE" (eller "NEED_CONTEXT" hvis du mangler specifikke filer fra 'Repository Files').
+* **Score 9-10 (Kritisk):** Dybe refactorings, nye kernemoduler, ændring af auth/sikkerhed, globale middlewares.
+  -> Du SKAL sætte "verdict": "ESCALATE".
+
+Hvis "scope_score" >= 6 eller "cross_layer_impact" er true, må du ALDRIG godkende selv. Du SKAL eskalere.`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
   } else if (mode === "HEAVY_INVESTIGATE") {
     contextRule = `6. **Supplerende fil-efterspørgsel:**
@@ -214,6 +222,16 @@ function buildSystemInstruction(mode, hasFileContext = false) {
 
   const fileContextSection = hasFileContext
     ? `\n* **Supplerende fil-kontekst:** Du har fået det fulde indhold af udvalgte filer under 'Requested File Contents'. Brug denne kontekst til at forstå arkitektur og afhængigheder, men fokuser dine fund og kommentarer på de konkrete ændringer i 'Git Diff'.`
+    : "";
+
+  const triageComplexityField = mode === "TRIAGE"
+    ? `  "complexity_evaluation": {
+    "scope_score": 1-10,
+    "cross_layer_impact": true | false,
+    "has_unseen_dependencies": true | false,
+    "reasoning": "Kort begrundelse for scoren (1 linje)"
+  },
+`
     : "";
 
   return `
@@ -238,7 +256,7 @@ ${contextRule}
 ## Output Format (JSON)
 Du SKAL svare i dette JSON-skema:
 {
-  "pr_summary_description": "Kort struktureret beskrivelse af PR'ens formål og ændringer (på dansk)",
+${triageComplexityField}  "pr_summary_description": "Kort struktureret beskrivelse af PR'ens formål og ændringer (på dansk)",
   "verdict": ${verdictEnum},
   "requested_files": ["sti/til/fil.cs"],
   "context_reason": "Kort forklaring på hvorfor du mangler kontekst (kun relevant ved NEED_CONTEXT)",
@@ -266,22 +284,42 @@ async function performReview(basePrompt) {
       const fastInstruction = buildSystemInstruction("TRIAGE", false);
       const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
 
-      if (result && result.verdict === "NEED_CONTEXT") {
-        console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
-        if (result.context_reason) {
-          console.log(`   Reason: ${result.context_reason}`);
+      if (result) {
+        if (result.complexity_evaluation) {
+          const comp = result.complexity_evaluation;
+          const score = Number(comp.scope_score) || 0;
+          const isCrossLayer = comp.cross_layer_impact === true || String(comp.cross_layer_impact).toLowerCase() === "true";
+          const hasUnseen = comp.has_unseen_dependencies === true || String(comp.has_unseen_dependencies).toLowerCase() === "true";
+
+          console.log(`📊 PR Complexity [${model}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
+          if (comp.reasoning) {
+            console.log(`   Reasoning: ${comp.reasoning}`);
+          }
+
+          // Programmatic safety guardrail: If model rated complexity >= 6 or cross-layer impact, enforce escalation
+          if ((score >= 6 || isCrossLayer) && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
+            console.log(`⚡ Complexity evaluation (score: ${score}/10, cross-layer: ${isCrossLayer}) requires heavy reasoning model. Overriding verdict to ESCALATE.`);
+            result.verdict = "ESCALATE";
+          }
         }
-        loadRequestedFiles(result.requested_files, loadedFiles);
-        console.log("⚡ Escalating review to heavy model pool with requested file context...");
-        escalated = true;
-        break;
-      } else if (result && result.verdict === "ESCALATE") {
-        console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
-        escalated = true;
-        break;
-      } else if (result) {
-        console.log(`✅ Review successfully completed by light model: ${model}`);
-        return result;
+
+        if (result.verdict === "NEED_CONTEXT") {
+          console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+          if (result.context_reason) {
+            console.log(`   Reason: ${result.context_reason}`);
+          }
+          loadRequestedFiles(result.requested_files, loadedFiles);
+          console.log("⚡ Escalating review to heavy model pool with requested file context...");
+          escalated = true;
+          break;
+        } else if (result.verdict === "ESCALATE") {
+          console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
+          escalated = true;
+          break;
+        } else {
+          console.log(`✅ Review successfully completed by light model: ${model}`);
+          return result;
+        }
       }
     } catch (err) {
       console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
