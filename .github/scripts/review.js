@@ -111,9 +111,9 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
   return parsedJson;
 }
 
-function readRequestedFiles(requestedFiles) {
+function loadRequestedFiles(requestedFiles, loadedFilesMap) {
   if (!Array.isArray(requestedFiles) || requestedFiles.length === 0) {
-    return "";
+    return 0;
   }
 
   const MAX_FILE_SIZE = 100 * 1024; // 100 KB limit per file
@@ -122,12 +122,13 @@ function readRequestedFiles(requestedFiles) {
     ".lock", ".pdf", ".zip", ".tar.gz", ".dll", ".exe",
     ".ttf", ".woff", ".woff2"
   ];
-  const fileContents = [];
+  let newFilesCount = 0;
 
   for (const rawPath of requestedFiles) {
     if (typeof rawPath !== "string") continue;
     const cleanPath = rawPath.replace(/[`'"]/g, "").replace(/^[ab]\//, "").trim();
     if (!cleanPath || cleanPath === "docs/PROJECT_CONTEXT.md") continue;
+    if (loadedFilesMap.has(cleanPath)) continue;
     if (IGNORED_EXTENSIONS.some((ext) => cleanPath.toLowerCase().endsWith(ext))) continue;
 
     // Prevent path traversal outside the repository
@@ -147,27 +148,44 @@ function readRequestedFiles(requestedFiles) {
       if (stat.isDirectory() || stat.size > MAX_FILE_SIZE) continue;
 
       const content = fs.readFileSync(fullPath, "utf-8");
-      fileContents.push(`#### File: \`${cleanPath}\`\n\`\`\`\n${content}\n\`\`\``);
+      loadedFilesMap.set(cleanPath, content);
+      newFilesCount++;
     } catch (err) {
       console.warn(`Could not read requested file ${cleanPath}: ${err.message}`);
     }
   }
 
-  return fileContents.join("\n\n");
+  return newFilesCount;
 }
 
-function buildSystemInstruction(allowEscalation, hasFileContext = false) {
-  let escalationRule = "";
+function formatLoadedFiles(loadedFilesMap) {
+  if (!loadedFilesMap || loadedFilesMap.size === 0) {
+    return "";
+  }
+  const parts = [];
+  for (const [filePath, content] of loadedFilesMap.entries()) {
+    parts.push(`#### File: \`${filePath}\`\n\`\`\`\n${content}\n\`\`\``);
+  }
+  return parts.join("\n\n");
+}
+
+function buildSystemInstruction(mode, hasFileContext = false) {
+  let contextRule = "";
   let verdictEnum = "";
 
-  if (allowEscalation) {
-    escalationRule = `6. **Eskalering & Kontekstbehov:**
+  if (mode === "TRIAGE") {
+    contextRule = `6. **Eskalering & Kontekstbehov:**
 * Hvis du mangler overblik over en eller flere filer for at kunne vurdere ændringerne (f.eks. for at tjekke constructor/dependency injection, interfaces, klassedefinitioner eller omgivende metoder), SKAL du sætte "verdict": "NEED_CONTEXT", liste filerne i "requested_files" og give en kort begrundelse i "context_reason".
 * Hvis denne PR indeholder usædvanlig høj kompleksitet (f.eks. dybe arkitektoniske refactoringer på tværs af mange moduler, indviklede algoritmer eller subtile concurrency/race conditions), SKAL du sætte "verdict": "ESCALATE".
 * Hvis ændringerne i diff'et er klare og du har tilstrækkelig viden, SKAL du levere en fuld anmeldelse med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
+  } else if (mode === "HEAVY_INVESTIGATE") {
+    contextRule = `6. **Supplerende fil-efterspørgsel:**
+* Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de specifikke filer i "requested_files" og forklare hvorfor i "context_reason".
+* Hvis du allerede har tilstrækkelig information i diff'et og den hidtidige kontekst, SKAL du levere det endelige review med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
+    verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "NEED_CONTEXT"`;
   } else {
-    escalationRule = `6. **Ingen eskalering:** Du SKAL levere en fuld og endelig anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere eller bede om yderligere kontekst.`;
+    contextRule = `6. **Endelig anmeldelse:** Du SKAL levere en fuld og endelig anmeldelse med verdict "APPROVE", "REQUEST_CHANGES" eller "COMMENT". Du må IKKE eskalere eller bede om yderligere filer.`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT"`;
   }
 
@@ -192,7 +210,7 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 3. **Clean Architecture & Mappestruktur:** Tjek at afhængigheder peger indad. Ingen databasekald i controllers eller forretningslogik i forkerte lag.
 4. **Tests (Non-blocking):** Gør venligt opmærksom på manglende tests ved ændret kerneforretningslogik.
 5. **Opfølgning på historik:** Tjek om tidligere påpegede fejl er blevet udbedret.
-${escalationRule}
+${contextRule}
 
 ## Output Format (JSON)
 Du SKAL svare i dette JSON-skema:
@@ -214,7 +232,7 @@ Du SKAL svare i dette JSON-skema:
 }
 
 async function performReview(basePrompt) {
-  let requestedFilesContext = "";
+  const loadedFiles = new Map();
   let escalated = false;
 
   // Phase 1: Fast triage with light models (LIGHT_MODELS)
@@ -222,7 +240,7 @@ async function performReview(basePrompt) {
   for (const model of LIGHT_MODELS) {
     try {
       console.log(`Attempting triage with light model: ${model}...`);
-      const fastInstruction = buildSystemInstruction(true);
+      const fastInstruction = buildSystemInstruction("TRIAGE", false);
       const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
 
       if (result && result.verdict === "NEED_CONTEXT") {
@@ -230,7 +248,7 @@ async function performReview(basePrompt) {
         if (result.context_reason) {
           console.log(`   Reason: ${result.context_reason}`);
         }
-        requestedFilesContext = readRequestedFiles(result.requested_files);
+        loadRequestedFiles(result.requested_files, loadedFiles);
         console.log("⚡ Escalating review to heavy model pool with requested file context...");
         escalated = true;
         break;
@@ -251,21 +269,39 @@ async function performReview(basePrompt) {
     console.warn("All light triage models failed or were unavailable. Falling back directly to heavy models...");
   }
 
-  // Build enriched prompt if specific files were requested
-  let heavyPrompt = basePrompt;
-  const hasFileContext = Boolean(requestedFilesContext && requestedFilesContext.trim().length > 0);
-  if (hasFileContext) {
-    heavyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${requestedFilesContext}\n`;
-  }
-
-  // Phase 2: Try Heavy Models (heavy model takes over and performs complete review)
+  // Phase 2: Try Heavy Models (with controlled 2-round deep context investigation)
   console.log("Attempting review with heavy reasoning models...");
   for (const model of HEAVY_MODELS) {
     try {
       console.log(`Attempting deep review with heavy model: ${model}...`);
-      const heavyInstruction = buildSystemInstruction(false, hasFileContext);
-      const result = await requestGeminiModel(model, heavyPrompt, heavyInstruction, true);
-      if (result) {
+
+      // Round 1: Heavy model receives current context and can either complete review or request deeper context
+      let filesText = formatLoadedFiles(loadedFiles);
+      let heavyPrompt = filesText
+        ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`
+        : basePrompt;
+
+      const investigateInstruction = buildSystemInstruction("HEAVY_INVESTIGATE", loadedFiles.size > 0);
+      let result = await requestGeminiModel(model, heavyPrompt, investigateInstruction, true);
+
+      if (result && result.verdict === "NEED_CONTEXT") {
+        console.log(`⚡ ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        if (result.context_reason) {
+          console.log(`   Reason: ${result.context_reason}`);
+        }
+        const addedCount = loadRequestedFiles(result.requested_files, loadedFiles);
+        if (addedCount > 0) {
+          console.log(`Loaded ${addedCount} additional file(s) into context. Executing final evaluation round with ${model}...`);
+          filesText = formatLoadedFiles(loadedFiles);
+          heavyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`;
+        }
+
+        // Round 2: Forced final review (cannot request additional context)
+        const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+        result = await requestGeminiModel(model, heavyPrompt, finalInstruction, true);
+      }
+
+      if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
         console.log(`✅ Review successfully completed by heavy model: ${model}`);
         return result;
       }
@@ -276,12 +312,17 @@ async function performReview(basePrompt) {
 
   // Phase 3: Emergency fallback queue with forced review on light models (no escalation allowed)
   console.log("All heavy models failed. Falling back to light models with forced review as emergency backup...");
+  const emergencyFilesText = formatLoadedFiles(loadedFiles);
+  const emergencyPrompt = emergencyFilesText
+    ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${emergencyFilesText}\n`
+    : basePrompt;
+
   for (const model of LIGHT_MODELS) {
     try {
       console.log(`Attempting emergency review with light model: ${model}...`);
-      const fallbackInstruction = buildSystemInstruction(false, hasFileContext);
-      const result = await requestGeminiModel(model, heavyPrompt, fallbackInstruction, true);
-      if (result) {
+      const fallbackInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+      const result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+      if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
         console.log(`✅ Review successfully completed by emergency light model: ${model}`);
         return result;
       }
