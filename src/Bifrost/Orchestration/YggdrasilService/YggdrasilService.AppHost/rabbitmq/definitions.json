@@ -1,0 +1,63 @@
+{
+  "users": [
+    {
+      "name": "rabbitadmin",
+      "password_hash": "elAXqZ+dXheHPVFGxfmzsCznh93Tla16gNBKbB8dkzUvFTv5",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": ["administrator"]
+    },
+    {
+      "name": "eirservice",
+      "password_hash": "wB1WFwxoVhhp4YOrV8iBvfDBTodbqSpMIhX2P7t8Aa3amZ4j",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": []
+    },
+    {
+      "name": "mimirservice",
+      "password_hash": "3yRkffi5ezO66867FabrTV27G00pT2KUbxIT2kRDEqauxEUp",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": []
+    },
+    {
+      "name": "gnaservice",
+      "password_hash": "1oXXnENVlQbiDzEyPuDTrYD2aLe6swZQK0KYCQi2RgCfSyJP",
+      "hashing_algorithm": "rabbit_password_hashing_sha256",
+      "tags": []
+    }
+  ],
+  "vhosts": [
+    {
+      "name": "/"
+    }
+  ],
+  "permissions": [
+    {
+      "user": "rabbitadmin",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "eirservice",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "mimirservice",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    },
+    {
+      "user": "gnaservice",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ]
+}
