@@ -3,6 +3,32 @@
   <Folder Name="/Backend/EirService/">
     <Project Path="Backend/EirService/EirService.Api/EirService.Api.csproj" />
   </Folder>
+  <Folder Name="/Backend/EirService/Modules/" />
+  <Folder Name="/Backend/EirService/Modules/KnowledgeBase/">
+    <Project Path="Backend/EirService/Modules/KnowledgeBase/EirService.KnowledgeBase.Application/EirService.KnowledgeBase.Application.csproj" Id="1c4c873c-b0cf-46ad-bd0a-e3c1c065065f" />
+    <Project Path="Backend/EirService/Modules/KnowledgeBase/EirService.KnowledgeBase.Domain/EirService.KnowledgeBase.Domain.csproj" Id="3650b0f4-eee2-450b-b947-ad1fe0db4826" />
+    <Project Path="Backend/EirService/Modules/KnowledgeBase/EirService.KnowledgeBase.Infrastructure/EirService.KnowledgeBase.Infrastructure.csproj" Id="fef6d78d-3d32-42d1-814d-fe301a9b4b23" />
+  </Folder>
+  <Folder Name="/Backend/EirService/Modules/Participants/">
+    <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Application/EirService.Participants.Application.csproj" Id="7f4a2806-c186-4ee3-8f54-4f53397b4915" />
+    <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Domain/EirService.Participants.Domain.csproj" Id="0672d4c0-7cba-4482-878d-559463e91324" />
+    <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Infrastructure/EirService.Participants.Infrastructure.csproj" Id="d7354219-4797-4858-8258-cd29311fb22f" />
+  </Folder>
+  <Folder Name="/Backend/EirService/Modules/Reporting/">
+    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Application/EirService.Reporting.Application.csproj" Id="9637bb32-464d-4b99-a946-260e62e4bebc" />
+    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Domain/EirService.Reporting.Domain.csproj" Id="5af78979-447f-41c1-ac9b-664b094d7315" />
+    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Infrastructure/EirService.Reporting.Infrastructure.csproj" Id="33816577-533d-46f6-9b6f-7c9bbd91c8f3" />
+  </Folder>
+  <Folder Name="/Backend/EirService/Modules/Requests/">
+    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Application/EirService.Requests.Application.csproj" Id="fc011181-c763-4102-a38f-2e68093f17ae" />
+    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Domain/EirService.Requests.Domain.csproj" Id="4094b927-38a0-476f-b4a4-15503493ab1e" />
+    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Infrastructure/EirService.Requests.Infrastructure.csproj" Id="853950eb-ed8c-4d1e-84ab-d3345312331b" />
+  </Folder>
+  <Folder Name="/Backend/EirService/Modules/Sessions/">
+    <Project Path="Backend/EirService/Modules/Sessions/EirService.Sessions.Application/EirService.Sessions.Application.csproj" Id="75d6b989-fa86-42a3-b190-c87905d3c931" />
+    <Project Path="Backend/EirService/Modules/Sessions/EirService.Sessions.Domain/EirService.Sessions.Domain.csproj" Id="31fba495-8d77-485c-a3f2-69c9b4e273bc" />
+    <Project Path="Backend/EirService/Modules/Sessions/EirService.Sessions.Infrastructure/EirService.Sessions.Infrastructure.csproj" Id="66db46b9-2bfe-4f26-82d8-7a996d45cf06" />
+  </Folder>
   <Folder Name="/Backend/GnaService/">
     <Project Path="Backend/GnaService/GnaService.Api/GnaService.Api.csproj" />
     <Project Path="Backend/GnaService/GnaService.Application/GnaService.Application.csproj" Id="e57cff89-43d6-4667-81fe-206b044430d2" />
@@ -14,6 +40,12 @@
     <Project Path="Backend/MimirService/MimirService.Application/MimirService.Application.csproj" Id="c78544e8-0645-4869-84e8-264250fa7130" />
     <Project Path="Backend/MimirService/MimirService.Domain/MimirService.Domain.csproj" Id="e1e00ea8-21a6-4ac5-a02b-cdd1563314b8" />
     <Project Path="Backend/MimirService/MimirService.Infrastructure/MimirService.Infrastructure.csproj" Id="5cdf2735-5571-4925-91e1-a777a98169a1" />
+  </Folder>
+  <Folder Name="/Backend/Shared/">
+    <Project Path="Backend/Shared/Shared.Api/Shared.Api.csproj" Id="976bea3b-b158-423e-9bc2-f9404c95da1a" />
+    <Project Path="Backend/Shared/Shared.Application/Shared.Application.csproj" Id="2416aa74-447e-43a4-a2fd-98da276fd814" />
+    <Project Path="Backend/Shared/Shared.Domain/Shared.Domain.csproj" Id="090c9118-29d8-4628-bccf-95beedf657e9" />
+    <Project Path="Backend/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" Id="507a4888-ef24-42b0-81ca-3365b3a7216c" />
   </Folder>
   <Folder Name="/Frontend/">
     <Project Path="Frontend/GlitnirFrontend/GlitnirFrontend.esproj">
