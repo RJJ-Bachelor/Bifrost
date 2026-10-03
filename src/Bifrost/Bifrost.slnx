@@ -1,0 +1,35 @@
+<Solution>
+  <Folder Name="/Backend/" />
+  <Folder Name="/Backend/EirService/">
+    <Project Path="Backend/EirService/EirService.Api/EirService.Api.csproj" />
+  </Folder>
+  <Folder Name="/Backend/GnaService/">
+    <Project Path="Backend/GnaService/GnaService.Api/GnaService.Api.csproj" />
+    <Project Path="Backend/GnaService/GnaService.Application/GnaService.Application.csproj" Id="e57cff89-43d6-4667-81fe-206b044430d2" />
+    <Project Path="Backend/GnaService/GnaService.Domain/GnaService.Domain.csproj" Id="6d71f14e-cdd2-47e6-8b35-39c6f1dfe6ee" />
+    <Project Path="Backend/GnaService/GnaService.Infrastructure/GnaService.Infrastructure.csproj" Id="484d328e-d20a-41db-b025-2618a2aa0f89" />
+  </Folder>
+  <Folder Name="/Backend/MimirService/">
+    <Project Path="Backend/MimirService/MimirService.Api/MimirService.Api.csproj" />
+    <Project Path="Backend/MimirService/MimirService.Application/MimirService.Application.csproj" Id="c78544e8-0645-4869-84e8-264250fa7130" />
+    <Project Path="Backend/MimirService/MimirService.Domain/MimirService.Domain.csproj" Id="e1e00ea8-21a6-4ac5-a02b-cdd1563314b8" />
+    <Project Path="Backend/MimirService/MimirService.Infrastructure/MimirService.Infrastructure.csproj" Id="5cdf2735-5571-4925-91e1-a777a98169a1" />
+  </Folder>
+  <Folder Name="/Frontend/">
+    <Project Path="Frontend/GlitnirFrontend/GlitnirFrontend.esproj">
+      <Build />
+      <Deploy />
+    </Project>
+  </Folder>
+  <Folder Name="/Orchestration/">
+    <Project Path="Orchestration/HeimdallGateway/HeimdallGateway.csproj" />
+    <Project Path="Orchestration/YggdrasilService/YggdrasilService.AppHost/YggdrasilService.AppHost.csproj" Id="3062fc6e-88ed-49d1-9038-ce5d3e45be5e" />
+    <Project Path="Orchestration/YggdrasilService/YggdrasilService.ServiceDefaults/YggdrasilService.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/Temp/">
+    <Project Path="Temp/TestFrontend/TestFrontend.esproj">
+      <Build />
+      <Deploy />
+    </Project>
+  </Folder>
+</Solution>
