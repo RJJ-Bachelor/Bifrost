@@ -14,4 +14,9 @@
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Endpoints\Teacher\" />
+    <Folder Include="Endpoints\Student\" />
+  </ItemGroup>
+
 </Project>

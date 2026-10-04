@@ -1,0 +1,23 @@
+info:
+  name: Test
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: https://localhost:61000/api/students/sendmessages
+  body:
+    type: json
+    data: |-
+      {
+        "id": "123456",
+        "message": "Hjææælp...."
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
