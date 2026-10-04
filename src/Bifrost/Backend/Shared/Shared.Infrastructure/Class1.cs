@@ -1,7 +1,1 @@
-﻿namespace Shared.Infrastructure
-{
-    public class Class1
-    {
-
-    }
-}
+namespace Shared.Infrastructure;

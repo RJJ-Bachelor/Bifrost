@@ -20,15 +20,13 @@ var keycloak = builder.AddKeycloak("keycloak", 5000)
     .WithRealmImport("./keycloak/Bifrost-realm.json");
 
 
-var rabbitmqUsername = builder.AddParameter("rabbitmq-username");
-var rabbitmqPassword = builder.AddParameter("rabbitmq-password", secret: true);
+var rabbitmqUsername = builder.AddParameter("rabbitmq-username", "guest");
+var rabbitmqPassword = builder.AddParameter("rabbitmq-password", "guest", secret: true);
 
 var rabbitmq = builder.AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5002)
     .WithPersistentLifetime()
     .WithDataVolume()
-    .WithManagementPlugin(port: 5003)
-    .WithBindMount("./rabbitmq/rabbitmq.conf", "/etc/rabbitmq/rabbitmq.conf")
-    .WithBindMount("./rabbitmq/definitions.json", "/etc/rabbitmq/definitions.json");
+    .WithManagementPlugin(port: 5003);
 
 var postgres = builder.AddPostgres("postgres", port: 5001)
     .WithPersistentLifetime()
