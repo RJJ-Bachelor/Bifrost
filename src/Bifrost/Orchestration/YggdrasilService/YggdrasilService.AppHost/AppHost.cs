@@ -18,20 +18,23 @@ var keycloak = builder.AddKeycloak("keycloak", 5000)
     .WithPersistentLifetime()
     .WithDataVolume()
     .WithRealmImport("./keycloak/Bifrost-realm.json");
-#pragma warning restore ASPIREPERSISTENCE001
+
 
 var rabbitmqUsername = builder.AddParameter("rabbitmq-username");
 var rabbitmqPassword = builder.AddParameter("rabbitmq-password", secret: true);
 
 var rabbitmq = builder.AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5002)
+    .WithPersistentLifetime()
     .WithDataVolume()
     .WithManagementPlugin(port: 5003)
     .WithBindMount("./rabbitmq/rabbitmq.conf", "/etc/rabbitmq/rabbitmq.conf")
     .WithBindMount("./rabbitmq/definitions.json", "/etc/rabbitmq/definitions.json");
 
 var postgres = builder.AddPostgres("postgres", port: 5001)
+    .WithPersistentLifetime()
     .WithDataVolume()
     .WithInitFiles("./postgres/init");
+#pragma warning restore ASPIREPERSISTENCE001
 
 var bifrostDatabase = postgres.AddDatabase("bifrost");
 
