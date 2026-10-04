@@ -8,17 +8,22 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Modules\KnowledgeBase\EirService.KnowledgeBase.Application\EirService.KnowledgeBase.Application.csproj" />
+    <ProjectReference Include="..\Modules\Participants\EirService.Participants.Application\EirService.Participants.Application.csproj" />
+    <ProjectReference Include="..\Modules\Reporting\EirService.Reporting.Application\EirService.Reporting.Application.csproj" />
+    <ProjectReference Include="..\Modules\Requests\EirService.Requests.Application\EirService.Requests.Application.csproj" />
+    <ProjectReference Include="..\Modules\Sessions\EirService.Sessions.Application\EirService.Sessions.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Folder Include="Endpoints\Teacher\" />
-    <Folder Include="Endpoints\Student\" />
   </ItemGroup>
 
 </Project>
