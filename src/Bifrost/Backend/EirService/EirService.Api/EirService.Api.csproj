@@ -19,6 +19,7 @@
     <ProjectReference Include="..\Modules\Participants\EirService.Participants.Application\EirService.Participants.Application.csproj" />
     <ProjectReference Include="..\Modules\Reporting\EirService.Reporting.Application\EirService.Reporting.Application.csproj" />
     <ProjectReference Include="..\Modules\Requests\EirService.Requests.Application\EirService.Requests.Application.csproj" />
+    <ProjectReference Include="..\Modules\Requests\EirService.Requests.Infrastructure\EirService.Requests.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Sessions\EirService.Sessions.Application\EirService.Sessions.Application.csproj" />
   </ItemGroup>
 

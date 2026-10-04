@@ -12,4 +12,8 @@
     <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\EirService.Requests.Domain\EirService.Requests.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

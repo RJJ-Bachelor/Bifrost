@@ -2,6 +2,8 @@
 using EirService.Api.Extensions;
 using EirService.Requests.Application.Behaviors;
 using EirService.Requests.Application.Features.Commands.CreateRequest;
+using EirService.Requests.Infrastructure;
+using EirService.Requests.Infrastructure.Persistence;
 using FluentValidation;
 using MediatR;
 
@@ -13,6 +15,7 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
+        builder.Services.AddRequestsInfrastructure(builder.Configuration);
 
         // Add services to the container.
         builder.Services.AddAuthorization();
@@ -28,6 +31,12 @@ public class Program
         builder.Services.AddOpenApi();
 
         var app = builder.Build();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+            dbContext.Database.EnsureCreated();
+        }
 
         app.MapEndpoints();
 

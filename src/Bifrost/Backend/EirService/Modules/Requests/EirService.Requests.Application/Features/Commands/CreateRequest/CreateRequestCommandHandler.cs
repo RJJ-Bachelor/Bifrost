@@ -1,14 +1,19 @@
-﻿using MediatR;
+﻿using EirService.Requests.Application.Repositories;
+using EirService.Requests.Domain.Entities;
+using MediatR;
 
 namespace EirService.Requests.Application.Features.Commands.CreateRequest
 {
-    public class CreateRequestCommandHandler() : IRequestHandler<CreateRequestCommand, string>
+    public sealed class CreateRequestCommandHandler(IRequestRepository requestRepository)
+        : IRequestHandler<CreateRequestCommand, string>
     {
         public async Task<string> Handle(CreateRequestCommand request, CancellationToken cancellationToken)
         {
-            // Comming soon - Implementation for handling the CreateRequestCommand
+            var eirRequest = new EirRequest(request.Id, request.Message);
 
-            return "Return form handler";
+            await requestRepository.AddAsync(eirRequest, cancellationToken);
+
+            return eirRequest.Id;
         }
     }
 }
