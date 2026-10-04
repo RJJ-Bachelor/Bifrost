@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Application.Messaging;
 
 namespace Shared.Infrastructure.Persistence.Messaging;
 

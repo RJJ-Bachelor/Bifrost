@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\MimirService.Infrastructure\MimirService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

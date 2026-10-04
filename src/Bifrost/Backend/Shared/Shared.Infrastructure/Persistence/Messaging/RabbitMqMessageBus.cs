@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
+using Shared.Application.Messaging;
 
 namespace Shared.Infrastructure.Persistence.Messaging;
 

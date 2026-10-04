@@ -1,4 +1,4 @@
-namespace EirService.Requests.Application.Messaging;
+namespace Shared.Application.Messaging;
 
 public interface IRequestMessagePublisher
 {

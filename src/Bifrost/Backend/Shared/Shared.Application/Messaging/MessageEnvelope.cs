@@ -1,3 +1,3 @@
-namespace Shared.Infrastructure.Persistence.Messaging;
+namespace Shared.Application.Messaging;
 
 public sealed record MessageEnvelope<T>(string Id, T Payload);

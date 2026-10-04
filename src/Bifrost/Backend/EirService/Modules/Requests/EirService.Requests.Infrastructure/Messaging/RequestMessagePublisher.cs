@@ -1,5 +1,4 @@
-using EirService.Requests.Application.Messaging;
-using Shared.Infrastructure.Persistence.Messaging;
+using Shared.Application.Messaging;
 
 namespace EirService.Requests.Infrastructure.Messaging;
 
@@ -16,7 +15,7 @@ internal sealed class RequestMessagePublisher(IMessageBus messageBus)
     {
         return messageBus.PublishAsync(
             id,
-            message,
+            new RequestCreatedMessage(message),
             ExchangeName,
             RequestCreatedRoutingKey,
             cancellationToken);

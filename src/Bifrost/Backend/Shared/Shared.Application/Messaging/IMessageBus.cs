@@ -1,4 +1,4 @@
-namespace Shared.Infrastructure.Persistence.Messaging;
+namespace Shared.Application.Messaging;
 
 public interface IMessageBus
 {
