@@ -1,4 +1,5 @@
 using EirService.Requests.Application.Repositories;
+using EirService.Requests.Application.Messaging;
 using EirService.Requests.Infrastructure.Messaging;
 using EirService.Requests.Infrastructure.Persistence;
 using EirService.Requests.Infrastructure.Repositories;
@@ -28,7 +29,9 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
         services.AddRabbitMqMessageBus(configuration);
         services.AddScoped<IRequestMessagePublisher, RequestMessagePublisher>();
+        services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
         services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddHostedService<GeneralizedMessageSubscriber>();
 
         return services;
     }

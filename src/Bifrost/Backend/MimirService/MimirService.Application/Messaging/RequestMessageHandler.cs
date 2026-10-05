@@ -4,9 +4,10 @@ using Shared.Application.Messaging;
 namespace MimirService.Application.Messaging;
 
 public sealed class RequestMessageHandler(
-    ILogger<RequestMessageHandler> logger) : IRequestMessageHandler
+    ILogger<RequestMessageHandler> logger,
+    IGeneralizedMessagePublisher messagePublisher) : IRequestMessageHandler
 {
-    public Task HandleAsync(
+    public async Task HandleAsync(
         MessageEnvelope<RequestCreatedMessage> message,
         CancellationToken cancellationToken)
     {
@@ -15,6 +16,9 @@ public sealed class RequestMessageHandler(
             message.Id,
             message.Payload.Message);
 
-        return Task.CompletedTask;
+        await messagePublisher.PublishGeneralizedCreatedAsync(
+            message.Id,
+            message.Payload.Message,
+            cancellationToken);
     }
 }
