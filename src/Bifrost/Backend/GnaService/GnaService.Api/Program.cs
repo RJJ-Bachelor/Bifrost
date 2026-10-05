@@ -1,5 +1,6 @@
 
 using GnaService.Infrastructure;
+using GnaService.Infrastructure.Persistence;
 
 namespace GnaService.Api;
 
@@ -18,6 +19,13 @@ public class Program
         builder.Services.AddOpenApi();
 
         var app = builder.Build();
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<GnaNotificationDbContext>();
+            dbContext.Database.EnsureCreated();
+        }
 
         app.MapDefaultEndpoints();
 

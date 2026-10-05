@@ -34,12 +34,13 @@ var postgres = builder.AddPostgres("postgres", port: 5001)
     .WithInitFiles("./postgres/init");
 #pragma warning restore ASPIREPERSISTENCE001
 
-var bifrostDatabase = postgres.AddDatabase("bifrost");
+var eirDatabase = postgres.AddDatabase("eir");
+var gnaDatabase = postgres.AddDatabase("gna");
 
 var eirService = builder.AddProject<Projects.EirService_Api>("eirservice-api")
     .WithReference(keycloak)
     .WithReference(rabbitmq)
-    .WithReference(bifrostDatabase)
+    .WithReference(eirDatabase)
     .WithHttpEndpoint(port: 6000)
     .WaitFor(keycloak)
     .WaitFor(rabbitmq)
@@ -48,7 +49,7 @@ var eirService = builder.AddProject<Projects.EirService_Api>("eirservice-api")
 var mimirService = builder.AddProject<Projects.MimirService_Api>("mimirservice-api")
     .WithReference(keycloak)
     .WithReference(rabbitmq)
-    .WithReference(bifrostDatabase)
+    .WithReference(eirDatabase)
     .WithHttpEndpoint(port: 6002)
     .WaitFor(keycloak)
     .WaitFor(rabbitmq)
@@ -57,7 +58,7 @@ var mimirService = builder.AddProject<Projects.MimirService_Api>("mimirservice-a
 var gnaService = builder.AddProject<Projects.GnaService_Api>("gnaservice-api")
     .WithReference(keycloak)
     .WithReference(rabbitmq)
-    .WithReference(bifrostDatabase)
+    .WithReference(gnaDatabase)
     .WithHttpEndpoint(port: 6001)
     .WaitFor(keycloak)
     .WaitFor(rabbitmq)
@@ -66,7 +67,7 @@ var gnaService = builder.AddProject<Projects.GnaService_Api>("gnaservice-api")
 var heimdallGateway = builder.AddProject<Projects.HeimdallGateway>("heimdallgateway")
     .WithReference(keycloak)
     .WithReference(rabbitmq)
-    .WithReference(bifrostDatabase)
+    .WithReference(eirDatabase)
     .WithReference(eirService)
     .WithReference(mimirService)
     .WithReference(gnaService)

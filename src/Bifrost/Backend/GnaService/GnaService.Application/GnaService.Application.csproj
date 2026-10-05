@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.Application\Shared.Application.csproj" />
+    <ProjectReference Include="..\GnaService.Domain\GnaService.Domain.csproj" />
   </ItemGroup>
 
 </Project>

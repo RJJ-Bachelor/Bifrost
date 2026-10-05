@@ -17,12 +17,12 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("bifrost");
+        var connectionString = configuration.GetConnectionString("eir");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException(
-                "The 'bifrost' PostgreSQL connection string is not configured.");
+                "The 'eir' PostgreSQL connection string is not configured.");
         }
 
         services.AddDbContext<EirRequestDbContext>(options =>

@@ -16,6 +16,8 @@ public sealed class RequestMessageHandler(
             message.Id,
             message.Payload.Message);
 
+            // add to database
+
         await messagePublisher.PublishGeneralizedCreatedAsync(
             message.Id,
             message.Payload.Message,

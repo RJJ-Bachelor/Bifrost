@@ -1,12 +1,15 @@
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
+using GnaService.Application.Repositories;
+using GnaService.Domain.Entities;
 
 namespace GnaService.Application.Messaging;
 
 public sealed class NotificationMessageHandler(
-    ILogger<NotificationMessageHandler> logger) : INotificationMessageHandler
+    ILogger<NotificationMessageHandler> logger,
+    INotificationRepository notificationRepository) : INotificationMessageHandler
 {
-    public Task HandleAsync(
+    public async Task HandleAsync(
         MessageEnvelope<NotificationCreatedMessage> message,
         CancellationToken cancellationToken)
     {
@@ -16,8 +19,11 @@ public sealed class NotificationMessageHandler(
             message.Payload.UserId,
             message.Payload.Messages);
 
-            // Save the notification to the database
+        var notification = Notification.Create(
+            message.Id,
+            message.Payload.UserId,
+            message.Payload.Messages);
 
-        return Task.CompletedTask;
+        await notificationRepository.AddAsync(notification, cancellationToken);
     }
 }
