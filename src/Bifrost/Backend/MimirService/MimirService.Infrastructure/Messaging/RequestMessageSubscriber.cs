@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using MimirService.Application.Messaging;
 using Shared.Application.Messaging;
+using MimirService.Application.Services.Messaging;
 
 namespace MimirService.Infrastructure.Messaging;
 

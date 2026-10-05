@@ -1,6 +1,6 @@
 using Shared.Application.Messaging;
 
-namespace MimirService.Application.Messaging;
+namespace MimirService.Application.Services.Messaging;
 
 public interface IRequestMessageHandler
 {

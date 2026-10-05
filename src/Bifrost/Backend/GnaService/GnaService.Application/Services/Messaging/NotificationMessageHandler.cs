@@ -3,7 +3,7 @@ using Shared.Application.Messaging;
 using GnaService.Application.Repositories;
 using GnaService.Domain.Entities;
 
-namespace GnaService.Application.Messaging;
+namespace GnaService.Application.Services.Messaging;
 
 public sealed class NotificationMessageHandler(
     ILogger<NotificationMessageHandler> logger,

@@ -3,7 +3,7 @@ using MimirService.Application.Repositories;
 using MimirService.Domain.Entities;
 using Shared.Application.Messaging;
 
-namespace MimirService.Application.Messaging;
+namespace MimirService.Application.Services.Messaging;
 
 public sealed class RequestMessageHandler(
     ILogger<RequestMessageHandler> logger,

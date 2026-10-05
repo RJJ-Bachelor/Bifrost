@@ -1,7 +1,7 @@
 using FluentValidation;
 using MediatR;
 
-namespace EirService.Requests.Application.Behaviors;
+namespace Shared.Application.Behaviors;
 
 public sealed class ValidationBehavior<TRequest, TResponse>(
     IEnumerable<IValidator<TRequest>> validators)

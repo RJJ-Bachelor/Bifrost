@@ -1,11 +1,11 @@
 
 using EirService.Api.Extensions;
-using EirService.Requests.Application.Behaviors;
 using EirService.Requests.Application.Features.Commands.CreateRequest;
 using EirService.Requests.Infrastructure;
 using EirService.Requests.Infrastructure.Persistence;
 using FluentValidation;
 using MediatR;
+using Shared.Application.Behaviors;
 
 namespace EirService.Api;
 

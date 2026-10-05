@@ -1,4 +1,4 @@
-using EirService.Requests.Application.Messaging;
+using EirService.Requests.Application.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

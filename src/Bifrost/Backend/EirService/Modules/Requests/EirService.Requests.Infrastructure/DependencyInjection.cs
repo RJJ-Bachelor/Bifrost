@@ -1,5 +1,4 @@
 using EirService.Requests.Application.Repositories;
-using EirService.Requests.Application.Messaging;
 using EirService.Requests.Infrastructure.Messaging;
 using EirService.Requests.Infrastructure.Persistence;
 using EirService.Requests.Infrastructure.Repositories;
@@ -8,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
+using EirService.Requests.Application.Services.Messaging;
 
 namespace EirService.Requests.Infrastructure;
 

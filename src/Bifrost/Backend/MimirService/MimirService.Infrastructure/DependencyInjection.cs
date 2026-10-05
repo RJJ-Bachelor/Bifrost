@@ -2,12 +2,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using MimirService.Application.Repositories;
-using MimirService.Application.Messaging;
 using MimirService.Infrastructure.Messaging;
 using MimirService.Infrastructure.Persistence;
 using MimirService.Infrastructure.Repositories;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
+using MimirService.Application.Services.Messaging;
 
 namespace MimirService.Infrastructure;
 

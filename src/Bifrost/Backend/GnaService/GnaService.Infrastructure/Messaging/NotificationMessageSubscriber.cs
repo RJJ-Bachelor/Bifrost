@@ -1,4 +1,4 @@
-using GnaService.Application.Messaging;
+using GnaService.Application.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

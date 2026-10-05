@@ -1,6 +1,6 @@
 using Shared.Application.Messaging;
 
-namespace GnaService.Application.Messaging;
+namespace GnaService.Application.Services.Messaging;
 
 public interface INotificationMessageHandler
 {

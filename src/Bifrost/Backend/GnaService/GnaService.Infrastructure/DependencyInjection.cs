@@ -1,5 +1,5 @@
-using GnaService.Application.Messaging;
 using GnaService.Application.Repositories;
+using GnaService.Application.Services.Messaging;
 using GnaService.Infrastructure.Messaging;
 using GnaService.Infrastructure.Persistence;
 using GnaService.Infrastructure.Repositories;
