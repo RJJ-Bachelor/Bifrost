@@ -1,11 +1,14 @@
 using Microsoft.Extensions.Logging;
+using MimirService.Application.Repositories;
+using MimirService.Domain.Entities;
 using Shared.Application.Messaging;
 
 namespace MimirService.Application.Messaging;
 
 public sealed class RequestMessageHandler(
     ILogger<RequestMessageHandler> logger,
-    IGeneralizedMessagePublisher messagePublisher) : IRequestMessageHandler
+    IGeneralizedMessagePublisher messagePublisher,
+    IMimirRequestRepository requestRepository) : IRequestMessageHandler
 {
     public async Task HandleAsync(
         MessageEnvelope<RequestCreatedMessage> message,
@@ -16,7 +19,11 @@ public sealed class RequestMessageHandler(
             message.Id,
             message.Payload.Message);
 
-            // add to database
+        var request = MimirRequest.Create(
+            message.Id,
+            message.Payload.Message);
+
+        await requestRepository.AddAsync(request, cancellationToken);
 
         await messagePublisher.PublishGeneralizedCreatedAsync(
             message.Id,

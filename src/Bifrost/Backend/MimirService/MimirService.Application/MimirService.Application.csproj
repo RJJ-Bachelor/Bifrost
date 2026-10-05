@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.Application\Shared.Application.csproj" />
+    <ProjectReference Include="..\MimirService.Domain\MimirService.Domain.csproj" />
   </ItemGroup>
 
 </Project>

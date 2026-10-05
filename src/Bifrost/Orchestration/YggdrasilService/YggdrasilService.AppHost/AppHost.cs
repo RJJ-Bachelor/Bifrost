@@ -36,6 +36,7 @@ var postgres = builder.AddPostgres("postgres", port: 5001)
 
 var eirDatabase = postgres.AddDatabase("eir");
 var gnaDatabase = postgres.AddDatabase("gna");
+var mimirDatabase = postgres.AddDatabase("mimir");
 
 var eirService = builder.AddProject<Projects.EirService_Api>("eirservice-api")
     .WithReference(keycloak)
@@ -49,7 +50,7 @@ var eirService = builder.AddProject<Projects.EirService_Api>("eirservice-api")
 var mimirService = builder.AddProject<Projects.MimirService_Api>("mimirservice-api")
     .WithReference(keycloak)
     .WithReference(rabbitmq)
-    .WithReference(eirDatabase)
+    .WithReference(mimirDatabase)
     .WithHttpEndpoint(port: 6002)
     .WaitFor(keycloak)
     .WaitFor(rabbitmq)
