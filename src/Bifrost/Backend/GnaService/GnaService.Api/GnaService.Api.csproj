@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\GnaService.Infrastructure\GnaService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -29,6 +29,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
         services.AddRabbitMqMessageBus(configuration);
         services.AddScoped<IRequestMessagePublisher, RequestMessagePublisher>();
+        services.AddScoped<INotificationMessagePublisher, NotificationMessagePublisher>();
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
         services.AddScoped<IRequestRepository, RequestRepository>();
         services.AddHostedService<GeneralizedMessageSubscriber>();

@@ -7,7 +7,8 @@ namespace EirService.Requests.Application.Features.Commands.CreateRequest
 {
     public sealed class CreateRequestCommandHandler(
         IRequestRepository requestRepository,
-        IRequestMessagePublisher messagePublisher)
+        IRequestMessagePublisher messagePublisher,
+        INotificationMessagePublisher notificationMessagePublisher)
         : IRequestHandler<CreateRequestCommand, string>
     {
         public async Task<string> Handle(CreateRequestCommand request, CancellationToken cancellationToken)
@@ -18,6 +19,13 @@ namespace EirService.Requests.Application.Features.Commands.CreateRequest
 
             await messagePublisher.PublishRequestCreatedAsync(
                 request.Id,
+                request.Message,
+                cancellationToken);
+
+            // Notification to the user
+            await notificationMessagePublisher.PublishNotificationCreatedAsync(
+                request.Id,
+                request.UserId,
                 request.Message,
                 cancellationToken);
 

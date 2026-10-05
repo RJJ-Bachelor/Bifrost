@@ -1,4 +1,6 @@
 
+using GnaService.Infrastructure;
+
 namespace GnaService.Api;
 
 public class Program
@@ -7,6 +9,7 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
+        builder.Services.AddGnaInfrastructure(builder.Configuration);
 
         // Add services to the container.
         builder.Services.AddAuthorization();
