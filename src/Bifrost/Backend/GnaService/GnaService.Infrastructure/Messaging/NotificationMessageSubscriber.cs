@@ -11,16 +11,16 @@ internal sealed class NotificationMessageSubscriber(
     IServiceScopeFactory scopeFactory,
     ILogger<NotificationMessageSubscriber> logger) : BackgroundService
 {
-    private const string QueueName = "gna-notification-created";
+    private const string QueueName = "gna-notification-requested";
     private const string ExchangeName = "notifications";
-    private const string NotificationCreatedRoutingKey = "notification.created";
+    private const string NotificationRequestedRoutingKey = "gna-notification-requested";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await using var subscription = await messageBus.SubscribeAsync<NotificationCreatedMessage>(
             QueueName,
             ExchangeName,
-            NotificationCreatedRoutingKey,
+            NotificationRequestedRoutingKey,
             HandleMessageAsync,
             stoppingToken);
 
@@ -28,7 +28,7 @@ internal sealed class NotificationMessageSubscriber(
             "Gna subscribed to {ExchangeName} with queue {QueueName} using {RoutingKey}.",
             ExchangeName,
             QueueName,
-            NotificationCreatedRoutingKey);
+            NotificationRequestedRoutingKey);
 
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }

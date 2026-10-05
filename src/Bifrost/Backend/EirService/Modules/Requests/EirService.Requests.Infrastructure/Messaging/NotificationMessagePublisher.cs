@@ -6,7 +6,7 @@ internal sealed class NotificationMessagePublisher(IMessageBus messageBus)
     : INotificationMessagePublisher
 {
     private const string ExchangeName = "notifications";
-    private const string NotificationCreatedRoutingKey = "notification.created";
+    private const string NotificationRequestedRoutingKey = "gna-notification-requested";
 
     public Task PublishNotificationCreatedAsync(
         string id,
@@ -18,7 +18,7 @@ internal sealed class NotificationMessagePublisher(IMessageBus messageBus)
             id,
             new NotificationCreatedMessage(userId, messages),
             ExchangeName,
-            NotificationCreatedRoutingKey,
+            NotificationRequestedRoutingKey,
             cancellationToken);
     }
 }

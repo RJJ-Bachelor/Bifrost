@@ -22,7 +22,6 @@ namespace EirService.Requests.Application.Features.Commands.CreateRequest
                 request.Message,
                 cancellationToken);
 
-            // Notification to the user
             await notificationMessagePublisher.PublishNotificationCreatedAsync(
                 request.Id,
                 request.UserId,

@@ -16,6 +16,8 @@ public sealed class NotificationMessageHandler(
             message.Payload.UserId,
             message.Payload.Messages);
 
+            // Save the notification to the database
+
         return Task.CompletedTask;
     }
 }
