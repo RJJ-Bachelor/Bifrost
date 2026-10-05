@@ -4,6 +4,11 @@
     <Project Path="Backend/EirService/EirService.Api/EirService.Api.csproj" />
   </Folder>
   <Folder Name="/Backend/EirService/Modules/" />
+  <Folder Name="/Backend/EirService/Modules/Insights/">
+    <Project Path="Backend/EirService/Modules/Insights/EirService.Insights.Application/EirService.Insights.Application.csproj" Id="fbcadd4c-04df-4bd9-b936-769ab646dba1" />
+    <Project Path="Backend/EirService/Modules/Insights/EirService.Insights.Domain/EirService.Insights.Domain.csproj" Id="5bea276a-7430-4be4-9d25-8ee28fe02d28" />
+    <Project Path="Backend/EirService/Modules/Insights/EirService.Insights.Infrastructure/EirService.Insights.Infrastructure.csproj" Id="7eddef8e-2f60-4702-a9b7-e2e222fb28dc" />
+  </Folder>
   <Folder Name="/Backend/EirService/Modules/KnowledgeBase/">
     <Project Path="Backend/EirService/Modules/KnowledgeBase/EirService.KnowledgeBase.Application/EirService.KnowledgeBase.Application.csproj" Id="1c4c873c-b0cf-46ad-bd0a-e3c1c065065f" />
     <Project Path="Backend/EirService/Modules/KnowledgeBase/EirService.KnowledgeBase.Domain/EirService.KnowledgeBase.Domain.csproj" Id="3650b0f4-eee2-450b-b947-ad1fe0db4826" />
@@ -13,16 +18,6 @@
     <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Application/EirService.Participants.Application.csproj" Id="7f4a2806-c186-4ee3-8f54-4f53397b4915" />
     <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Domain/EirService.Participants.Domain.csproj" Id="0672d4c0-7cba-4482-878d-559463e91324" />
     <Project Path="Backend/EirService/Modules/Participants/EirService.Participants.Infrastructure/EirService.Participants.Infrastructure.csproj" Id="d7354219-4797-4858-8258-cd29311fb22f" />
-  </Folder>
-  <Folder Name="/Backend/EirService/Modules/Reporting/">
-    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Application/EirService.Reporting.Application.csproj" Id="9637bb32-464d-4b99-a946-260e62e4bebc" />
-    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Domain/EirService.Reporting.Domain.csproj" Id="5af78979-447f-41c1-ac9b-664b094d7315" />
-    <Project Path="Backend/EirService/Modules/Reporting/EirService.Reporting.Infrastructure/EirService.Reporting.Infrastructure.csproj" Id="33816577-533d-46f6-9b6f-7c9bbd91c8f3" />
-  </Folder>
-  <Folder Name="/Backend/EirService/Modules/Requests/">
-    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Application/EirService.Requests.Application.csproj" Id="fc011181-c763-4102-a38f-2e68093f17ae" />
-    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Domain/EirService.Requests.Domain.csproj" Id="4094b927-38a0-476f-b4a4-15503493ab1e" />
-    <Project Path="Backend/EirService/Modules/Requests/EirService.Requests.Infrastructure/EirService.Requests.Infrastructure.csproj" Id="853950eb-ed8c-4d1e-84ab-d3345312331b" />
   </Folder>
   <Folder Name="/Backend/EirService/Modules/Sessions/">
     <Project Path="Backend/EirService/Modules/Sessions/EirService.Sessions.Application/EirService.Sessions.Application.csproj" Id="75d6b989-fa86-42a3-b190-c87905d3c931" />
