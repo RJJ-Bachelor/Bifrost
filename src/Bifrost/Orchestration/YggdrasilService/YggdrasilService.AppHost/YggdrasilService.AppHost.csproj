@@ -14,6 +14,7 @@
     <ProjectReference Include="..\..\..\Backend\GnaService\GnaService.Api\GnaService.Api.csproj" />
     <ProjectReference Include="..\..\..\Backend\MimirService\MimirService.Api\MimirService.Api.csproj" />
     <ProjectReference Include="..\..\HeimdallGateway\HeimdallGateway.csproj" />
+    <ProjectReference Include="..\..\VarService\VarService.csproj" />
   </ItemGroup>
 
   <ItemGroup>

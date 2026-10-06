@@ -50,6 +50,7 @@
   </Folder>
   <Folder Name="/Orchestration/">
     <Project Path="Orchestration/HeimdallGateway/HeimdallGateway.csproj" />
+    <Project Path="Orchestration/VarService/VarService.csproj" Id="7b571413-0f97-4d16-98ab-2d95b5589345" />
     <Project Path="Orchestration/YggdrasilService/YggdrasilService.AppHost/YggdrasilService.AppHost.csproj" Id="3062fc6e-88ed-49d1-9038-ce5d3e45be5e" />
     <Project Path="Orchestration/YggdrasilService/YggdrasilService.ServiceDefaults/YggdrasilService.ServiceDefaults.csproj" />
   </Folder>

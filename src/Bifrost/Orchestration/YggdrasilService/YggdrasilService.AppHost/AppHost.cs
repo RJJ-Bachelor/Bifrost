@@ -90,4 +90,6 @@ builder.AddJavaScriptApp("test-frontend", "../../../Temp/TestFrontend")
     .WithHttpEndpoint(targetPort: 7003, port: 7001, env: "PORT")
     .WaitFor(heimdallGateway);
 
+builder.AddProject<Projects.VarService>("varservice");
+
 builder.Build().Run();
