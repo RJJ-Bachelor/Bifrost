@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using MimirService.Application.Repositories;
 using MimirService.Domain.Entities;
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
 
 namespace MimirService.Application.Services.Messaging;
 

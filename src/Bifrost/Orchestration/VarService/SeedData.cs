@@ -18,69 +18,69 @@ namespace VarService
                 context.Database.Migrate();
 
                 var userMgr = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-                var alice = userMgr.FindByNameAsync("alice").Result;
-                if (alice == null)
-                {
-                    alice = new ApplicationUser
-                    {
-                        UserName = "alice",
-                        Email = "AliceSmith@example.com",
-                        EmailConfirmed = true,
-                    };
-                    var result = userMgr.CreateAsync(alice, "Pass123$").Result;
-                    if (!result.Succeeded)
-                    {
-                        throw new Exception(result.Errors.First().Description);
-                    }
 
-                    result = userMgr.AddClaimsAsync(alice, new Claim[]{
-                                new Claim(JwtClaimTypes.Name, "Alice Smith"),
-                                new Claim(JwtClaimTypes.GivenName, "Alice"),
-                                new Claim(JwtClaimTypes.FamilyName, "Smith"),
-                                new Claim(JwtClaimTypes.WebSite, "http://alice.example.com"),
-                            }).Result;
-                    if (!result.Succeeded)
-                    {
-                        throw new Exception(result.Errors.First().Description);
-                    }
-                    Log.Debug("alice created");
-                }
-                else
+                EnsureUser(
+                    userMgr,
+                    userName: "knud",
+                    email: "KnudHansen@example.com",
+                    displayName: "Knud Hansen");
+
+                EnsureUser(
+                    userMgr,
+                    userName: "bob",
+                    email: "BobJensen@example.com",
+                    displayName: "Bob Jensen");
+            }
+        }
+
+        private static void EnsureUser(
+            UserManager<ApplicationUser> userMgr,
+            string userName,
+            string email,
+            string displayName)
+        {
+            var user = userMgr.FindByNameAsync(userName).Result;
+            if (user == null)
+            {
+                user = new ApplicationUser
                 {
-                    Log.Debug("alice already exists");
+                    UserName = userName,
+                    Email = email,
+                    EmailConfirmed = true
+                };
+
+                var result = userMgr.CreateAsync(user, "Pass123$").Result;
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not create seed user '{userName}': " +
+                        string.Join(", ", result.Errors.Select(error => error.Description)));
                 }
 
-                var bob = userMgr.FindByNameAsync("bob").Result;
-                if (bob == null)
-                {
-                    bob = new ApplicationUser
-                    {
-                        UserName = "bob",
-                        Email = "BobSmith@example.com",
-                        EmailConfirmed = true
-                    };
-                    var result = userMgr.CreateAsync(bob, "Pass123$").Result;
-                    if (!result.Succeeded)
-                    {
-                        throw new Exception(result.Errors.First().Description);
-                    }
+                Log.Information("Seed user {UserName} created", userName);
+            }
+            else
+            {
+                Log.Debug("Seed user {UserName} already exists", userName);
+            }
 
-                    result = userMgr.AddClaimsAsync(bob, new Claim[]{
-                                new Claim(JwtClaimTypes.Name, "Bob Smith"),
-                                new Claim(JwtClaimTypes.GivenName, "Bob"),
-                                new Claim(JwtClaimTypes.FamilyName, "Smith"),
-                                new Claim(JwtClaimTypes.WebSite, "http://bob.example.com"),
-                                new Claim("location", "somewhere")
-                            }).Result;
-                    if (!result.Succeeded)
-                    {
-                        throw new Exception(result.Errors.First().Description);
-                    }
-                    Log.Debug("bob created");
-                }
-                else
+            var nameClaim = userMgr.GetClaimsAsync(user).Result
+                .FirstOrDefault(claim => claim.Type == JwtClaimTypes.Name);
+
+            if (nameClaim?.Value != displayName)
+            {
+                var result = nameClaim == null
+                    ? userMgr.AddClaimAsync(user, new Claim(JwtClaimTypes.Name, displayName)).Result
+                    : userMgr.ReplaceClaimAsync(
+                        user,
+                        nameClaim,
+                        new Claim(JwtClaimTypes.Name, displayName)).Result;
+
+                if (!result.Succeeded)
                 {
-                    Log.Debug("bob already exists");
+                    throw new InvalidOperationException(
+                        $"Could not set the name claim for seed user '{userName}': " +
+                        string.Join(", ", result.Errors.Select(error => error.Description)));
                 }
             }
         }

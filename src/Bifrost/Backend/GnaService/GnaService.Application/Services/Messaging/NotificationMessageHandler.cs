@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using GnaService.Application.Repositories;
 using GnaService.Domain.Entities;
+using Shared.Application.Messaging.Contracts;
 
 namespace GnaService.Application.Services.Messaging;
 

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using MimirService.Application.Services.Messaging;
+using Shared.Application.Messaging.Contracts;
 
 namespace MimirService.Infrastructure.Messaging;
 

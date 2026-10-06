@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
 
 namespace GnaService.Infrastructure.Messaging;
 

@@ -1,4 +1,5 @@
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
 
 namespace GnaService.Application.Services.Messaging;
 

@@ -3,6 +3,7 @@ using Serilog;
 using System.Globalization;
 using System.Text;
 using VarService;
+using VarService.Data;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
@@ -18,6 +19,13 @@ try
         .ConfigureLogging()
         .ConfigureServices()
         .ConfigurePipeline();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+        dbContext.Database.EnsureCreated();
+    }
 
     // this seeding is only for the template to bootstrap the DB and users.
     // in production you will likely want a different approach.

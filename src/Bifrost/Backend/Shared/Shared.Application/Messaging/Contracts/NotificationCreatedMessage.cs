@@ -1,3 +1,3 @@
-namespace Shared.Application.Messaging;
+namespace Shared.Application.Messaging.Contracts;
 
 public sealed record NotificationCreatedMessage(string UserId, string Messages);
