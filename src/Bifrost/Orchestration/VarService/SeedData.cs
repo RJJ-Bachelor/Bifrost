@@ -83,6 +83,21 @@ namespace VarService
                         string.Join(", ", result.Errors.Select(error => error.Description)));
                 }
             }
+
+            if (!userMgr.GetClaimsAsync(user).Result.Any(claim =>
+                    claim.Type == JwtClaimTypes.Role && claim.Value == "Teacher"))
+            {
+                var result = userMgr.AddClaimAsync(
+                    user,
+                    new Claim(JwtClaimTypes.Role, "Teacher")).Result;
+
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not set the Teacher role for seed user '{userName}': " +
+                        string.Join(", ", result.Errors.Select(error => error.Description)));
+                }
+            }
         }
     }
 }

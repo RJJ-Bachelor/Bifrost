@@ -1,3 +1,4 @@
+using Duende.IdentityModel;
 using Duende.IdentityServer.Models;
 
 namespace VarService
@@ -9,12 +10,13 @@ namespace VarService
             {
                 new IdentityResources.OpenId(),
                 new IdentityResources.Profile(),
+                new IdentityResource("roles", "Roles", new[] { "role" }),
             };
 
         public static IEnumerable<ApiScope> ApiScopes =>
             new ApiScope[]
             {
-                new ApiScope("scope1"),
+                new ApiScope("scope1", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role }),
                 new ApiScope("scope2"),
             };
 
@@ -41,12 +43,16 @@ namespace VarService
 
                     AllowedGrantTypes = GrantTypes.Code,
 
-                    RedirectUris = { "https://localhost:44300/signin-oidc" },
-                    FrontChannelLogoutUri = "https://localhost:44300/signout-oidc",
-                    PostLogoutRedirectUris = { "https://localhost:44300/signout-callback-oidc" },
+                    RedirectUris =
+                    {
+                        "https://localhost:44300/signin-oidc",
+                        "http://localhost:6004/signin-oidc"
+                    },
+                    FrontChannelLogoutUri = "http://localhost:6004/signout-oidc",
+                    PostLogoutRedirectUris = { "http://localhost:6004/signout-callback-oidc" },
 
                     AllowOfflineAccess = true,
-                    AllowedScopes = { "openid", "profile", "scope2" }
+                    AllowedScopes = { "openid", "profile", "roles", "scope1", "scope2" }
                 },
             };
     }

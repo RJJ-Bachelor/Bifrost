@@ -23,7 +23,7 @@ var varDatabase = postgres.AddDatabase("var");
 // IdentityServer
 var varService = builder.AddProject<Projects.VarService>("varservice")
     .WithReference(varDatabase)
-    .WithHttpEndpoint(port: 5003)
+    .WithHttpEndpoint(port: 6003)
     .WaitFor(postgres);
 
 
@@ -62,7 +62,7 @@ var heimdallGateway = builder.AddProject<Projects.HeimdallGateway>("heimdallgate
     .WithReference(eirService)
     .WithReference(mimirService)
     .WithReference(gnaService)
-    .WithHttpEndpoint(port: 6003)
+    .WithHttpEndpoint(port: 6004)
     .WaitFor(postgres)
     .WaitFor(rabbitmq)
     .WaitFor(postgres)
