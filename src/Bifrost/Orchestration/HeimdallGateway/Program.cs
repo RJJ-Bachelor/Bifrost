@@ -1,6 +1,7 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 
@@ -16,21 +17,64 @@ public class Program
         builder.Services
             .AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                options.DefaultAuthenticateScheme = "TeacherAuthentication";
                 options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
             })
-            .AddCookie()
+            .AddPolicyScheme("TeacherAuthentication", null, options =>
+            {
+                options.ForwardDefaultSelector = context =>
+                    context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                        ? JwtBearerDefaults.AuthenticationScheme
+                        : CookieAuthenticationDefaults.AuthenticationScheme;
+            })
+            .AddCookie(options =>
+            {
+                options.Cookie.Name = "bifrost-teacher";
+                options.Events.OnRedirectToAccessDenied = context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                };
+            })
+            .AddJwtBearer(options =>
+            {
+                options.Authority = builder.Configuration["Authentication:Authority"] ?? "http://localhost:6003";
+                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.Audience = "scope1";
+                options.MapInboundClaims = false;
+                options.TokenValidationParameters.NameClaimType = "name";
+                options.TokenValidationParameters.RoleClaimType = "role";
+            })
             .AddOpenIdConnect(options =>
             {
-                options.Authority = "http://localhost:6003";
+                options.Authority = builder.Configuration["Authentication:Authority"] ?? "http://localhost:6003";
                 options.ClientId = "interactive";
                 options.ClientSecret = "49C1A7E1-0C79-4A89-A3D6-A37998FB86B0";
                 options.ResponseType = "code";
                 options.UsePkce = true;
                 options.SaveTokens = true;
                 options.GetClaimsFromUserInfoEndpoint = true;
-                options.RequireHttpsMetadata = false;
+                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+                options.MapInboundClaims = false;
+                options.ClaimActions.MapJsonKey("role", "role");
+                options.ResponseMode = "query";
+                if (builder.Environment.IsDevelopment())
+                {
+                    options.NonceCookie.SameSite = SameSiteMode.Lax;
+                    options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                    options.NonceCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                }
+                options.Events.OnRedirectToIdentityProvider = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api"))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.HandleResponse();
+                    }
+                    return Task.CompletedTask;
+                };
                 options.Scope.Clear();
                 options.Scope.Add("openid");
                 options.Scope.Add("profile");
@@ -45,9 +89,10 @@ public class Program
 
         builder.Services.AddAuthorization(options =>
         {
-            options.AddPolicy("Anonymous", policy => policy.RequireAssertion(_ => true));
+            // YARP reserves "Anonymous" for routes that allow access without login.
             options.AddPolicy("Teacher", policy => policy
                 .RequireAuthenticatedUser()
+                .RequireClaim("sub")
                 .RequireRole("Teacher"));
         });
         builder.Services.AddReverseProxy()
@@ -70,7 +115,7 @@ public class Program
         app.UseAuthorization();
 
         app.MapGet("/account/login", () => Results.Challenge(
-            new AuthenticationProperties { RedirectUri = "/" },
+            new AuthenticationProperties { RedirectUri = "/api/teachers/me" },
             new[] { OpenIdConnectDefaults.AuthenticationScheme }));
         app.MapGet("/account/logout", async (HttpContext context) =>
         {
@@ -80,31 +125,23 @@ public class Program
 
         app.Use(async (context, next) =>
         {
-            if (context.Request.Path.StartsWithSegments("/api/students"))
-            {
-                const string cookieName = "bifrost-anonymous-user";
-                if (!context.Request.Cookies.TryGetValue(cookieName, out var userId) ||
-                    !Guid.TryParse(userId, out _))
-                {
-                    userId = Guid.NewGuid().ToString("N");
-                    context.Response.Cookies.Append(cookieName, userId, new CookieOptions
-                    {
-                        HttpOnly = true,
-                        SameSite = SameSiteMode.Lax,
-                        IsEssential = true
-                    });
-                }
+            // Identity comes from the student cookie or a validated VarService JWT in Eir.
+            context.Request.Headers.Remove("X-Bifrost-User-Id");
+            context.Request.Headers.Remove("X-Bifrost-Roles");
 
-                context.Request.Headers["X-Bifrost-User-Id"] = userId;
-            }
-
-            if (context.User.Identity?.IsAuthenticated == true)
+            if (context.Request.Path.StartsWithSegments("/api/teachers") &&
+                context.User.Identity?.IsAuthenticated == true &&
+                !context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             {
                 var accessToken = await context.GetTokenAsync("access_token");
-                if (!string.IsNullOrWhiteSpace(accessToken))
+                var expiresAt = await context.GetTokenAsync("expires_at");
+                if (string.IsNullOrWhiteSpace(accessToken) ||
+                    !DateTimeOffset.TryParse(expiresAt, out var expiry) || expiry <= DateTimeOffset.UtcNow)
                 {
-                    context.Request.Headers.Authorization = $"Bearer {accessToken}";
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
                 }
+                context.Request.Headers.Authorization = $"Bearer {accessToken}";
             }
 
             await next();

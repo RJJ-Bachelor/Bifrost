@@ -20,6 +20,15 @@ namespace VarService
                 new ApiScope("scope2"),
             };
 
+        public static IEnumerable<ApiResource> ApiResources =>
+            new[]
+            {
+                new ApiResource("scope1", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role })
+                {
+                    Scopes = { "scope1" }
+                }
+            };
+
         public static IEnumerable<Client> Clients =>
             new Client[]
             {
@@ -46,10 +55,15 @@ namespace VarService
                     RedirectUris =
                     {
                         "https://localhost:44300/signin-oidc",
+                        "https://localhost:51004/signin-oidc",
                         "http://localhost:6004/signin-oidc"
                     },
                     FrontChannelLogoutUri = "http://localhost:6004/signout-oidc",
-                    PostLogoutRedirectUris = { "http://localhost:6004/signout-callback-oidc" },
+                    PostLogoutRedirectUris =
+                    {
+                        "http://localhost:6004/signout-callback-oidc",
+                        "https://localhost:51004/signout-callback-oidc"
+                    },
 
                     AllowOfflineAccess = true,
                     AllowedScopes = { "openid", "profile", "roles", "scope1", "scope2" }

@@ -13,7 +13,7 @@ namespace EirService.Requests.Application.Features.Commands.CreateRequest
     {
         public async Task<string> Handle(CreateRequestCommand request, CancellationToken cancellationToken)
         {
-            var eirRequest = new EirRequest(request.Id, request.Message);
+            var eirRequest = new EirRequest(request.Id, request.UserId, request.Message);
 
             await requestRepository.AddAsync(eirRequest, cancellationToken);
 

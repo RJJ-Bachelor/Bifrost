@@ -7,7 +7,8 @@ namespace EirService.Api.Endpoints.Student
         public static void MapEndpoint(IEndpointRouteBuilder app)
         {
             app.MapPost("/students/sendmessages", TestFunk)
-                .WithTags(Tags.Students);
+                .WithTags(Tags.Students)
+                .RequireAuthorization("Student");
         }
 
         private static IResult TestFunk(Request request)

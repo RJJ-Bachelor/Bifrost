@@ -1,10 +1,31 @@
 opencollection: 1.0.0
-
 info:
   name: Bifrost-JPF
+config:
+  proxy:
+    inherit: true
+    config:
+      protocol: http
+      hostname: ''
+      port: ''
+      auth:
+        username: ''
+        password: ''
+      bypassProxy: ''
+request:
+  variables:
+    - name: gatewayUrl
+      value: http://localhost:6004
+    - name: identityUrl
+      value: http://localhost:6003
+    - name: teacherUsername
+      value: knud
+    - name: teacherPassword
+      value: Pass123$
 bundled: false
 extensions:
   bruno:
     ignore:
       - node_modules
       - .git
+      - lib

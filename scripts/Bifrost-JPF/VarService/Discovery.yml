@@ -1,0 +1,12 @@
+info:
+  name: Discovery
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{identityUrl}}/.well-known/openid-configuration'
+  auth: null
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

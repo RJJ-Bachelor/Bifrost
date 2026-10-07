@@ -3,7 +3,6 @@ using Serilog;
 using System.Globalization;
 using System.Text;
 using VarService;
-using VarService.Data;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console(formatProvider: CultureInfo.InvariantCulture)
@@ -20,12 +19,7 @@ try
         .ConfigureServices()
         .ConfigurePipeline();
 
-    using (var scope = app.Services.CreateScope())
-    {
-        var dbContext = scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-        dbContext.Database.EnsureCreated();
-    }
+    SeedData.EnsureDatabase(app);
 
     // this seeding is only for the template to bootstrap the DB and users.
     // in production you will likely want a different approach.
@@ -39,6 +33,7 @@ try
 
     if (app.Environment.IsDevelopment())
     {
+        SeedData.EnsureSeedData(app);
         _ = app.Lifetime.ApplicationStopping.Register(() =>
         {
             var usage = app.Services.GetRequiredService<LicenseUsageSummary>();
@@ -51,6 +46,7 @@ try
 catch (Exception ex) when (ex is not HostAbortedException)
 {
     Log.Fatal(ex, "Unhandled exception");
+    Environment.ExitCode = 1;
 }
 finally
 {

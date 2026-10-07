@@ -1,0 +1,19 @@
+info:
+  name: SendMessages
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sendmessages'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "id": "teacher-test",
+        "message": "Teacher gennem Heimdall"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

@@ -1,0 +1,12 @@
+info:
+  name: Alive
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/monitoring/alive'
+  auth: null
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

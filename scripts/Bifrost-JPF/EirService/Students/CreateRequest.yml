@@ -1,24 +1,19 @@
 info:
   name: CreateRequest
   type: http
-  seq: 2
-
+  seq: 3
 http:
   method: POST
-  url: https://localhost:61000/api/students/createrequest
+  url: '{{gatewayUrl}}/api/students/createrequest'
+  auth: null
   body:
     type: json
     data: |-
       {
-        "id": "12341",
-        "userId": "user-123",
-        "message": "Hjææælp... NU..."
+        "id": "{{$guid}}",
+        "message": "Hjælp fra student"
       }
-  auth: inherit
-
 settings:
   encodeUrl: true
-  timeout: 0
-  followRedirects: true
-  maxRedirects: 5
-  forwardAuthorizationHeader: false
+  timeout: 30000
+  followRedirects: false

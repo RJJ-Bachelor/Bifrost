@@ -20,6 +20,8 @@ namespace EirService.Requests.Infrastructure.Persistence
                 entity.Property(request => request.Message)
                     .HasMaxLength(4000)
                     .IsRequired();
+                entity.Property(request => request.UserId).HasMaxLength(100);
+                entity.HasIndex(request => request.UserId);
             });
         }
     }

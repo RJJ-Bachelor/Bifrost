@@ -6,9 +6,25 @@ var builder = DistributedApplication.CreateBuilder(args);
 var rabbitmqUsername = builder.AddParameter("rabbitmq-username", "guest");
 var rabbitmqPassword = builder.AddParameter("rabbitmq-password", "guest", secret: true);
 
-var rabbitmq = builder.AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5001)
+var rabbitmq = builder
+    .AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5001)
     .WithDataVolume()
     .WithManagementPlugin(port: 5002);
+
+    // RabbitMQ
+// var rabbitmqUsername = builder.AddParameter(
+//     "rabbitmq-username",
+//     "rabbitadmin");
+
+// var rabbitmqPassword = builder.AddParameter(
+//     "rabbitmq-password",
+//     "<adgangskoden til rabbitadmin>",
+//     secret: true);
+
+// var rabbitmq = builder
+//     .AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5001)
+//     .WithDataVolume()
+//     .WithManagementPlugin(port: 5002);
 
 // Postgres
 var postgres = builder.AddPostgres("postgres", port: 5000)
@@ -21,7 +37,8 @@ var mimirDatabase = postgres.AddDatabase("mimir");
 var varDatabase = postgres.AddDatabase("var");
 
 // IdentityServer
-var varService = builder.AddProject<Projects.VarService>("varservice")
+// VarService's standalone HTTPS port 5001 collides with RabbitMQ's AMQP port.
+var varService = builder.AddProject<Projects.VarService>("varservice", launchProfileName: "http")
     .WithReference(varDatabase)
     .WithHttpEndpoint(port: 6003)
     .WaitFor(postgres);
