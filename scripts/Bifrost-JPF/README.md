@@ -59,3 +59,23 @@ npm.cmd test
 
 CLI sender de simple requests sekventielt: Login → EirService → Heimdall →
 VarService → Session. Logout ligger sidst. Collectionen har ingen test-assertions.
+
+## Browser login regression
+
+Bruno's cookie jar does not apply Chrome's SameSite rules. This test runs the real
+Angular login button in an isolated Chrome session, checks that only Bifrost login
+is offered, verifies the return to port 7001 and calls the Teacher API through both
+Heimdall and the Angular proxy.
+
+With Bifrost running via Aspire and Chrome installed, run from the repository root:
+
+```powershell
+npm.cmd install --prefix artifacts/login-browser --no-save --package-lock=false playwright-core
+node scripts/Bifrost-JPF/lib/browser-login-test.cjs
+```
+
+Optional process variables: `BIFROST_FRONTEND_URL`, `BIFROST_GATEWAY_URL`,
+`BIFROST_TEACHER_USERNAME`, `BIFROST_TEACHER_PASSWORD`.
+Defaults use localhost ports 7001/6004 and the development seed account.
+Development uses SameSite=Lax for the VarService authentication and session cookies
+so that Chrome accepts them on local HTTP.

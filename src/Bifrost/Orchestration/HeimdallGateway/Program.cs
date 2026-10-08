@@ -114,13 +114,28 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
 
-        app.MapGet("/account/login", () => Results.Challenge(
-            new AuthenticationProperties { RedirectUri = "/api/teachers/me" },
+        string LoginReturnUrl(string? returnUrl)
+        {
+            var frontends = builder.Configuration.GetSection("Frontend:AdditionalUrls").Get<string[]>() ?? [];
+            if (Uri.TryCreate(returnUrl, UriKind.Absolute, out var requested) &&
+                string.IsNullOrEmpty(requested.UserInfo) &&
+                frontends.Append(builder.Configuration["Frontend:Url"]).Any(frontend =>
+                    Uri.TryCreate(frontend, UriKind.Absolute, out var allowedOrigin) &&
+                    requested.Scheme == allowedOrigin.Scheme && requested.Authority == allowedOrigin.Authority))
+            {
+                return requested.AbsoluteUri;
+            }
+            return "/api/teachers/me";
+        }
+
+        app.MapGet("/account/login", (string? returnUrl) => Results.Challenge(
+            new AuthenticationProperties { RedirectUri = LoginReturnUrl(returnUrl) },
             new[] { OpenIdConnectDefaults.AuthenticationScheme }));
-        app.MapGet("/account/logout", async (HttpContext context) =>
+        app.MapGet("/account/logout", async (HttpContext context, string? returnUrl) =>
         {
             await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+            await context.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme,
+                new AuthenticationProperties { RedirectUri = LoginReturnUrl(returnUrl) });
         });
 
         app.Use(async (context, next) =>

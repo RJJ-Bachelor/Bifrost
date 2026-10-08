@@ -1,8 +1,6 @@
-using Duende.IdentityServer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Serilog;
 using Serilog.Filters;
 using System.Globalization;
@@ -70,6 +68,7 @@ namespace VarService
                     if (builder.Environment.IsDevelopment())
                     {
                         options.Diagnostics.ChunkSize = 1024 * 1024 * 10; // 10 MB
+                        options.Authentication.CheckSessionCookieSameSiteMode = SameSiteMode.Lax;
                     }
                 })
                 .AddInMemoryIdentityResources(Config.IdentityResources)
@@ -79,24 +78,16 @@ namespace VarService
                 .AddAspNetIdentity<ApplicationUser>()
                 .AddLicenseSummary();
 
-            _ = builder.Services.AddAuthentication()
-                .AddOpenIdConnect("oidc", "Sign-in with demo.duendesoftware.com", options =>
+            if (builder.Environment.IsDevelopment())
+            {
+                // Local HTTP cannot store SameSite=None cookies without Secure.
+                // Configure the Identity cookie after AddAspNetIdentity registers it.
+                _ = builder.Services.ConfigureApplicationCookie(options =>
                 {
-                    options.SignInScheme = IdentityServerConstants.ExternalCookieAuthenticationScheme;
-                    options.SignOutScheme = IdentityServerConstants.SignoutScheme;
-                    options.SaveTokens = true;
-
-                    options.Authority = "https://demo.duendesoftware.com";
-                    options.ClientId = "interactive.confidential";
-                    options.ClientSecret = "secret";
-                    options.ResponseType = "code";
-
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        NameClaimType = "name",
-                        RoleClaimType = "role"
-                    };
+                    options.Cookie.SameSite = SameSiteMode.Lax;
+                    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 });
+            }
 
             // add `.PersistKeysTo…()` and `.ProtectKeysWith…()` calls
             // see more at https://docs.duendesoftware.com/general/data-protection
