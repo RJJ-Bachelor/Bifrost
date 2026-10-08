@@ -62,6 +62,9 @@ public static class Extensions
             .WithTracing(tracing =>
             {
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    .AddSource("Yarp.ReverseProxy")
+                    // The shared message bus keeps publishers and consumers in one trace.
+                    .AddSource("Bifrost.Messaging")
                     .AddAspNetCoreInstrumentation(tracing =>
                         // Exclude health check requests from tracing
                         tracing.Filter = context =>

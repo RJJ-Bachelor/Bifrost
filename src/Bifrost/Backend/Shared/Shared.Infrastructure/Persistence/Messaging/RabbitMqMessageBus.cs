@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using RabbitMQ.Client;
@@ -32,36 +33,48 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         ArgumentException.ThrowIfNullOrWhiteSpace(exchangeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(routingKey);
 
-        var connection = await GetConnectionAsync(cancellationToken);
-        await using var channel = await connection.CreateChannelAsync(
-            cancellationToken: cancellationToken);
-
-        await channel.ExchangeDeclareAsync(
-            exchange: exchangeName,
-            type: ExchangeType.Direct,
-            durable: true,
-            cancellationToken: cancellationToken);
-
-        var message = new
+        using var activity = MessageBusTelemetry.StartPublishActivity(exchangeName, routingKey, id);
+        try
         {
-            id,
-            payload
-        };
-        var body = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
-        var properties = new BasicProperties
-        {
-            ContentType = "application/json",
-            DeliveryMode = DeliveryModes.Persistent,
-            Type = payload.GetType().FullName
-        };
+            var connection = await GetConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(
+                cancellationToken: cancellationToken);
 
-        await channel.BasicPublishAsync(
-            exchange: exchangeName,
-            routingKey: routingKey,
-            mandatory: false,
-            basicProperties: properties,
-            body: body,
-            cancellationToken: cancellationToken);
+            await channel.ExchangeDeclareAsync(
+                exchange: exchangeName,
+                type: ExchangeType.Direct,
+                durable: true,
+                cancellationToken: cancellationToken);
+
+            var message = new
+            {
+                id,
+                payload
+            };
+            var body = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
+            var properties = new BasicProperties
+            {
+                ContentType = "application/json",
+                DeliveryMode = DeliveryModes.Persistent,
+                MessageId = id,
+                Type = payload.GetType().FullName
+            };
+            MessageBusTelemetry.InjectContext(properties);
+            activity?.SetTag("messaging.message.body.size", body.Length);
+
+            await channel.BasicPublishAsync(
+                exchange: exchangeName,
+                routingKey: routingKey,
+                mandatory: false,
+                basicProperties: properties,
+                body: body,
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            MessageBusTelemetry.RecordException(activity, exception);
+            throw;
+        }
     }
 
     public async Task<IAsyncDisposable> SubscribeAsync<T>(
@@ -100,24 +113,8 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                 cancellationToken: cancellationToken);
 
             var consumer = new AsyncEventingBasicConsumer(channel);
-            consumer.ReceivedAsync += async (_, eventArgs) =>
-            {
-                var message = JsonSerializer.Deserialize<MessageEnvelope<T>>(
-                    eventArgs.Body.Span,
-                    SerializerOptions);
-
-                if (message is null)
-                {
-                    throw new InvalidOperationException(
-                        $"RabbitMQ message for '{typeof(T).FullName}' was empty or invalid.");
-                }
-
-                await handler(message, cancellationToken);
-                await channel.BasicAckAsync(
-                    deliveryTag: eventArgs.DeliveryTag,
-                    multiple: false,
-                    cancellationToken: cancellationToken);
-            };
+            consumer.ReceivedAsync += (_, eventArgs) => HandleMessageAsync(
+                channel, queueName, eventArgs, handler, cancellationToken);
 
             var consumerTag = await channel.BasicConsumeAsync(
                 queue: queueName,
@@ -131,6 +128,45 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         {
             await channel.DisposeAsync();
             throw;
+        }
+    }
+
+    internal static async Task HandleMessageAsync<T>(
+        IChannel channel,
+        string queueName,
+        BasicDeliverEventArgs eventArgs,
+        Func<MessageEnvelope<T>, CancellationToken, Task> handler,
+        CancellationToken cancellationToken)
+    {
+        // A delivery must inherit its message's context, never the subscription's activity.
+        var previousActivity = Activity.Current;
+        Activity.Current = null;
+        try
+        {
+            using var activity = MessageBusTelemetry.StartConsumerActivity(queueName, eventArgs);
+            try
+            {
+                var message = JsonSerializer.Deserialize<MessageEnvelope<T>>(
+                    eventArgs.Body.Span, SerializerOptions)
+                    ?? throw new InvalidOperationException(
+                        $"RabbitMQ message for '{typeof(T).FullName}' was empty or invalid.");
+
+                activity?.SetTag("messaging.message.id", message.Id);
+                await handler(message, cancellationToken);
+                await channel.BasicAckAsync(
+                    deliveryTag: eventArgs.DeliveryTag,
+                    multiple: false,
+                    cancellationToken: cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                MessageBusTelemetry.RecordException(activity, exception);
+                throw;
+            }
+        }
+        finally
+        {
+            Activity.Current = previousActivity;
         }
     }
 
