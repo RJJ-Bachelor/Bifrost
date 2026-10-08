@@ -1,59 +1,26 @@
-# GlitnirFrontend
+# Glitnir frontend
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 19.2.7.
+Simpel adgangstest med tre sider:
 
-## Development server
+- Forside: statisk indhold uden API-kald.
+- Student: henter `/api/students/me` gennem Heimdall. Eir opretter en HttpOnly-cookie; siden viser identiteten fra API'et. Hent igen genbruger den samme cookie.
+- Teacher: henter `/api/teachers/me` gennem Heimdall. Uden login vises HTTP 401. En konto uden Teacher-rollen får HTTP 403.
 
-To start a local development server, run:
+Login øverst til højre starter Heimdalls OIDC-flow hos VarService og vender tilbage til `/teacher`. Ingen adgangskoder eller tokens gemmes i frontend.
 
-```bash
-ng serve
+Med Aspire åbnes appen på http://localhost:7000. Ved separat `npm start` åbnes den på http://localhost:7002. Brug localhost for at dele login-cookies med Heimdall.
+Heimdall forventes på port 6004 og VarService på port 6003.
+
+API-proxyen konfigureres i `proxy.conf.json`; login-adressen i `heimdall.service.ts`. Tilladte returadresser findes i Heimdalls `Frontend`-konfiguration.
+Proxyen virker med udviklingsserveren. Ved hosting skal `/api` routes gennem Heimdall.
+
+`npm run build` bygger appen. `npm test -- --watch=false --browsers=ChromeHeadless` kører tests.
+
+Browser-regression fra repository-roden, med AppHost og Chrome:
+
+```powershell
+npm.cmd install --prefix artifacts/login-browser --no-save --package-lock=false playwright-core
+node scripts/Bifrost-JPF/lib/glitnir-browser-test.cjs
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Testen kontrollerer den passive forside, elevcookien, Teacher 401 og login med retur til Teacher 200.

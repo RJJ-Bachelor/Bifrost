@@ -1,0 +1,24 @@
+<section class="panel">
+  <div class="section-heading">
+    <div><p class="eyebrow">TEST AF ADGANG</p><h1>{{ student ? 'Student' : 'Teacher' }}</h1></div>
+    <button class="button secondary" (click)="load()" [disabled]="busy">Hent igen</button>
+  </div>
+  <p *ngIf="student">Du kan tilgå elevdata uden login. Systemet gemmer din anonyme identitet i en cookie.</p>
+  <p *ngIf="!student">Lærerdata kræver login og rollen Teacher. Før login viser siden, at adgangen er afvist.</p>
+
+  <div class="response" aria-live="polite" [attr.aria-busy]="busy">
+    <div class="response-heading"><span>API-svar</span><span *ngIf="status !== null" class="status" [class.denied]="error">{{ status === 0 ? 'Ingen forbindelse' : 'HTTP ' + status }}</span></div>
+    <p *ngIf="busy">Henter data …</p>
+    <p *ngIf="error" class="error" role="alert">{{ error }}</p>
+    <ng-container *ngIf="identity">
+      <div class="identity-details">
+        <p class="eyebrow">{{ student ? 'DIN COOKIE-IDENTITET' : 'DIN LÆRERIDENTITET' }}</p>
+        <p class="user-id">{{ identity.userId }}</p>
+        <p *ngIf="identity.name">Navn: {{ identity.name }}</p>
+        <p>Rolle: {{ identity.roles.join(', ') }}</p>
+      </div>
+      <p *ngIf="student" class="hint">Cookien hedder <code>bifrost-anonymous-user</code>. Den er HttpOnly; siden viser identiteten fra API'et. Tryk Hent igen for at se, at samme identitet genbruges.</p>
+      <pre>{{ identity | json }}</pre>
+    </ng-container>
+  </div>
+</section>
