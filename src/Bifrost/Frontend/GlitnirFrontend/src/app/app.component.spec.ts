@@ -5,6 +5,7 @@ import { AppComponent } from './app.component';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
+    sessionStorage.removeItem('glitnir.logged-in');
     await TestBed.configureTestingModule({
       providers: [provideHttpClient()],
       imports: [
@@ -15,6 +16,8 @@ describe('AppComponent', () => {
       ],
     }).compileComponents();
   });
+
+  afterEach(() => sessionStorage.removeItem('glitnir.logged-in'));
 
   it('should create the app', () => {
     const fixture = TestBed.createComponent(AppComponent);
@@ -33,5 +36,12 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('.brand')?.textContent).toContain('Glitnir');
+  });
+
+  it('shows Logout after reloading a tab with a known login, without fetching data', () => {
+    sessionStorage.setItem('glitnir.logged-in', 'true');
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.login-button').textContent).toContain('Log ud');
   });
 });

@@ -6,7 +6,9 @@ Simpel adgangstest med tre sider:
 - Student: henter `/api/students/me` gennem Heimdall. Eir opretter en HttpOnly-cookie; siden viser identiteten fra API'et. Hent igen genbruger den samme cookie.
 - Teacher: henter `/api/teachers/me` gennem Heimdall. Uden login vises HTTP 401. En konto uden Teacher-rollen får HTTP 403.
 
-Login øverst til højre starter Heimdalls OIDC-flow hos VarService og vender tilbage til `/teacher`. Ingen adgangskoder eller tokens gemmes i frontend.
+Login øverst til højre starter Heimdalls OIDC-flow hos VarService og vender tilbage til `/teacher`. Ingen adgangskoder eller tokens gemmes i frontend. Efter bekræftet login erstattes knappen af Log ud, som afslutter sessionen hos Heimdall og VarService og vender tilbage til forsiden. Elevcookien bevares.
+
+Menuens loginstatus gemmes kun som et flag i sessionStorage, så forsiden ikke henter data. Teacher-API'et opdaterer status og fjerner flaget ved HTTP 401; flaget giver ingen API-adgang.
 
 Med Aspire åbnes appen på http://localhost:7000. Ved separat `npm start` åbnes den på http://localhost:7002. Brug localhost for at dele login-cookies med Heimdall.
 Heimdall forventes på port 6004 og VarService på port 6003.
@@ -23,4 +25,4 @@ npm.cmd install --prefix artifacts/login-browser --no-save --package-lock=false 
 node scripts/Bifrost-JPF/lib/glitnir-browser-test.cjs
 ```
 
-Testen kontrollerer den passive forside, elevcookien, Teacher 401 og login med retur til Teacher 200.
+Testen kontrollerer den passive forside, elevcookien, Teacher 401, login med retur til Teacher 200 og logout af begge lærersessioner.

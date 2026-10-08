@@ -6,7 +6,11 @@
       <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student</a>
       <a routerLink="/teacher" routerLinkActive="active" ariaCurrentWhenActive="page">Teacher</a>
     </div>
-    <button class="button login-button" (click)="api.login()">Login</button>
+    @if (api.loggedIn()) {
+      <button class="button login-button" (click)="api.logout()">Log ud</button>
+    } @else {
+      <button class="button login-button" (click)="api.login()">Login</button>
+    }
   </nav>
 </header>
 <main><router-outlet /></main>

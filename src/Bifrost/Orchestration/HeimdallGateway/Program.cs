@@ -41,7 +41,7 @@ public class Program
             {
                 options.Authority = builder.Configuration["Authentication:Authority"] ?? "http://localhost:6003";
                 options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-                options.Audience = "scope1";
+                options.Audience = "Bifrost";
                 options.MapInboundClaims = false;
                 options.TokenValidationParameters.NameClaimType = "name";
                 options.TokenValidationParameters.RoleClaimType = "role";
@@ -79,7 +79,7 @@ public class Program
                 options.Scope.Add("openid");
                 options.Scope.Add("profile");
                 options.Scope.Add("roles");
-                options.Scope.Add("scope1");
+                options.Scope.Add("Bifrost");
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     NameClaimType = "name",

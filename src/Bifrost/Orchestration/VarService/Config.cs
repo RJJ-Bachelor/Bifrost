@@ -16,16 +16,16 @@ namespace VarService
         public static IEnumerable<ApiScope> ApiScopes =>
             new ApiScope[]
             {
-                new ApiScope("scope1", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role }),
+                new ApiScope("Bifrost", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role }),
                 new ApiScope("scope2"),
             };
 
         public static IEnumerable<ApiResource> ApiResources =>
             new[]
             {
-                new ApiResource("scope1", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role })
+                new ApiResource("Bifrost", "Eir API", new[] { JwtClaimTypes.Name, JwtClaimTypes.Role })
                 {
-                    Scopes = { "scope1" }
+                    Scopes = { "Bifrost" }
                 }
             };
 
@@ -41,7 +41,7 @@ namespace VarService
                     AllowedGrantTypes = GrantTypes.ClientCredentials,
                     ClientSecrets = { new Secret("511536EF-F270-4058-80CA-1C89C192F69A".Sha256()) },
 
-                    AllowedScopes = { "scope1" }
+                    AllowedScopes = { "Bifrost" }
                 },
 
                 // interactive client using code flow + pkce
@@ -66,7 +66,7 @@ namespace VarService
                     },
 
                     AllowOfflineAccess = true,
-                    AllowedScopes = { "openid", "profile", "roles", "scope1", "scope2" }
+                    AllowedScopes = { "openid", "profile", "roles", "Bifrost", "scope2" }
                 },
             };
     }

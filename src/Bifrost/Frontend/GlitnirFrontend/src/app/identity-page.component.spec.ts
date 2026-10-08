@@ -4,6 +4,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ActivatedRoute } from '@angular/router';
 import { HomeComponent } from './home.component';
 import { IdentityPageComponent } from './identity-page.component';
+import { HeimdallService } from './heimdall.service';
 
 describe('Glitnir access pages', () => {
   let http: HttpTestingController;
@@ -17,7 +18,11 @@ describe('Glitnir access pages', () => {
     http = TestBed.inject(HttpTestingController);
   }
 
-  afterEach(() => http.verify());
+  beforeEach(() => sessionStorage.removeItem('glitnir.logged-in'));
+  afterEach(() => {
+    http.verify();
+    sessionStorage.removeItem('glitnir.logged-in');
+  });
 
   it('keeps the home page free of data requests', () => {
     setup();
@@ -34,6 +39,7 @@ describe('Glitnir access pages', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('.user-id').textContent).toContain('cookie-student');
     expect(fixture.componentInstance.status).toBe(200);
+    expect(TestBed.inject(HeimdallService).loggedIn()).toBeFalse();
   });
 
   it('displays denied teacher access without redirecting automatically', () => {
@@ -53,6 +59,7 @@ describe('Glitnir access pages', () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('pre').textContent).toContain('Knud');
     expect(fixture.componentInstance.error).toBe('');
+    expect(TestBed.inject(HeimdallService).loggedIn()).toBeTrue();
   });
 
   it('distinguishes a missing Teacher role from a missing login', () => {
@@ -61,5 +68,17 @@ describe('Glitnir access pages', () => {
     http.expectOne('/api/teachers/me').flush(null, { status: 403, statusText: 'Forbidden' });
     expect(fixture.componentInstance.error).toContain('rollen Teacher');
     expect(fixture.componentInstance.busy).toBeFalse();
+    expect(TestBed.inject(HeimdallService).loggedIn()).toBeTrue();
+  });
+
+  it('clears an outdated login hint when the teacher session has expired', () => {
+    sessionStorage.setItem('glitnir.logged-in', 'true');
+    setup('teachers');
+    const fixture = TestBed.createComponent(IdentityPageComponent);
+    expect(TestBed.inject(HeimdallService).loggedIn()).toBeTrue();
+    http.expectOne('/api/teachers/me').flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(TestBed.inject(HeimdallService).loggedIn()).toBeFalse();
+    expect(sessionStorage.getItem('glitnir.logged-in')).toBeNull();
+    expect(fixture.componentInstance.identity).toBeNull();
   });
 });

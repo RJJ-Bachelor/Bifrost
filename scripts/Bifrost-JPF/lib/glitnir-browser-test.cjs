@@ -51,13 +51,35 @@ async function main() {
     assert.equal(teacherResponse.status(), 200);
     assert.ok((await teacherResponse.json()).roles.includes('Teacher'));
     await page.locator('pre').filter({ hasText: 'Teacher' }).waitFor();
+    await page.getByRole('button', { name: 'Log ud', exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Login', exact: true }).count(), 0);
 
     // Returning home must not refresh or query the signed-in user's identity.
     const before = apiCalls.length;
     await page.getByRole('link', { name: 'Forside', exact: true }).click();
     await page.getByRole('heading', { name: 'Velkommen' }).waitFor();
     assert.equal(apiCalls.length, before);
-    console.log('PASS: Passive home, student cookie reuse, Teacher 401, VarService login and Teacher 200.');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: 'Velkommen' }).waitFor();
+    await page.getByRole('button', { name: 'Log ud', exact: true }).waitFor();
+    assert.equal(apiCalls.length, before, 'Reloading home must not query authentication');
+
+    await page.getByRole('button', { name: 'Log ud', exact: true }).click();
+    await page.waitForURL(frontend + '/', { timeout: 30000 });
+    await page.getByRole('button', { name: 'Login', exact: true }).waitFor();
+    const cookiesAfterLogout = await context.cookies();
+    assert.ok(!cookiesAfterLogout.some(cookie => /^bifrost-teacher(?:C\d+)?$/.test(cookie.name)), 'Gateway session must end');
+    assert.ok(!cookiesAfterLogout.some(cookie => cookie.name.startsWith('.AspNetCore.Identity.Application')), 'VarService session must end');
+
+    response = responseFor('teachers');
+    await page.getByRole('link', { name: 'Teacher', exact: true }).click();
+    assert.equal((await response).status(), 401, 'Teacher API must reject access after logout');
+
+    response = responseFor('students');
+    await page.getByRole('link', { name: 'Student', exact: true }).click();
+    assert.equal((await (await response).json()).userId, student.userId, 'Teacher logout must retain the anonymous student identity');
+    console.log('PASS: Passive home, student cookie reuse, Teacher login, conditional Logout and ended sessions.');
   } finally {
     await browser.close();
   }

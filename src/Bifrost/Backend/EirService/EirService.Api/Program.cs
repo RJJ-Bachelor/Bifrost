@@ -40,7 +40,7 @@ public class Program
             {
                 options.Authority = builder.Configuration["Authentication:Authority"] ?? "http://localhost:6003";
                 options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-                options.Audience = "scope1";
+                options.Audience = "Bifrost";
                 options.MapInboundClaims = false;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
@@ -61,7 +61,7 @@ public class Program
                 .RequireClaim("sub")
                 .RequireRole("Teacher")
                 .RequireAssertion(context => context.User.FindAll("scope")
-                    .Any(claim => claim.Value.Split(' ').Contains("scope1"))));
+                    .Any(claim => claim.Value.Split(' ').Contains("Bifrost"))));
         });
         builder.Services.AddMediatR(configuration =>
         {
