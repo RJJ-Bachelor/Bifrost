@@ -1,4 +1,4 @@
-namespace EirService.Requests.Domain.Entities;
+namespace EirService.HelpRequests.Domain.Entities;
 
 public sealed class EirRequest
 {

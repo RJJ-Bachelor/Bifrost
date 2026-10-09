@@ -1,5 +1,5 @@
 ﻿using EirService.Api.Endpoints;
-using EirService.Requests.Application.Features.Commands.CreateRequest;
+using EirService.HelpRequests.Application.Features.Commands.CreateRequest;
 using MediatR;
 
 namespace EirService.Api.Endpoints.Student

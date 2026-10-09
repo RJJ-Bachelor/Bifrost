@@ -1,11 +1,11 @@
-using EirService.Requests.Application.Services.Messaging;
+using EirService.HelpRequests.Application.Services.Messaging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 
-namespace EirService.Requests.Infrastructure.Messaging;
+namespace EirService.HelpRequests.Infrastructure.Messaging;
 
 internal sealed class GeneralizedMessageSubscriber(
     IMessageBus messageBus,

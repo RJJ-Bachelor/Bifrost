@@ -5,6 +5,11 @@
     <Project Path="Backend/EirService/EirService.Test/EirService.Test.csproj" Id="37019f88-ece4-4db3-837c-70e45bddcee4" />
   </Folder>
   <Folder Name="/Backend/EirService/Modules/" />
+  <Folder Name="/Backend/EirService/Modules/HelpRequests/">
+    <Project Path="Backend/EirService/Modules/HelpRequests/EirService.HelpRequests.Application/EirService.HelpRequests.Application.csproj" />
+    <Project Path="Backend/EirService/Modules/HelpRequests/EirService.HelpRequests.Domain/EirService.HelpRequests.Domain.csproj" />
+    <Project Path="Backend/EirService/Modules/HelpRequests/EirService.HelpRequests.Infrastructure/EirService.HelpRequests.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/Backend/EirService/Modules/Insights/">
     <Project Path="Backend/EirService/Modules/Insights/EirService.Insights.Application/EirService.Insights.Application.csproj" Id="fbcadd4c-04df-4bd9-b936-769ab646dba1" />
     <Project Path="Backend/EirService/Modules/Insights/EirService.Insights.Domain/EirService.Insights.Domain.csproj" Id="5bea276a-7430-4be4-9d25-8ee28fe02d28" />

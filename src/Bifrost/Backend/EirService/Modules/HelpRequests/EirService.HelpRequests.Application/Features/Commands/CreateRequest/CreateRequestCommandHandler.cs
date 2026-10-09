@@ -1,9 +1,9 @@
-using EirService.Requests.Application.Repositories;
-using EirService.Requests.Domain.Entities;
+using EirService.HelpRequests.Application.Repositories;
+using EirService.HelpRequests.Domain.Entities;
 using MediatR;
 using Shared.Application.Messaging;
 
-namespace EirService.Requests.Application.Features.Commands.CreateRequest
+namespace EirService.HelpRequests.Application.Features.Commands.CreateRequest
 {
     public sealed class CreateRequestCommandHandler(
         IRequestRepository requestRepository,

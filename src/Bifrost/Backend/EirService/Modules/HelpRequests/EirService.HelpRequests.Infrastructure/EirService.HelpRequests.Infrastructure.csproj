@@ -12,8 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\EirService.Requests.Application\EirService.Requests.Application.csproj" />
-    <ProjectReference Include="..\EirService.Requests.Domain\EirService.Requests.Domain.csproj" />
+    <ProjectReference Include="..\EirService.HelpRequests.Application\EirService.HelpRequests.Application.csproj" />
+    <ProjectReference Include="..\EirService.HelpRequests.Domain\EirService.HelpRequests.Domain.csproj" />
     <ProjectReference Include="..\..\..\..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj" />
   </ItemGroup>
 

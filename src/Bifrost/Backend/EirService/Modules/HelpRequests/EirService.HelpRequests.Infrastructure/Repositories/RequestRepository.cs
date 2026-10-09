@@ -1,9 +1,9 @@
-using EirService.Requests.Application.Repositories;
-using EirService.Requests.Domain.Entities;
-using EirService.Requests.Infrastructure.Persistence;
+using EirService.HelpRequests.Application.Repositories;
+using EirService.HelpRequests.Domain.Entities;
+using EirService.HelpRequests.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
-namespace EirService.Requests.Infrastructure.Repositories;
+namespace EirService.HelpRequests.Infrastructure.Repositories;
 
 public sealed class RequestRepository(EirRequestDbContext dbContext) : IRequestRepository
 {

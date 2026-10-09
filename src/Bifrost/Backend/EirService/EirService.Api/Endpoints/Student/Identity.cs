@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using EirService.Requests.Application.Repositories;
+using EirService.HelpRequests.Application.Repositories;
 
 namespace EirService.Api.Endpoints.Student;
 

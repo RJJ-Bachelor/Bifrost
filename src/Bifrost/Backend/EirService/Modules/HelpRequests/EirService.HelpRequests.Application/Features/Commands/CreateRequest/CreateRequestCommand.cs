@@ -1,6 +1,6 @@
 ﻿using MediatR;
 
-namespace EirService.Requests.Application.Features.Commands.CreateRequest
+namespace EirService.HelpRequests.Application.Features.Commands.CreateRequest
 {
     public record CreateRequestCommand(
     string Id,

@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
 
-namespace EirService.Requests.Application.Features.Commands.CreateRequest
+namespace EirService.HelpRequests.Application.Features.Commands.CreateRequest
 {
     public class CreateRequestCommandValidator : AbstractValidator<CreateRequestCommand>
     {

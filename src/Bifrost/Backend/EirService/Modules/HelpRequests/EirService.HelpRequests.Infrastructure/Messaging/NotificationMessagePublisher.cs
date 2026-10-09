@@ -1,7 +1,7 @@
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 
-namespace EirService.Requests.Infrastructure.Messaging;
+namespace EirService.HelpRequests.Infrastructure.Messaging;
 
 internal sealed class NotificationMessagePublisher(IMessageBus messageBus)
     : INotificationMessagePublisher

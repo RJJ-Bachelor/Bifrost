@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 
-namespace EirService.Requests.Application.Services.Messaging;
+namespace EirService.HelpRequests.Application.Services.Messaging;
 
 public sealed class GeneralizedMessageHandler(
     ILogger<GeneralizedMessageHandler> logger) : IGeneralizedMessageHandler

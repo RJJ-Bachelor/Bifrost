@@ -1,9 +1,9 @@
 
 using EirService.Api.Extensions;
 using EirService.Api.Authentication;
-using EirService.Requests.Application.Features.Commands.CreateRequest;
-using EirService.Requests.Infrastructure;
-using EirService.Requests.Infrastructure.Persistence;
+using EirService.HelpRequests.Application.Features.Commands.CreateRequest;
+using EirService.HelpRequests.Infrastructure;
+using EirService.HelpRequests.Infrastructure.Persistence;
 using FluentValidation;
 using MediatR;
 using Shared.Application.Behaviors;
@@ -23,7 +23,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
         builder.Services.AddDataProtection();
-        builder.Services.AddRequestsInfrastructure(builder.Configuration);
+        builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
 
         // Add services to the container.
         builder.Services

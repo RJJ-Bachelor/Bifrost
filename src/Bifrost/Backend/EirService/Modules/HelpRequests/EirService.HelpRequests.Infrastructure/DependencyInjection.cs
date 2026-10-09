@@ -1,19 +1,19 @@
-using EirService.Requests.Application.Repositories;
-using EirService.Requests.Infrastructure.Messaging;
-using EirService.Requests.Infrastructure.Persistence;
-using EirService.Requests.Infrastructure.Repositories;
+using EirService.HelpRequests.Application.Repositories;
+using EirService.HelpRequests.Infrastructure.Messaging;
+using EirService.HelpRequests.Infrastructure.Persistence;
+using EirService.HelpRequests.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
-using EirService.Requests.Application.Services.Messaging;
+using EirService.HelpRequests.Application.Services.Messaging;
 
-namespace EirService.Requests.Infrastructure;
+namespace EirService.HelpRequests.Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddRequestsInfrastructure(
+    public static IServiceCollection AddHelpRequestsInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
     {

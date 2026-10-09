@@ -1,7 +1,7 @@
-﻿using EirService.Requests.Domain.Entities;
+﻿using EirService.HelpRequests.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace EirService.Requests.Infrastructure.Persistence
+namespace EirService.HelpRequests.Infrastructure.Persistence
 {
     public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> options)
         : DbContext(options)

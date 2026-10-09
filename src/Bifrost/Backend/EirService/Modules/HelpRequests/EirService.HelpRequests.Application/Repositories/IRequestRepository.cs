@@ -1,6 +1,6 @@
-using EirService.Requests.Domain.Entities;
+using EirService.HelpRequests.Domain.Entities;
 
-namespace EirService.Requests.Application.Repositories;
+namespace EirService.HelpRequests.Application.Repositories;
 
 public interface IRequestRepository
 {
