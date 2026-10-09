@@ -1,4 +1,4 @@
-namespace EirService.Api.Endpoints.Student.HelpRequests;
+namespace EirService.Api.Endpoints.Student.HelpRequests.CreateHelpRequest;
 
 public sealed class CreateHelpRequestRequest
 {

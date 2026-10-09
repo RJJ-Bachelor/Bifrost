@@ -1,8 +1,9 @@
+using EirService.Api.Authentication;
 using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
-namespace EirService.Api.Endpoints.Student.HelpRequests;
+namespace EirService.Api.Endpoints.Student.HelpRequests.CreateHelpRequest;
 
 internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, string>
 {
@@ -16,7 +17,7 @@ internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, str
     public override async Task HandleAsync(CreateHelpRequestRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateHelpRequestCommand(
-            request.Id, User.FindFirst("sub")?.Value ?? string.Empty, request.Message);
+            request.Id, User.GetRequiredUserId(), request.Message);
         var result = await command.ExecuteAsync(cancellationToken);
         await Send.OkAsync(result, cancellationToken);
     }

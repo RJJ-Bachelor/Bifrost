@@ -1,8 +1,9 @@
+using EirService.Api.Authentication;
 using EirService.Sessions.Application.Features.CreateSession;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
-namespace EirService.Api.Endpoints.Teacher.Sessions;
+namespace EirService.Api.Endpoints.Teacher.Sessions.CreateSessions;
 
 internal sealed class CreateSession : EndpointWithoutRequest<bool>
 {
@@ -15,7 +16,7 @@ internal sealed class CreateSession : EndpointWithoutRequest<bool>
 
     public override async Task HandleAsync(CancellationToken cancellationToken)
     {
-        var command = new CreateSessionCommand(User.FindFirst("sub")?.Value ?? string.Empty);
+        var command = new CreateSessionCommand(User.GetRequiredUserId());
         var result = await command.ExecuteAsync(cancellationToken);
         await Send.OkAsync(result, cancellationToken);
     }

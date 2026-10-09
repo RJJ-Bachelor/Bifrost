@@ -1,3 +1,4 @@
+using EirService.Api.Authentication;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
@@ -15,7 +16,7 @@ internal sealed class GetStudentIdentity : EndpointWithoutRequest<StudentIdentit
     public override async Task HandleAsync(CancellationToken cancellationToken)
     {
         var response = new StudentIdentityResponse(
-            User.FindFirst("sub")!.Value,
+            User.GetRequiredUserId(),
             User.FindAll("role").Select(claim => claim.Value).ToArray());
         await Send.OkAsync(response, cancellationToken);
     }
