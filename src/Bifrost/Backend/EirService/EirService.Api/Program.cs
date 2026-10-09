@@ -1,8 +1,8 @@
-using EirService.Api.Extensions;
 using EirService.Api.Authentication;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.Queries.GetHelpRequests;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.CreateSession;
@@ -72,6 +72,7 @@ public class Program
             ];
         });
         builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
+        builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
@@ -99,7 +100,7 @@ public class Program
                 """);
         }
 
-        app.MapEndpoints();
+        app.MapDefaultEndpoints();
 
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())

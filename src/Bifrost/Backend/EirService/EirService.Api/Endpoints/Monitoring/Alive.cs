@@ -1,17 +1,19 @@
-﻿namespace EirService.Api.Endpoints
-{
-    internal class Alive
-    {
-        public static void MapEndpoint(IEndpointRouteBuilder app)
-        {
-            app.MapGet("/monitoring/alive", AliveHandler)
-                .WithTags("Monitoring")
-                .AllowAnonymous();
-        }
+using FastEndpoints;
+using EndpointTags = EirService.Api.Endpoints.Tags;
 
-        private static IResult AliveHandler()
-        {
-            return Results.Ok($"EirService is alive and running.");
-        }
+namespace EirService.Api.Endpoints.Monitoring;
+
+internal sealed class Alive : EndpointWithoutRequest<string>
+{
+    public override void Configure()
+    {
+        Get("/monitoring/alive");
+        AllowAnonymous();
+        Options(builder => builder.WithName(nameof(Alive)).WithTags(EndpointTags.Monitoring));
+    }
+
+    public override async Task HandleAsync(CancellationToken cancellationToken)
+    {
+        await Send.OkAsync("EirService is alive and running.", cancellationToken);
     }
 }

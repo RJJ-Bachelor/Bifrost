@@ -2,7 +2,7 @@ using EirService.Sessions.Application.Features.CreateSession;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
-namespace EirService.Api.Endpoints.Teacher.Session;
+namespace EirService.Api.Endpoints.Teacher.Sessions;
 
 internal sealed class CreateSession : EndpointWithoutRequest<bool>
 {

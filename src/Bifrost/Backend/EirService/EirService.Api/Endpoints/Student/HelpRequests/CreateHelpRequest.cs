@@ -2,7 +2,7 @@ using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
-namespace EirService.Api.Endpoints.Student.HelpRequest;
+namespace EirService.Api.Endpoints.Student.HelpRequests;
 
 internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, string>
 {

@@ -4,9 +4,12 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Xml.Linq;
 using EirService.Api.Authentication;
+using EirService.Api.Endpoints.Student.Participants;
+using EirService.Api.Endpoints.Teacher.Participants;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.Queries.GetHelpRequests;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.Sessions.Application.Features.CreateSession;
@@ -40,6 +43,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         _logger = new RecordingLogger<CreateSessionCommandHandler>(_executionOrder);
         var commandLogger = new RecordingLogger<CommandLoggingMiddleware<CreateSessionCommand, bool>>(_executionOrder);
         var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>(_executionOrder);
+        var queryLogger = new RecordingLogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>(_executionOrder);
         _requests = new RecordingRequestServices(_executionOrder);
         var builder = WebApplication.CreateBuilder();
         builder.Logging.ClearProviders().AddConsole();
@@ -56,12 +60,14 @@ public sealed class CommandBusTests : IAsyncLifetime
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
+        builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));
         builder.Services.AddSingleton<ILogger<CreateSessionCommandHandler>>(_logger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, bool>>>(commandLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>>(helpRequestLogger);
+        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
         builder.Services.AddSingleton<IRequestRepository>(_requests);
         builder.Services.AddSingleton<IRequestMessagePublisher>(_requests);
         builder.Services.AddSingleton<INotificationMessagePublisher>(_requests);
@@ -88,7 +94,7 @@ public sealed class CommandBusTests : IAsyncLifetime
                     .Any(claim => claim.Value.Split(' ').Contains("Bifrost"))));
         });
 
-        // Exercise both slices with their real command bus and validation, using recorded infrastructure calls.
+        // Exercise the endpoints and application slices with recorded infrastructure calls.
         _app = builder.Build();
         _app.UseMiddleware<ValidationExceptionMiddleware>();
         _app.UseAuthentication();
@@ -368,6 +374,183 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Empty(_executionOrder);
     }
 
+    [Fact]
+    public async Task MonitoringAliveRemainsAnonymousAndPreservesResponse()
+    {
+        using var response = await _client.GetAsync("/api/monitoring/alive");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("EirService is alive and running.", await response.Content.ReadFromJsonAsync<string>());
+        Assert.Empty(_requests.Saved);
+        Assert.Empty(_requests.Reads);
+    }
+
+    [Fact]
+    public async Task StudentIdentityCreatesCookieAndReusesIt()
+    {
+        using var response = await _client.GetAsync("/api/students/me");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var identity = await response.Content.ReadFromJsonAsync<StudentIdentityResponse>();
+        Assert.NotNull(identity);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"userId\":", body);
+        Assert.Contains("\"roles\":", body);
+        Assert.True(Guid.TryParseExact(identity.UserId, "N", out _));
+        Assert.Equal(new[] { "Student" }, identity.Roles);
+        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie")).Split(';')[0];
+        _client.DefaultRequestHeaders.Add("Cookie", cookie);
+
+        using var nextResponse = await _client.GetAsync("/api/students/me?userId=supplied-student");
+
+        Assert.Equal(HttpStatusCode.OK, nextResponse.StatusCode);
+        var nextIdentity = await nextResponse.Content.ReadFromJsonAsync<StudentIdentityResponse>();
+        Assert.NotNull(nextIdentity);
+        Assert.Equal(identity.UserId, nextIdentity.UserId);
+        Assert.False(nextResponse.Headers.Contains("Set-Cookie"));
+        Assert.Empty(_requests.Reads);
+        Assert.Empty(_requests.Saved);
+    }
+
+    [Fact]
+    public async Task TeacherIdentityReturnsAuthenticatedSubjectNameAndRoles()
+    {
+        Authenticate("Teacher", "teacher-123");
+        _client.DefaultRequestHeaders.Add("X-Test-Name", "Teacher Name");
+
+        using var response = await _client.GetAsync("/api/teachers/me?userId=supplied-teacher");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var identity = await response.Content.ReadFromJsonAsync<TeacherIdentityResponse>();
+        Assert.NotNull(identity);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"userId\":", body);
+        Assert.Contains("\"name\":", body);
+        Assert.Contains("\"roles\":", body);
+        Assert.Equal("teacher-123", identity.UserId);
+        Assert.Equal("Teacher Name", identity.Name);
+        Assert.Equal(new[] { "Teacher" }, identity.Roles);
+        Assert.Empty(_executionOrder);
+    }
+
+    [Fact]
+    public async Task AnonymousTeacherIdentityIsRejected()
+    {
+        using var response = await _client.GetAsync("/api/teachers/me");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("Student", "student-123", "Bifrost")]
+    [InlineData("Teacher", null, "Bifrost")]
+    [InlineData("Teacher", "teacher-123", "Other")]
+    public async Task TeacherIdentityEnforcesExistingPolicy(string role, string? userId, string scope)
+    {
+        Authenticate(role, userId, scope);
+
+        using var response = await _client.GetAsync("/api/teachers/me");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task HelpRequestHistoryUsesCookieIdentityAndPreservesArrayResponse()
+    {
+        using var identityResponse = await _client.GetAsync("/api/students/me");
+        var identity = await identityResponse.Content.ReadFromJsonAsync<StudentIdentityResponse>();
+        Assert.NotNull(identity);
+        var cookie = Assert.Single(identityResponse.Headers.GetValues("Set-Cookie")).Split(';')[0];
+        _client.DefaultRequestHeaders.Add("Cookie", cookie);
+        _requests.Saved.AddRange(
+        [
+            new EirRequest("request-2", identity.UserId, "Second request"),
+            new EirRequest("request-1", identity.UserId, "First request"),
+            new EirRequest("other-request", "other-student", "Private request"),
+            new EirRequest("legacy-request", null!, "Legacy request")
+        ]);
+
+        using var response = await _client.GetAsync("/api/students/requests?userId=other-student");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var requests = await response.Content.ReadFromJsonAsync<HelpRequestResult[]>();
+        Assert.NotNull(requests);
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("\"id\":", body);
+        Assert.Contains("\"userId\":", body);
+        Assert.Contains("\"message\":", body);
+        Assert.Equal(new[] { "request-1", "request-2" }, requests.Select(request => request.Id));
+        Assert.All(requests, request => Assert.Equal(identity.UserId, request.UserId));
+        Assert.Equal(new[] { "First request", "Second request" }, requests.Select(request => request.Message));
+        Assert.Equal(identity.UserId, Assert.Single(_requests.Reads).UserId);
+        Assert.Equal(new[]
+        {
+            "Executing command GetHelpRequestsQuery",
+            $"Read help requests for {identity.UserId}",
+            "Executed command GetHelpRequestsQuery"
+        }, _executionOrder);
+        Assert.Empty(_requests.RequestMessages);
+        Assert.Empty(_requests.Notifications);
+        Assert.Equal(4, _requests.Saved.Count);
+    }
+
+    [Fact]
+    public async Task HelpRequestHistoryReturnsEmptyArrayForNewStudent()
+    {
+        using var response = await _client.GetAsync("/api/students/requests");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("[]", await response.Content.ReadAsStringAsync());
+        Assert.Single(_requests.Reads);
+    }
+
+    [Fact]
+    public async Task QueryUsesCommandBusOutsideHttpAndForwardsCancellationToken()
+    {
+        _requests.Saved.Add(new EirRequest("request-1", "student-123", "Please help"));
+        using var cancellation = new CancellationTokenSource();
+
+        var results = await new GetHelpRequestsQuery("student-123").ExecuteAsync(cancellation.Token);
+
+        Assert.Equal(new HelpRequestResult("request-1", "student-123", "Please help"), Assert.Single(results));
+        var read = Assert.Single(_requests.Reads);
+        Assert.Equal("student-123", read.UserId);
+        Assert.Equal(cancellation.Token, read.CancellationToken);
+        Assert.Equal(new[]
+        {
+            "Executing command GetHelpRequestsQuery",
+            "Read help requests for student-123",
+            "Executed command GetHelpRequestsQuery"
+        }, _executionOrder);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task QueryValidationStopsInvalidSubjectsBeforeRepository(string? userId)
+    {
+        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
+            new GetHelpRequestsQuery(userId!).ExecuteAsync(CancellationToken.None));
+
+        Assert.Equal(nameof(GetHelpRequestsQuery.UserId), Assert.Single(exception.Errors).PropertyName, ignoreCase: true);
+        Assert.Empty(_requests.Reads);
+        Assert.Empty(_executionOrder);
+    }
+
+    [Fact]
+    public async Task CancelledQueryStopsBeforeRepositoryAndLogging()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            new GetHelpRequestsQuery("student-123").ExecuteAsync(cancellation.Token));
+
+        Assert.Empty(_requests.Reads);
+        Assert.Empty(_executionOrder);
+    }
+
     private sealed class InMemoryKeyRepository : IXmlRepository
     {
         private readonly List<XElement> _keys = [];
@@ -381,6 +564,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         : IRequestRepository, IRequestMessagePublisher, INotificationMessagePublisher
     {
         public List<EirRequest> Saved { get; } = [];
+        public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(string Id, string Message)> RequestMessages { get; } = [];
         public List<(string Id, string? UserId, string Message)> Notifications { get; } = [];
 
@@ -391,8 +575,13 @@ public sealed class CommandBusTests : IAsyncLifetime
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<EirRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<EirRequest>>(Saved.Where(request => request.UserId == userId).ToArray());
+        public Task<IReadOnlyList<EirRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
+        {
+            Reads.Add((userId, cancellationToken));
+            executionOrder.Add($"Read help requests for {userId}");
+            return Task.FromResult<IReadOnlyList<EirRequest>>(
+                Saved.Where(request => request.UserId == userId).OrderBy(request => request.Id).ToArray());
+        }
 
         public Task PublishRequestCreatedAsync(string id, string message, CancellationToken cancellationToken = default)
         {
@@ -459,6 +648,10 @@ public sealed class CommandBusTests : IAsyncLifetime
             }
 
             List<Claim> claims = [new("role", role.ToString()), new("scope", Request.Headers["X-Test-Scope"].ToString())];
+            if (Request.Headers.TryGetValue("X-Test-Name", out var name))
+            {
+                claims.Add(new Claim("name", name.ToString()));
+            }
             if (Request.Headers.ContainsKey("X-Test-Empty-Subject"))
             {
                 claims.Add(new Claim("sub", string.Empty));
