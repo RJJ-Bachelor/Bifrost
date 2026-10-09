@@ -1,0 +1,12 @@
+{
+  "name": "bifrost-api-tests",
+  "private": true,
+  "scripts": {
+    "test": "bru run --env Local --sandbox=developer",
+    "validate": "node lib/validate.cjs"
+  },
+  "devDependencies": {
+    "@usebruno/cli": "4.2.1",
+    "js-yaml": "4.3.1"
+  }
+}

@@ -1,0 +1,110 @@
+﻿.welcome-page .logo {
+  width: 64px;
+}
+
+.icon-banner {
+  width: 32px;
+}
+
+.body-container {
+  margin-top: 60px;
+  padding-bottom: 40px;
+}
+
+.welcome-page li {
+  list-style: none;
+  padding: 4px;
+}
+
+.logged-out-page iframe {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.grants-page .card {
+  margin-top: 20px;
+  border-bottom: 1px solid lightgray;
+}
+.grants-page .card .card-title {
+  font-size: 120%;
+  font-weight: bold;
+}
+.grants-page .card .card-title img {
+  width: 100px;
+  height: 100px;
+}
+.grants-page .card label {
+  font-weight: bold;
+}
+
+/* AU Process Cyan: RGB 55/160/203, from AU's official colour palette.
+   https://medarbejdere.au.dk/administration/kommunikation/omdesignet/farver */
+.login-layout {
+  --login-cyan: #37a0cb;
+  --login-ink: #002546;
+  margin: 0;
+  color: var(--login-ink);
+  background: #f3f6f8;
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+.login-layout .login-container {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  max-width: none;
+  margin: 0;
+  padding: 40px 20px;
+}
+
+.login-page { width: 100%; max-width: 440px; }
+
+.login-card {
+  overflow: hidden;
+  border: 1px solid #dce5eb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgb(0 37 70 / 8%), 0 2px 8px rgb(0 37 70 / 4%);
+}
+
+.login-card-header { padding: 28px 32px; background: var(--login-cyan); }
+.login-brand { margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
+.login-card-header h1 { margin: 0 0 8px; font-size: 32px; font-weight: 650; letter-spacing: -.6px; }
+.login-intro { margin: 0; font-size: 15px; line-height: 1.6; }
+.login-card-body { padding: 32px; }
+.login-field { margin-bottom: 22px; }
+.login-field label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
+.login-field .form-control {
+  min-height: 48px;
+  padding: 10px 14px;
+  color: var(--login-ink);
+  background: #fbfcfd;
+  border: 1px solid #c8d6df;
+  border-radius: 8px;
+}
+.login-field .form-control:focus {
+  border-color: #1678a2;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgb(55 160 203 / 20%);
+}
+.login-remember { margin: 4px 0 28px; font-size: 14px; }
+.login-remember .form-check-input { border-color: #91a7b6; }
+.login-remember .form-check-input:checked { background-color: var(--login-ink); border-color: var(--login-ink); }
+.login-remember .form-check-input:focus { box-shadow: 0 0 0 3px rgb(55 160 203 / 20%); }
+.login-actions { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; }
+.login-actions .btn { min-height: 46px; padding: 10px 16px; border-radius: 8px; font-size: 15px; font-weight: 600; }
+.login-submit { background: var(--login-ink); color: #fff; border: 1px solid var(--login-ink); }
+.login-submit:hover { background: #003e5c; color: #fff; border-color: #003e5c; }
+.login-cancel { background: #fff; color: #334e63; border: 1px solid #c8d6df; }
+.login-cancel:hover { background: #f0f5f8; color: var(--login-ink); border-color: #91a7b6; }
+.login-actions .btn:focus-visible { outline: 3px solid #1678a2; outline-offset: 3px; box-shadow: none; }
+.login-card .alert { padding: 14px; border-radius: 8px; font-size: 14px; }
+.login-card .alert ul { margin: 8px 0 0; padding-left: 18px; }
+
+@media (max-width: 480px) {
+  .login-layout .login-container { padding: 24px 16px; }
+  .login-card-header, .login-card-body { padding: 24px; }
+}

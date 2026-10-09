@@ -1,0 +1,16 @@
+<header class="site-header">
+  <nav class="navbar" aria-label="Hovedmenu">
+    <a class="brand" routerLink="/">Glitnir<span>Test af adgang</span></a>
+    <div class="nav-links">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }" ariaCurrentWhenActive="page">Forside</a>
+      <a routerLink="/student" routerLinkActive="active" ariaCurrentWhenActive="page">Student</a>
+      <a routerLink="/teacher" routerLinkActive="active" ariaCurrentWhenActive="page">Teacher</a>
+    </div>
+    @if (api.loggedIn()) {
+      <button class="button login-button" (click)="api.logout()">Log ud</button>
+    } @else {
+      <button class="button login-button" (click)="api.login()">Login</button>
+    }
+  </nav>
+</header>
+<main><router-outlet /></main>

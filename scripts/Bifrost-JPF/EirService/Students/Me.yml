@@ -1,0 +1,12 @@
+info:
+  name: Me
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/me'
+  auth: null
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

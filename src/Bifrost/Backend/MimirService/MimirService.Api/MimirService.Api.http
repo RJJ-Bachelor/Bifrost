@@ -1,0 +1,6 @@
+@MimirService.Api_HostAddress = http://localhost:5239
+
+GET {{MimirService.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

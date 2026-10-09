@@ -1,0 +1,18 @@
+<section class="card">
+  <div class="section-heading"><div><p class="eyebrow">HEIMDALL API</p><h2>{{ titles[page] }}</h2></div><button (click)="load()" [disabled]="busy">Genindlæs</button></div>
+  <p *ngIf="page === 'overview'">Her kan du kontrollere forbindelsen til Eir gennem gatewayen. Fanerne viser rigtige API-svar.</p>
+  <p *ngIf="page === 'students'">Du bruger systemet uden login. Din elevidentitet gemmes i en cookie og genbruges ved næste besøg.</p>
+  <p *ngIf="page === 'requests'">Hent dine egne forespørgsler, eller opret en ny. Tryk Genindlæs efter oprettelse for at se listen.</p>
+  <ng-container *ngIf="page === 'teachers'"><p>Lærersider kræver login og rollen Teacher.</p><div class="actions"><button (click)="api.login()">Log ind som lærer</button><button class="secondary" (click)="api.logout()">Log ud</button><button class="secondary" (click)="createSession()" [disabled]="busy">Opret testsession</button></div></ng-container>
+  <form *ngIf="page !== 'overview'" #form="ngForm" (ngSubmit)="send(page === 'requests')">
+    <h3>{{ page === 'requests' ? 'Opret forespørgsel' : 'Send testbesked' }}</h3>
+    <label for="request-id">Besked-ID</label><input id="request-id" name="id" [(ngModel)]="id" required maxlength="100">
+    <label for="message">Besked</label><textarea id="message" name="message" [(ngModel)]="message" required maxlength="4000" rows="3"></textarea>
+    <button type="submit" [disabled]="busy || form.invalid || !id.trim() || !message.trim()">{{ page === 'requests' ? 'Opret forespørgsel' : 'Send besked' }}</button>
+  </form>
+</section>
+<section class="card response" aria-live="polite" [attr.aria-busy]="busy">
+  <p class="eyebrow">SENESTE API-SVAR</p><code>{{ endpoint }}</code>
+  <p *ngIf="busy">Henter data …</p><p *ngIf="error" class="error" role="alert">{{ error }}</p>
+  <pre *ngIf="result !== undefined">{{ result | json }}</pre>
+</section>

@@ -1,0 +1,19 @@
+﻿namespace EirService.Api.Extensions
+{
+    public static class MapEndpointsExtension
+    {
+        public static void MapEndpoints(this WebApplication app)
+        {
+            var api = app.MapGroup("/api");
+
+            app.MapDefaultEndpoints();
+            Endpoints.Alive.MapEndpoint(api);
+            Endpoints.Student.Request.MapEndpoint(api);
+            Endpoints.Student.Test.MapEndpoint(api);
+            Endpoints.Student.Identity.MapEndpoint(api);
+            Endpoints.Teacher.Test.MapEndpoint(api);
+            Endpoints.Teacher.Identity.MapEndpoint(api);
+            Endpoints.Teacher.CreateSession.MapEndpoint(api);
+        }
+    }
+}

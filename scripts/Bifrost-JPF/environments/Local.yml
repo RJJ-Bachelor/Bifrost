@@ -1,0 +1,11 @@
+name: Local
+variables:
+  - name: gatewayUrl
+    value: http://localhost:6004
+  - name: identityUrl
+    value: http://localhost:6003
+  - name: teacherUsername
+    value: knud
+  - name: teacherPassword
+    value: ''
+    secret: true

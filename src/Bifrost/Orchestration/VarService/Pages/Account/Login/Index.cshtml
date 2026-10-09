@@ -1,0 +1,54 @@
+@page
+@model VarService.Pages.Account.Login.Index
+@{
+    ViewData["HideNavigation"] = true;
+    ViewData["PageClass"] = "login-layout";
+    ViewData["ContainerClass"] = "login-container";
+}
+
+<section class="login-page" aria-labelledby="login-title">
+    <div class="login-card">
+        <header class="login-card-header">
+            @* <h1 class="login-brand">Bifrost</h1> *@
+            <h1 id="login-title">Log ind</h1>
+        </header>
+        <div class="login-card-body">
+            <partial name="_ValidationSummary" />
+
+            @if (Model.View.EnableLocalLogin)
+            {
+                <form asp-page="/Account/Login/Index" method="post">
+                    <input type="hidden" asp-for="Input.ReturnUrl" />
+
+                    <div class="login-field">
+                        <label asp-for="Input.Username">Brugernavn</label>
+                        <input class="form-control" asp-for="Input.Username" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus required>
+                    </div>
+                    <div class="login-field">
+                        <label asp-for="Input.Password">Adgangskode</label>
+                        <input class="form-control" type="password" asp-for="Input.Password" autocomplete="current-password" required>
+                    </div>
+
+                    @if (Model.View.AllowRememberLogin)
+                    {
+                        <div class="form-check login-remember">
+                            <input class="form-check-input" asp-for="Input.RememberLogin">
+                            <label class="form-check-label" asp-for="Input.RememberLogin">Husk mig</label>
+                        </div>
+                    }
+
+                    <div class="login-actions">
+                        <button class="btn login-submit" type="submit" name="Input.Button" value="login">Log ind</button>
+                        <button class="btn login-cancel" type="submit" name="Input.Button" value="cancel" formnovalidate>Annuller</button>
+                    </div>
+                </form>
+            }
+            else
+            {
+                <div class="alert alert-warning" role="alert">
+                    Login er ikke tilgængeligt for denne forespørgsel.
+                </div>
+            }
+        </div>
+    </div>
+</section>
