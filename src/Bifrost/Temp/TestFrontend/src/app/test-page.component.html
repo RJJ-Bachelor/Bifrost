@@ -4,11 +4,11 @@
   <p *ngIf="page === 'students'">Du bruger systemet uden login. Din elevidentitet gemmes i en cookie og genbruges ved næste besøg.</p>
   <p *ngIf="page === 'requests'">Hent dine egne forespørgsler, eller opret en ny. Tryk Genindlæs efter oprettelse for at se listen.</p>
   <ng-container *ngIf="page === 'teachers'"><p>Lærersider kræver login og rollen Teacher.</p><div class="actions"><button (click)="api.login()">Log ind som lærer</button><button class="secondary" (click)="api.logout()">Log ud</button><button class="secondary" (click)="createSession()" [disabled]="busy">Opret testsession</button></div></ng-container>
-  <form *ngIf="page !== 'overview'" #form="ngForm" (ngSubmit)="send(page === 'requests')">
-    <h3>{{ page === 'requests' ? 'Opret forespørgsel' : 'Send testbesked' }}</h3>
+  <form *ngIf="page === 'students' || page === 'requests'" #form="ngForm" (ngSubmit)="createHelpRequest()">
+    <h3>Opret forespørgsel</h3>
     <label for="request-id">Besked-ID</label><input id="request-id" name="id" [(ngModel)]="id" required maxlength="100">
     <label for="message">Besked</label><textarea id="message" name="message" [(ngModel)]="message" required maxlength="4000" rows="3"></textarea>
-    <button type="submit" [disabled]="busy || form.invalid || !id.trim() || !message.trim()">{{ page === 'requests' ? 'Opret forespørgsel' : 'Send besked' }}</button>
+    <button type="submit" [disabled]="busy || form.invalid || !id.trim() || !message.trim()">Opret forespørgsel</button>
   </form>
 </section>
 <section class="card response" aria-live="polite" [attr.aria-busy]="busy">

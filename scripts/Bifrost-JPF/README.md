@@ -23,8 +23,8 @@ Requests bruger automatisk Brunos gemte cookies.
 
 | Mappe | Requests |
 | --- | --- |
-| `EirService/Students` | `Me`, `SendMessages`, `CreateRequest`, `Requests` |
-| `EirService/Teacher` | `Me`, `SendMessages`, `CreateSession` |
+| `EirService/Students` | `Me`, `CreateHelpRequest`, `Requests` |
+| `EirService/Teacher` | `Me`, `CreateSession` |
 | `EirService/Monitoring` | `Alive` |
 | `Heimdall` | `Health`, `Alive`, `OpenApi` |
 | `VarService` | `Discovery` |
@@ -33,7 +33,9 @@ Requests bruger automatisk Brunos gemte cookies.
 `CreateSession` kalder `POST /api/teachers/createsession` uden body og returnerer
 JSON-værdien `true`. Endpointet kræver login og Teacher-rollen.
 
-Studentens `CreateRequest` bruger et nyt GUID som id ved hver afsendelse.
+Studentens `CreateHelpRequest` kalder `POST /api/students/createhelprequest` med
+`id` og `message` i JSON-body og bruger et nyt GUID som id ved hver afsendelse.
+Studentens identitet kommer fra cookien. Valideringsfejl returneres som HTTP 400.
 `Requests` viser historikken for den aktuelle student.
 `Session/Logout` logger teacher ud. Kør teacher-login igen, når sessionen udløber.
 

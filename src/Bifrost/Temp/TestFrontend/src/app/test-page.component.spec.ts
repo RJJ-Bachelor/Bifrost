@@ -33,8 +33,8 @@ describe('Heimdall test pages', () => {
     http.expectOne('/api/students/requests').flush([]);
     fixture.componentInstance.id = 'request-123';
     fixture.componentInstance.message = 'Please help';
-    fixture.componentInstance.send(true);
-    const request = http.expectOne('/api/students/createrequest');
+    fixture.componentInstance.createHelpRequest();
+    const request = http.expectOne('/api/students/createhelprequest');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ id: 'request-123', message: 'Please help' });
     expect(request.request.withCredentials).toBeTrue();

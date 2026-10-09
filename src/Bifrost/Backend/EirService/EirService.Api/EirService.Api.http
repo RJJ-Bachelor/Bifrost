@@ -1,29 +1,13 @@
 @EirService.Api_HostAddress = http://localhost:6000
 
-### Student endpoint without a cookie. Eir creates one when called directly.
-POST {{EirService.Api_HostAddress}}/api/students/sendmessages
-Content-Type: application/json
-
-{
-  "id": "direct-student",
-  "message": "Direct Eir student request"
-}
-
-### Student request endpoint
-POST {{EirService.Api_HostAddress}}/api/students/createrequest
+### Create a help request. Eir creates a student cookie if one is missing.
+POST {{EirService.Api_HostAddress}}/api/students/createhelprequest
 Content-Type: application/json
 
 {
   "id": "request-2",
-  "userId": "direct-student",
-  "message": "Direct Eir request"
+  "message": "Direct Eir help request"
 }
 
-### Teacher endpoint without a bearer token. Expected: 401 Unauthorized.
-POST {{EirService.Api_HostAddress}}/api/teachers/sendmessages
-Content-Type: application/json
-
-{
-  "id": "direct-teacher",
-  "message": "This should be rejected without a token"
-}
+### Create a session without a bearer token. Expected: 401 Unauthorized.
+POST {{EirService.Api_HostAddress}}/api/teachers/createsession

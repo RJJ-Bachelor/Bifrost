@@ -1,15 +1,15 @@
-
 using EirService.Api.Extensions;
 using EirService.Api.Authentication;
-using EirService.HelpRequests.Application.Features.Commands.CreateRequest;
+using EirService.Api.Middleware;
+using EirService.Api.Middleware.Commands;
+using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
+using EirService.Sessions.Application.Features.CreateSession;
+using FastEndpoints;
 using FluentValidation;
-using MediatR;
-using Shared.Application.Behaviors;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
@@ -63,13 +63,19 @@ public class Program
                 .RequireAssertion(context => context.User.FindAll("scope")
                     .Any(claim => claim.Value.Split(' ').Contains("Bifrost"))));
         });
-        builder.Services.AddMediatR(configuration =>
+        builder.Services.AddFastEndpoints(options =>
         {
-            configuration.RegisterServicesFromAssemblyContaining<CreateRequestCommandHandler>();
-            configuration.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            options.Assemblies =
+            [
+                typeof(CreateSessionCommandHandler).Assembly,
+                typeof(CreateHelpRequestCommandHandler).Assembly
+            ];
         });
-        builder.Services.AddTransient<IValidator<CreateRequestCommand>, CreateRequestCommandValidator>();
-        builder.Services.AddTransient<Endpoints.Student.Request>();
+        builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
+        builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddCommandMiddleware(options => options.Register(
+            typeof(CommandValidationMiddleware<,>),
+            typeof(CommandLoggingMiddleware<,>)));
 
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
@@ -101,8 +107,10 @@ public class Program
             app.MapOpenApi();
         }
 
+        app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseFastEndpoints(configuration => configuration.Endpoints.RoutePrefix = "api");
 
         app.Run();
     }

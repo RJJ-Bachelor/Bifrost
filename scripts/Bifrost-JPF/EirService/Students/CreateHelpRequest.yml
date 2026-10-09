@@ -1,17 +1,17 @@
 info:
-  name: SendMessages
+  name: CreateHelpRequest
   type: http
-  seq: 2
+  seq: 3
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/teachers/sendmessages'
+  url: '{{gatewayUrl}}/api/students/createhelprequest'
   auth: null
   body:
     type: json
     data: |-
       {
-        "id": "teacher-test",
-        "message": "Teacher gennem Heimdall"
+        "id": "{{$guid}}",
+        "message": "Hjælp fra student"
       }
 settings:
   encodeUrl: true

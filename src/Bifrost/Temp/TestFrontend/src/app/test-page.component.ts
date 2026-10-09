@@ -29,8 +29,8 @@ export class TestPageComponent {
     this.endpoint = 'GET /api/' + paths[this.page];
     this.execute(this.api.get(paths[this.page]));
   }
-  send(create = false) {
-    const path = create ? 'students/createrequest' : this.page + '/sendmessages';
+  createHelpRequest() {
+    const path = 'students/createhelprequest';
     this.endpoint = 'POST /api/' + path;
     this.execute(this.api.post(path, { id: this.id.trim(), message: this.message.trim() }));
   }

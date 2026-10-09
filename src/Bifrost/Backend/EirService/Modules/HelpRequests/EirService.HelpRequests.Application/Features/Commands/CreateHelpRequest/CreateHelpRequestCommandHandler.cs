@@ -1,17 +1,17 @@
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
-using MediatR;
+using FastEndpoints;
 using Shared.Application.Messaging;
 
-namespace EirService.HelpRequests.Application.Features.Commands.CreateRequest
+namespace EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest
 {
-    public sealed class CreateRequestCommandHandler(
+    public sealed class CreateHelpRequestCommandHandler(
         IRequestRepository requestRepository,
         IRequestMessagePublisher messagePublisher,
         INotificationMessagePublisher notificationMessagePublisher)
-        : IRequestHandler<CreateRequestCommand, string>
+        : ICommandHandler<CreateHelpRequestCommand, string>
     {
-        public async Task<string> Handle(CreateRequestCommand request, CancellationToken cancellationToken)
+        public async Task<string> ExecuteAsync(CreateHelpRequestCommand request, CancellationToken cancellationToken)
         {
             var eirRequest = new EirRequest(request.Id, request.UserId, request.Message);
 

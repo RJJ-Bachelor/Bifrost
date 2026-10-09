@@ -3,51 +3,20 @@
 ### Start OIDC login (open this request in a browser)
 GET {{HeimdallGateway_HostAddress}}/account/login
 
-### Anonymous student endpoint. The gateway creates bifrost-anonymous-user on the first call.
-POST {{HeimdallGateway_HostAddress}}/api/students/sendmessages
-Content-Type: application/json
-
-{
-  "id": "anonymous-student",
-  "message": "Student message with automatic anonymous cookie"
-}
-
-### Anonymous student request endpoint. The same cookie is reused by the client.
-POST {{HeimdallGateway_HostAddress}}/api/students/createrequest
+### Create a help request. The student cookie is created and reused by Eir.
+POST {{HeimdallGateway_HostAddress}}/api/students/createhelprequest
 Content-Type: application/json
 
 {
   "id": "request-1",
-  "userId": "anonymous-student",
-  "message": "Create a request as an anonymous student"
+  "message": "Create a help request as an anonymous student"
 }
 
-### Teacher endpoint without login. Expected: 302 redirect to VarService OIDC login.
-POST {{HeimdallGateway_HostAddress}}/api/teachers/sendmessages
-Content-Type: application/json
+### Create a session without login. Expected: 401 Unauthorized.
+POST {{HeimdallGateway_HostAddress}}/api/teachers/createsession
 
-{
-  "id": "teacher-unauthenticated",
-  "message": "This should require OIDC authentication"
-}
-
-### Teacher endpoint after completing OIDC login as Knud.
-POST {{HeimdallGateway_HostAddress}}/api/teachers/sendmessages
-Content-Type: application/json
-
-{
-  "id": "knud",
-  "message": "Teacher request authenticated as Knud"
-}
-
-### Teacher endpoint after completing OIDC login as Bob.
-POST {{HeimdallGateway_HostAddress}}/api/teachers/sendmessages
-Content-Type: application/json
-
-{
-  "id": "bob",
-  "message": "Teacher request authenticated as Bob"
-}
+### Create a session after completing OIDC login with the Teacher role.
+POST {{HeimdallGateway_HostAddress}}/api/teachers/createsession
 
 ### Logout
 GET {{HeimdallGateway_HostAddress}}/account/logout

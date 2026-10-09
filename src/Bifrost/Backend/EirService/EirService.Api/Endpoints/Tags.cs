@@ -2,7 +2,9 @@
 {
     public static class Tags
     {
+        public const string Student = "Student";
         public const string Students = "Students";
+        public const string Teacher = "Teacher";
         public const string Teachers = "Teachers";
     }
 }
