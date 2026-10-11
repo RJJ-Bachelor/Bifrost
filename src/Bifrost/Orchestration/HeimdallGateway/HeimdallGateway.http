@@ -13,10 +13,16 @@ Content-Type: application/json
 }
 
 ### Create a session without login. Expected: 401 Unauthorized.
-POST {{HeimdallGateway_HostAddress}}/api/teachers/createsession
+POST {{HeimdallGateway_HostAddress}}/api/teachers/sessions
+Content-Type: application/json
+
+{"title":"Testsession"}
 
 ### Create a session after completing OIDC login with the Teacher role.
-POST {{HeimdallGateway_HostAddress}}/api/teachers/createsession
+POST {{HeimdallGateway_HostAddress}}/api/teachers/sessions
+Content-Type: application/json
+
+{"title":"Testsession"}
 
 ### Logout
 GET {{HeimdallGateway_HostAddress}}/account/logout

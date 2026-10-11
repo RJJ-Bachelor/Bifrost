@@ -1,5 +1,6 @@
-﻿using EirService.HelpRequests.Domain.Entities;
+using EirService.HelpRequests.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using Shared.Infrastructure.Persistence.Outbox;
 
 namespace EirService.HelpRequests.Infrastructure.Persistence
 {
@@ -7,9 +8,11 @@ namespace EirService.HelpRequests.Infrastructure.Persistence
         : DbContext(options)
     {
         public DbSet<EirRequest> Requests => Set<EirRequest>();
+        public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.AddOutbox();
             modelBuilder.Entity<EirRequest>(entity =>
             {
                 entity.ToTable("requests");
@@ -22,6 +25,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence
                     .IsRequired();
                 entity.Property(request => request.UserId).HasMaxLength(100);
                 entity.HasIndex(request => request.UserId);
+                entity.HasIndex(request => new { request.SessionId, request.Generation, request.UserId });
             });
         }
     }

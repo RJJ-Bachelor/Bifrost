@@ -1,6 +1,6 @@
-
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace MimirService.Api;
 
@@ -24,7 +24,7 @@ public class Program
         {
             var dbContext = scope.ServiceProvider
                 .GetRequiredService<MimirRequestDbContext>();
-            dbContext.Database.EnsureCreated();
+            dbContext.Database.Migrate();
         }
 
         app.MapDefaultEndpoints();

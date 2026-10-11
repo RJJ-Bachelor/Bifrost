@@ -2,6 +2,7 @@
   <Folder Name="/Backend/" />
   <Folder Name="/Backend/EirService/">
     <Project Path="Backend/EirService/EirService.Api/EirService.Api.csproj" />
+    <Project Path="Backend/EirService/EirService.Contracts/EirService.Contracts.csproj" />
     <Project Path="Backend/EirService/EirService.Test/EirService.Test.csproj" Id="37019f88-ece4-4db3-837c-70e45bddcee4" />
   </Folder>
   <Folder Name="/Backend/EirService/Modules/" />

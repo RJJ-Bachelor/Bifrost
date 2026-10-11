@@ -1,11 +1,17 @@
 info:
   name: CreateSession
   type: http
-  seq: 3
+  seq: 2
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/teachers/createsession'
+  url: '{{gatewayUrl}}/api/teachers/sessions'
   auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Testsession"
+      }
 settings:
   encodeUrl: true
   timeout: 30000

@@ -22,7 +22,9 @@
     <ProjectReference Include="..\Modules\HelpRequests\EirService.HelpRequests.Application\EirService.HelpRequests.Application.csproj" />
     <ProjectReference Include="..\Modules\HelpRequests\EirService.HelpRequests.Infrastructure\EirService.HelpRequests.Infrastructure.csproj" />
     <ProjectReference Include="..\Modules\Sessions\EirService.Sessions.Application\EirService.Sessions.Application.csproj" />
-    <ProjectReference Include="..\..\Shared\Shared.Application\Shared.Application.csproj" />
+    <ProjectReference Include="../Modules/Sessions/EirService.Sessions.Infrastructure/EirService.Sessions.Infrastructure.csproj" />
+    <ProjectReference Include="../Modules/Participants/EirService.Participants.Infrastructure/EirService.Participants.Infrastructure.csproj" />
+    <ProjectReference Include="..\EirService.Contracts\EirService.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

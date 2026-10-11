@@ -35,8 +35,8 @@ export class TestPageComponent {
     this.execute(this.api.post(path, { id: this.id.trim(), message: this.message.trim() }));
   }
   createSession() {
-    this.endpoint = 'POST /api/teachers/createsession';
-    this.execute(this.api.post('teachers/createsession', {}));
+    this.endpoint = 'POST /api/teachers/sessions';
+    this.execute(this.api.post('teachers/sessions', { title: 'Testsession' }));
   }
   private execute(request: Observable<unknown>) {
     this.busy = true;

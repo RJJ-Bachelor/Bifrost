@@ -26,7 +26,8 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         object payload,
         string exchangeName,
         string routingKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? messageType = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(payload);
@@ -38,7 +39,8 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         {
             var connection = await GetConnectionAsync(cancellationToken);
             await using var channel = await connection.CreateChannelAsync(
-                cancellationToken: cancellationToken);
+                new CreateChannelOptions(publisherConfirmationsEnabled: true, publisherConfirmationTrackingEnabled: true),
+                cancellationToken);
 
             await channel.ExchangeDeclareAsync(
                 exchange: exchangeName,
@@ -57,7 +59,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                 ContentType = "application/json",
                 DeliveryMode = DeliveryModes.Persistent,
                 MessageId = id,
-                Type = payload.GetType().FullName
+                Type = messageType ?? payload.GetType().FullName
             };
             MessageBusTelemetry.InjectContext(properties);
             activity?.SetTag("messaging.message.body.size", body.Length);
@@ -65,7 +67,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
             await channel.BasicPublishAsync(
                 exchange: exchangeName,
                 routingKey: routingKey,
-                mandatory: false,
+                mandatory: true,
                 basicProperties: properties,
                 body: body,
                 cancellationToken: cancellationToken);

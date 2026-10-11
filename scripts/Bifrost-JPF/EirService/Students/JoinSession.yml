@@ -1,0 +1,18 @@
+info:
+  name: JoinSession
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/sessions/join'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "code": "{{sessionCode}}"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

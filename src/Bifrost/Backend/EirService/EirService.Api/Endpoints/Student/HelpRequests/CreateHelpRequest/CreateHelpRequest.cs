@@ -1,5 +1,5 @@
 using EirService.Api.Authentication;
-using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.CreateHelpRequest;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 
@@ -17,7 +17,7 @@ internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, str
     public override async Task HandleAsync(CreateHelpRequestRequest request, CancellationToken cancellationToken)
     {
         var command = new CreateHelpRequestCommand(
-            request.Id, User.GetRequiredUserId(), request.Message);
+            request.Id, User.GetRequiredUserId(), request.Message, request.SessionId, request.Generation);
         var result = await command.ExecuteAsync(cancellationToken);
         await Send.OkAsync(result, cancellationToken);
     }

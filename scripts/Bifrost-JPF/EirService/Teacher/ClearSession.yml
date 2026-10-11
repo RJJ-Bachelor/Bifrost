@@ -1,0 +1,18 @@
+info:
+  name: ClearSession
+  type: http
+  seq: 5
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/clear'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "expectedGeneration": {{sessionGeneration}}
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

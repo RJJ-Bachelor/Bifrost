@@ -1,18 +1,22 @@
+using EirService.Sessions.Application.Features.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using System.Xml.Linq;
 using EirService.Api.Authentication;
-using EirService.Api.Endpoints.Student.Participants;
-using EirService.Api.Endpoints.Teacher.Participants;
+using EirService.Api.Endpoints.Student.Participants.GetStudentIdentity;
+using EirService.Api.Endpoints.Teacher.Participants.GetTeacherIdentity;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
-using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
-using EirService.HelpRequests.Application.Features.Queries.GetHelpRequests;
+using EirService.HelpRequests.Application.Features.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.GetHelpRequests;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.Sessions.Application.Features.CreateSession;
+using EirService.Sessions.Application.Repositories;
+using EirService.Participants.Application.Repositories;
+using EirService.Participants.Application.Features.JoinSession;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -27,9 +31,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
+using Shared.Application.Messaging.Outbox;
 
 namespace EirService.Test;
 
+[Collection("FastEndpoints")]
 public sealed class CommandBusTests : IAsyncLifetime
 {
     private readonly List<string> _executionOrder = [];
@@ -41,7 +48,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         _logger = new RecordingLogger<CreateSessionCommandHandler>(_executionOrder);
-        var commandLogger = new RecordingLogger<CommandLoggingMiddleware<CreateSessionCommand, bool>>(_executionOrder);
+        var commandLogger = new RecordingLogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>(_executionOrder);
         var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>(_executionOrder);
         var queryLogger = new RecordingLogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>(_executionOrder);
         _requests = new RecordingRequestServices(_executionOrder);
@@ -55,7 +62,8 @@ public sealed class CommandBusTests : IAsyncLifetime
             [
                 typeof(Api.Program).Assembly,
                 typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly
+                typeof(CreateHelpRequestCommandHandler).Assembly,
+                typeof(JoinSessionCommandHandler).Assembly
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
@@ -65,12 +73,13 @@ public sealed class CommandBusTests : IAsyncLifetime
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));
         builder.Services.AddSingleton<ILogger<CreateSessionCommandHandler>>(_logger);
-        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, bool>>>(commandLogger);
+        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>>(commandLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>>(helpRequestLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
         builder.Services.AddSingleton<IRequestRepository>(_requests);
-        builder.Services.AddSingleton<IRequestMessagePublisher>(_requests);
-        builder.Services.AddSingleton<INotificationMessagePublisher>(_requests);
+        builder.Services.AddSingleton<ISessionRepository, MemorySessionRepository>();
+        builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
+        builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddDataProtection()
             .AddKeyManagementOptions(options => options.XmlRepository = new InMemoryKeyRepository())
             .UseEphemeralDataProtectionProvider();
@@ -106,14 +115,17 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task TeacherCanCreateSessionWithoutRequestBody()
+    public async Task TeacherCanCreateSessionWithTitle()
     {
         Authenticate("Teacher", "teacher-123");
 
-        using var response = await _client.PostAsync("/api/teachers/createsession", null);
+        using var response = await _client.PostAsJsonAsync("/api/teachers/sessions", new { Title = "Session title" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(await response.Content.ReadFromJsonAsync<bool>());
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var created = await response.Content.ReadFromJsonAsync<SessionResult>();
+        Assert.NotNull(created);
+        Assert.Equal("Session title", created.Title);
+        Assert.Equal("teacher-123", created.CreatedBySubjectId);
         Assert.Contains("teacher-123", Assert.Single(_logger.Messages));
         Assert.Equal(new[]
         {
@@ -128,10 +140,10 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         Authenticate("Teacher", "authenticated-teacher");
 
-        using var response = await _client.PostAsJsonAsync("/api/teachers/createsession",
-            new { TeacherId = "supplied-teacher" });
+        using var response = await _client.PostAsJsonAsync("/api/teachers/sessions",
+            new { Title = "Session title", TeacherId = "supplied-teacher" });
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var message = Assert.Single(_logger.Messages);
         Assert.Contains("authenticated-teacher", message);
         Assert.DoesNotContain("supplied-teacher", message);
@@ -140,7 +152,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task AnonymousRequestIsRejectedBeforeHandlerRuns()
     {
-        using var response = await _client.PostAsync("/api/teachers/createsession", null);
+        using var response = await _client.PostAsJsonAsync("/api/teachers/sessions", new { Title = "Session title" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.Empty(_logger.Messages);
@@ -154,7 +166,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         Authenticate(role, teacherId, scope);
 
-        using var response = await _client.PostAsync("/api/teachers/createsession", null);
+        using var response = await _client.PostAsJsonAsync("/api/teachers/sessions", new { Title = "Session title" });
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Empty(_logger.Messages);
@@ -165,7 +177,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         Authenticate("Teacher", string.Empty);
 
-        using var response = await _client.PostAsync("/api/teachers/createsession", null);
+        using var response = await _client.PostAsJsonAsync("/api/teachers/sessions", new { Title = "Session title" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Contains("TeacherId", await response.Content.ReadAsStringAsync());
@@ -179,7 +191,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     public async Task CommandBusRejectsInvalidCommandsBeforeCallingHandler(string? teacherId)
     {
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            new CreateSessionCommand(teacherId!).ExecuteAsync(CancellationToken.None));
+            new CreateSessionCommand(teacherId!, "Session title").ExecuteAsync(CancellationToken.None));
 
         Assert.Equal(nameof(CreateSessionCommand.TeacherId), Assert.Single(exception.Errors).PropertyName,
             ignoreCase: true);
@@ -193,7 +205,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new CreateSessionCommand("teacher-123").ExecuteAsync(cancellation.Token));
+            new CreateSessionCommand("teacher-123", "Session title").ExecuteAsync(cancellation.Token));
 
         Assert.Empty(_executionOrder);
     }
@@ -201,9 +213,9 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task CommandBusRunsMiddlewareWithoutHttpRequest()
     {
-        var result = await new CreateSessionCommand("teacher-123").ExecuteAsync(CancellationToken.None);
+        var result = await new CreateSessionCommand("teacher-123", "Session title").ExecuteAsync(CancellationToken.None);
 
-        Assert.True(result);
+        Assert.Equal("Session title", result.Title);
         Assert.Equal(new[]
         {
             "Executing command CreateSessionCommand",
@@ -224,16 +236,16 @@ public sealed class CommandBusTests : IAsyncLifetime
         var additionalValidator = new InlineValidator<CreateSessionCommand>();
         additionalValidator.RuleFor(command => command.TeacherId)
             .MinimumLength(3).WithMessage("TeacherIdTooShort");
-        var middleware = new CommandValidationMiddleware<CreateSessionCommand, bool>(
+        var middleware = new CommandValidationMiddleware<CreateSessionCommand, SessionResult>(
             [new CreateSessionCommandValidator(), additionalValidator]);
         var handlerCalled = false;
 
         var exception = await Assert.ThrowsAsync<ValidationException>(() => middleware.ExecuteAsync(
-            new CreateSessionCommand(string.Empty),
+            new CreateSessionCommand(string.Empty, "Session title"),
             () =>
             {
                 handlerCalled = true;
-                return Task.FromResult(true);
+                return Task.FromResult<SessionResult>(null!);
             },
             CancellationToken.None));
 
@@ -260,8 +272,8 @@ public sealed class CommandBusTests : IAsyncLifetime
         {
             "Executing command CreateHelpRequestCommand",
             "Saved help request request-123",
-            "Published request request-123",
-            "Published notification request-123",
+            "Queued help request request-123",
+            "Queued notification request-123",
             "Executed command CreateHelpRequestCommand"
         }, _executionOrder);
 
@@ -551,7 +563,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Empty(_executionOrder);
     }
 
-    private sealed class InMemoryKeyRepository : IXmlRepository
+    internal sealed class InMemoryKeyRepository : IXmlRepository
     {
         private readonly List<XElement> _keys = [];
 
@@ -561,17 +573,30 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     private sealed class RecordingRequestServices(List<string> executionOrder)
-        : IRequestRepository, IRequestMessagePublisher, INotificationMessagePublisher
+        : IRequestRepository
     {
         public List<EirRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(string Id, string Message)> RequestMessages { get; } = [];
         public List<(string Id, string? UserId, string Message)> Notifications { get; } = [];
 
-        public Task AddAsync(EirRequest request, CancellationToken cancellationToken)
+        public Task AddAsync(EirRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
         {
             Saved.Add(request);
             executionOrder.Add($"Saved help request {request.Id}");
+            foreach (var outgoing in messages)
+            {
+                if (outgoing.Payload is HelpRequestCreatedMessage help)
+                {
+                    RequestMessages.Add((outgoing.Id, help.Message));
+                    executionOrder.Add($"Queued help request {outgoing.Id}");
+                }
+                else if (outgoing.Payload is NotificationCreatedMessage notification)
+                {
+                    Notifications.Add((outgoing.Id, notification.UserId, notification.Messages));
+                    executionOrder.Add($"Queued notification {outgoing.Id}");
+                }
+            }
             return Task.CompletedTask;
         }
 
@@ -583,19 +608,7 @@ public sealed class CommandBusTests : IAsyncLifetime
                 Saved.Where(request => request.UserId == userId).OrderBy(request => request.Id).ToArray());
         }
 
-        public Task PublishRequestCreatedAsync(string id, string message, CancellationToken cancellationToken = default)
-        {
-            RequestMessages.Add((id, message));
-            executionOrder.Add($"Published request {id}");
-            return Task.CompletedTask;
-        }
 
-        public Task PublishNotificationCreatedAsync(string id, string userId, string messages, CancellationToken cancellationToken = default)
-        {
-            Notifications.Add((id, userId, messages));
-            executionOrder.Add($"Published notification {id}");
-            return Task.CompletedTask;
-        }
     }
 
     private void Authenticate(string role, string? teacherId, string scope = "Bifrost")
@@ -635,7 +648,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         }
     }
 
-    private sealed class TestAuthenticationHandler(
+    internal sealed class TestAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)

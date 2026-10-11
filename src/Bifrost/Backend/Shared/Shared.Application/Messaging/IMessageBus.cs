@@ -7,7 +7,8 @@ public interface IMessageBus
         object payload,
         string exchangeName,
         string routingKey,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? messageType = null);
 
     Task<IAsyncDisposable> SubscribeAsync<T>(
         string queueName,

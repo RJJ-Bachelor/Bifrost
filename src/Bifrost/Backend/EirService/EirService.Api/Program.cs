@@ -1,11 +1,20 @@
 using EirService.Api.Authentication;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
-using EirService.HelpRequests.Application.Features.Commands.CreateHelpRequest;
-using EirService.HelpRequests.Application.Features.Queries.GetHelpRequests;
+using EirService.HelpRequests.Application.Features.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.GetHelpRequests;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.CreateSession;
+using EirService.Sessions.Application.Features.ClearSession;
+using EirService.Sessions.Application.Features.GetSession;
+using EirService.Sessions.Application.Features.GetSessions;
+using EirService.Sessions.Application.Features.GetStudentSession;
+using EirService.Sessions.Infrastructure;
+using EirService.Sessions.Infrastructure.Persistence;
+using EirService.Participants.Application.Features.JoinSession;
+using EirService.Participants.Infrastructure;
+using EirService.Participants.Infrastructure.Persistence;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -24,6 +33,8 @@ public class Program
         builder.AddServiceDefaults();
         builder.Services.AddDataProtection();
         builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
+        builder.Services.AddSessionsInfrastructure(builder.Configuration);
+        builder.Services.AddParticipantsInfrastructure(builder.Configuration);
 
         // Add services to the container.
         builder.Services
@@ -68,12 +79,18 @@ public class Program
             options.Assemblies =
             [
                 typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly
+                typeof(CreateHelpRequestCommandHandler).Assembly,
+                typeof(JoinSessionCommandHandler).Assembly
             ];
         });
         builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
         builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<GetSessionsQuery>, GetSessionsQueryValidator>();
+        builder.Services.AddTransient<IValidator<GetSessionQuery>, GetSessionQueryValidator>();
+        builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();
+        builder.Services.AddTransient<IValidator<JoinSessionCommand>, JoinSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));
@@ -90,14 +107,9 @@ public class Program
 
         using (var scope = app.Services.CreateScope())
         {
-            var dbContext = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-            dbContext.Database.EnsureCreated();
-            // EnsureCreated does not update existing databases. Preserve legacy requests,
-            // whose owner was never recorded, and add ownership for all new requests.
-            dbContext.Database.ExecuteSqlRaw("""
-                ALTER TABLE requests ADD COLUMN IF NOT EXISTS "UserId" character varying(100) NULL;
-                CREATE INDEX IF NOT EXISTS "IX_requests_UserId" ON requests ("UserId");
-                """);
+            scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.Migrate();
+            scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.Migrate();
+            scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.Migrate();
         }
 
         app.MapDefaultEndpoints();

@@ -1,7 +1,7 @@
 info:
   name: CreateHelpRequest
   type: http
-  seq: 3
+  seq: 5
 http:
   method: POST
   url: '{{gatewayUrl}}/api/students/createhelprequest'
@@ -11,7 +11,9 @@ http:
     data: |-
       {
         "id": "{{$guid}}",
-        "message": "Hjælp fra student"
+        "message": "Hjælp fra student",
+        "sessionId": "{{sessionId}}",
+        "generation": {{sessionGeneration}}
       }
 settings:
   encodeUrl: true

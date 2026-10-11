@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EirService.Api\EirService.Api.csproj" />
+    <ProjectReference Include="..\..\MimirService\MimirService.Infrastructure\MimirService.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\GnaService\GnaService.Infrastructure\GnaService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>
