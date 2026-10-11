@@ -21,8 +21,8 @@ public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> op
                 .HasConversion(code => code.Value, value => new SessionCode(value))
                 .HasMaxLength(SessionCode.Length).IsRequired();
             entity.HasIndex(session => session.Code).IsUnique();
-            entity.Property(session => session.CreatedBySubjectId).IsRequired();
-            entity.HasIndex(session => session.CreatedBySubjectId);
+            entity.Property(session => session.CreatedByTeacherId).IsRequired();
+            entity.HasIndex(session => session.CreatedByTeacherId);
             entity.Property(session => session.CurrentGeneration).IsConcurrencyToken();
         });
 

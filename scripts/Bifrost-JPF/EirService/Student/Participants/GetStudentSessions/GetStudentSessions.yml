@@ -1,10 +1,10 @@
 info:
-  name: GetSession
+  name: GetStudentSessions
   type: http
-  seq: 4
+  seq: 1
 http:
   method: GET
-  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}'
+  url: '{{gatewayUrl}}/api/students/sessions'
   auth: null
 settings:
   encodeUrl: true

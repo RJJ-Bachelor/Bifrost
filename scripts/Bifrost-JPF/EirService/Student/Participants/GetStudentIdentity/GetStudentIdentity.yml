@@ -1,10 +1,10 @@
 info:
-  name: SessionRequests
+  name: GetStudentIdentity
   type: http
-  seq: 7
+  seq: 1
 http:
   method: GET
-  url: '{{gatewayUrl}}/api/students/requests?sessionId={{sessionId}}'
+  url: '{{gatewayUrl}}/api/students/me'
   auth: null
 settings:
   encodeUrl: true

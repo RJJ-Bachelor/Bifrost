@@ -39,7 +39,7 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                     b.Property<string>("CreatedByDisplayName")
                         .HasColumnType("text");
 
-                    b.Property<string>("CreatedBySubjectId")
+                    b.Property<string>("CreatedByTeacherId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -60,7 +60,7 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("CreatedBySubjectId");
+                    b.HasIndex("CreatedByTeacherId");
 
                     b.ToTable("sessions", "sessions");
                 });

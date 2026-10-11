@@ -34,6 +34,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -163,13 +165,13 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         teacher.DefaultRequestHeaders.Add("X-Test-Name", "Trusted Teacher");
         using var response = await teacher.PostAsJsonAsync("/api/teachers/sessions", new
         {
-            Title = "  Algorithms  ", CreatedBySubjectId = "spoofed", CreatedByDisplayName = "Spoofed",
+            Title = "  Algorithms  ", CreatedByTeacherId = "spoofed", CreatedByDisplayName = "Spoofed",
             CreatedAtUtc = DateTimeOffset.MinValue, Code = "ZZZZZZZZ", CurrentGeneration = 88
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = (await response.Content.ReadFromJsonAsync<SessionResult>())!;
         Assert.Equal("Algorithms", result.Title);
-        Assert.Equal("provider|opaque-teacher", result.CreatedBySubjectId);
+        Assert.Equal("provider|opaque-teacher", result.CreatedByTeacherId);
         Assert.Equal("Trusted Teacher", result.CreatedByDisplayName);
         Assert.Equal(clock.Now, result.CreatedAtUtc);
         Assert.Equal(1, result.CurrentGeneration);
@@ -409,6 +411,53 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.False(scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.HasPendingModelChanges());
         Assert.False(scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.HasPendingModelChanges());
+    }
+
+    [PostgresFact]
+    public async Task SessionCreatorRenamePreservesExistingSessionsAndApiIdentity()
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        var migrator = db.GetService<IMigrator>();
+        const string previousMigration = "20261011102900_RemoveSessionOutbox";
+        await migrator.MigrateAsync(previousMigration);
+
+        var original = Session.Create("Existing session", new SessionCode("abcd2345"),
+            "provider|opaque-teacher", "Trusted Teacher", clock.Now);
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO sessions.sessions
+                ("Id", "Title", "Code", "CreatedBySubjectId", "CreatedByDisplayName",
+                 "CreatedAtUtc", "CurrentGeneration")
+            VALUES ({original.Id}, {original.Title}, {original.Code.Value}, {original.CreatedByTeacherId},
+                    {original.CreatedByDisplayName}, {original.CreatedAtUtc}, {original.CurrentGeneration})
+            """);
+
+        await db.Database.MigrateAsync();
+        var migrated = await db.Sessions.AsNoTracking().SingleAsync();
+        Assert.Equal(original.Id, migrated.Id);
+        Assert.Equal(original.Title, migrated.Title);
+        Assert.Equal(original.Code, migrated.Code);
+        Assert.Equal(original.CreatedByTeacherId, migrated.CreatedByTeacherId);
+        Assert.Equal(original.CreatedByDisplayName, migrated.CreatedByDisplayName);
+        Assert.Equal(original.CreatedAtUtc, migrated.CreatedAtUtc);
+        Assert.Equal(1, await db.Database.SqlQueryRaw<int>("""
+            SELECT count(*)::integer AS "Value" FROM pg_indexes
+            WHERE schemaname = 'sessions' AND tablename = 'sessions'
+              AND indexname = 'IX_sessions_CreatedByTeacherId'
+            """).SingleAsync());
+
+        var response = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{original.Id}");
+        Assert.Equal(original.CreatedByTeacherId, response.GetProperty("createdByTeacherId").GetString());
+        Assert.False(response.TryGetProperty("createdBySubjectId", out _));
+
+        await migrator.MigrateAsync(previousMigration);
+        Assert.Equal(original.CreatedByTeacherId, await db.Database.SqlQueryRaw<string>("""
+            SELECT "CreatedBySubjectId" AS "Value" FROM sessions.sessions
+            """).SingleAsync());
+        await db.Database.MigrateAsync();
+        await db.Database.MigrateAsync();
+        Assert.Equal(original.CreatedByTeacherId, (await db.Sessions.AsNoTracking().SingleAsync()).CreatedByTeacherId);
+        Assert.False(db.Database.HasPendingModelChanges());
     }
 
     private async Task<SessionResult> CreateAsync(string title = "Session title")

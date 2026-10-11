@@ -9,17 +9,17 @@ public sealed class Session
     public Guid Id { get; private set; }
     public string Title { get; private set; } = null!;
     public SessionCode Code { get; private set; } = null!;
-    public string CreatedBySubjectId { get; private set; } = null!;
+    public string CreatedByTeacherId { get; private set; } = null!;
     public string? CreatedByDisplayName { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public int CurrentGeneration { get; private set; }
     public DateTimeOffset? LastClearedAtUtc { get; private set; }
 
-    public static Session Create(string title, SessionCode code, string createdBySubjectId,
+    public static Session Create(string title, SessionCode code, string createdByTeacherId,
         string? createdByDisplayName, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
-        ArgumentException.ThrowIfNullOrWhiteSpace(createdBySubjectId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(createdByTeacherId);
         ArgumentNullException.ThrowIfNull(code);
         var trimmedTitle = title.Trim();
         if (trimmedTitle.Length > 200)
@@ -28,7 +28,7 @@ public sealed class Session
         return new Session
         {
             Id = Guid.NewGuid(), Title = trimmedTitle, Code = code,
-            CreatedBySubjectId = createdBySubjectId,
+            CreatedByTeacherId = createdByTeacherId,
             CreatedByDisplayName = createdByDisplayName,
             CreatedAtUtc = now.ToUniversalTime(), CurrentGeneration = 1
         };

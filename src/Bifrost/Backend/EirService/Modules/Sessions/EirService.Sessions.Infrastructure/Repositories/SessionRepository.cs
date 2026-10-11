@@ -30,8 +30,8 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
     public Task<Session?> GetByCodeAsync(string code, CancellationToken cancellationToken) =>
         dbContext.Sessions.AsNoTracking().SingleOrDefaultAsync(session => session.Code == new Domain.ValueObjects.SessionCode(code), cancellationToken);
 
-    public async Task<IReadOnlyList<Session>> GetByTeacherAsync(string subjectId, CancellationToken cancellationToken) =>
-        await dbContext.Sessions.AsNoTracking().Where(session => session.CreatedBySubjectId == subjectId)
+    public async Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken) =>
+        await dbContext.Sessions.AsNoTracking().Where(session => session.CreatedByTeacherId == teacherId)
             .OrderByDescending(session => session.CreatedAtUtc).ThenBy(session => session.Id).ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>

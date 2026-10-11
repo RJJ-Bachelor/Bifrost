@@ -16,7 +16,7 @@ public sealed class SessionDomainTests
         Assert.Equal(id, session.Id);
         Assert.Equal("Algorithms", session.Title);
         Assert.Equal("ABCD2345", session.Code.Value);
-        Assert.Equal("provider|opaque-subject", session.CreatedBySubjectId);
+        Assert.Equal("provider|opaque-subject", session.CreatedByTeacherId);
         Assert.Null(session.CreatedByDisplayName);
         Assert.Equal(CreatedAt, session.CreatedAtUtc);
         Assert.Equal(2, session.CurrentGeneration);

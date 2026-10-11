@@ -15,8 +15,8 @@ internal sealed class MemorySessionRepository : ISessionRepository
     }
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(sessions.SingleOrDefault(session => session.Id == id));
     public Task<Session?> GetByCodeAsync(string code, CancellationToken cancellationToken) => Task.FromResult(sessions.SingleOrDefault(session => session.Code.Value == code));
-    public Task<IReadOnlyList<Session>> GetByTeacherAsync(string subjectId, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => session.CreatedBySubjectId == subjectId).ToArray());
+    public Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => session.CreatedByTeacherId == teacherId).ToArray());
     public Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => ids.Contains(session.Id)).ToArray());
     public Task<bool> TryClearAsync(Session session, CancellationToken cancellationToken) => Task.FromResult(true);

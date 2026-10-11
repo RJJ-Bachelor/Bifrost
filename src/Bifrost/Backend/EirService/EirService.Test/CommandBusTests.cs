@@ -125,7 +125,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         var created = await response.Content.ReadFromJsonAsync<SessionResult>();
         Assert.NotNull(created);
         Assert.Equal("Session title", created.Title);
-        Assert.Equal("teacher-123", created.CreatedBySubjectId);
+        Assert.Equal("teacher-123", created.CreatedByTeacherId);
         Assert.Contains("teacher-123", Assert.Single(_logger.Messages));
         Assert.Equal(new[]
         {

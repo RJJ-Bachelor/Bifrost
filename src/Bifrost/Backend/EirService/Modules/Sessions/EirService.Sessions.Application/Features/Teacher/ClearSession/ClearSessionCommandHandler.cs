@@ -10,13 +10,17 @@ public sealed class ClearSessionCommandHandler(ISessionRepository repository, Ti
     public async Task<ClearSessionResult> ExecuteAsync(ClearSessionCommand command, CancellationToken cancellationToken)
     {
         var session = await repository.GetAsync(command.SessionId, cancellationToken);
-        if (session is null || session.CreatedBySubjectId != command.TeacherId)
+
+        if (session is null || session.CreatedByTeacherId != command.TeacherId)
             throw new ResourceNotFoundException();
+
         if (session.CurrentGeneration != command.ExpectedGeneration)
             throw new OperationConflictException("The session has already been cleared. Refresh its generation before retrying.");
 
         var now = timeProvider.GetUtcNow();
+
         session.Clear(command.ExpectedGeneration, now);
+        
         if (!await repository.TryClearAsync(session, cancellationToken))
             throw new OperationConflictException("The session was cleared by another operation.");
 

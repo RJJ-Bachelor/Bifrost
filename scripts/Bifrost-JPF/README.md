@@ -4,6 +4,38 @@
 De nye session-requests er almindelige GET- og POST-kald med URL og eventuel JSON-body.
 Der er ingen tests eller automatisk opsamling af session-værdier i de nye requests.
 
+## Mapper
+
+EirService følger API-lagets mapper med rolle, modul og endpoint:
+
+```text
+EirService/
+├── Monitoring/
+│   └── Alive/
+├── Student/
+│   ├── Participants/
+│   │   ├── GetStudentIdentity/
+│   │   ├── JoinSession/
+│   │   └── GetStudentSessions/
+│   ├── Sessions/
+│   │   └── GetStudentSession/
+│   └── HelpRequests/
+│       ├── CreateHelpRequest/
+│       └── GetHelpRequests/
+└── Teacher/
+    ├── Participants/
+    │   └── GetTeacherIdentity/
+    └── Sessions/
+        ├── CreateSession/
+        ├── GetSessions/
+        ├── GetSession/
+        └── ClearSession/
+```
+
+Hver endpointmappe indeholder sin request. `GetHelpRequests` indeholder også
+`GetHelpRequestsForSession`, som kalder samme endpoint med et sessionfilter.
+Teacher-sessioner returnerer lærerens ID som `createdByTeacherId`.
+
 ## Login
 
 - **Student:** Kør `Login/Student/Login`. Bruno gemmer elevcookien og genbruger identiteten.
@@ -28,28 +60,28 @@ Variablerne udfyldes manuelt. Efter ClearSession opdateres `sessionGeneration` m
 
 | Request | Metode og route |
 |---|---|
-| Me | `GET /api/teachers/me` |
+| GetTeacherIdentity | `GET /api/teachers/me` |
 | CreateSession | `POST /api/teachers/sessions` med titel |
 | GetSessions | `GET /api/teachers/sessions` |
 | GetSession | `GET /api/teachers/sessions/{{sessionId}}` |
 | ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` med forventet generation |
 
-## Students
+## Student
 
 | Request | Metode og route |
 |---|---|
-| Me | `GET /api/students/me` |
+| GetStudentIdentity | `GET /api/students/me` |
 | JoinSession | `POST /api/students/sessions/join` med sessionskode |
 | GetStudentSessions | `GET /api/students/sessions` |
-| GetSession | `GET /api/students/sessions/{{sessionId}}` |
+| GetStudentSession | `GET /api/students/sessions/{{sessionId}}` |
 | CreateHelpRequest | `POST /api/students/createhelprequest` med besked, session-id og generation |
-| Requests | `GET /api/students/requests` |
-| SessionRequests | `GET /api/students/requests?sessionId={{sessionId}}` |
+| GetHelpRequests | `GET /api/students/requests` |
+| GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
 
 CreateHelpRequest bruger Brunos indbyggede `{{$guid}}` til et nyt request-id ved hver afsendelse.
 
-Et almindeligt forløb er: teacher-login → CreateSession → udfyld Local → student-login → JoinSession → CreateHelpRequest → SessionRequests.
-Kør derefter ClearSession som teacher, opdater generationen, og læs SessionRequests igen.
+Et almindeligt forløb er: teacher-login → CreateSession → udfyld Local → student-login → JoinSession → CreateHelpRequest → GetHelpRequestsForSession.
+Kør derefter ClearSession som teacher, opdater generationen, og læs GetHelpRequestsForSession igen.
 
 Monitoring, Heimdall, VarService og Logout ligger fortsat i deres eksisterende mapper.
 
