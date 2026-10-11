@@ -9,5 +9,4 @@ import { HeimdallService } from './heimdall.service';
 })
 export class AppComponent {
   readonly api = inject(HeimdallService);
-  title = 'TestFrontend';
 }

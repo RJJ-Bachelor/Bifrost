@@ -1,2 +1,38 @@
-<header><div class="brand"><span class="mark">B</span><div><h1>Bifrost</h1><p>Testfrontend · Heimdall gateway</p></div></div><button class="login" (click)="api.login()">Log ind som lærer ↗</button></header>
-<main><nav aria-label="Hovedmenu"><a routerLink="/overview" routerLinkActive="active">Oversigt</a><a routerLink="/students" routerLinkActive="active">Elev</a><a routerLink="/requests" routerLinkActive="active">Forespørgsler</a><a routerLink="/teachers" routerLinkActive="active">Lærer</a></nav><router-outlet /></main>
+<header>
+  <div class="brand"><span class="mark">B</span><div><h1>Bifrost</h1><p>EirService testfrontend</p></div></div>
+  <button (click)="api.login()" [disabled]="api.busy">Log ind som lærer</button>
+</header>
+<main>
+  <nav aria-label="Hovedmenu">
+    <a routerLink="/overview" routerLinkActive="active">Oversigt</a>
+    <a routerLink="/teachers" routerLinkActive="active">Lærer</a>
+    <a routerLink="/students" routerLinkActive="active">Studerende</a>
+    <a routerLink="/requests" routerLinkActive="active">Hjælpeanmodninger</a>
+  </nav>
+
+  <section class="card selection">
+    <div class="section-heading">
+      <div><h2>Valgt session</h2><p>{{ api.session.title || 'Vælg en session fra en liste, opret en, eller indsæt et ID.' }}</p></div>
+      <button class="secondary" (click)="api.resetSession()" [disabled]="api.busy">Nulstil valg</button>
+    </div>
+    <div class="fields">
+      <label>Session-ID
+        <input name="sessionId" [ngModel]="api.session.id" (ngModelChange)="api.changeSessionId($event)"
+          placeholder="Sessionens GUID" [disabled]="api.busy">
+      </label>
+      <label>Sessionskode
+        <input name="sessionCode" [(ngModel)]="api.session.code" (ngModelChange)="api.saveSession()"
+          placeholder="Kode til tilmelding" maxlength="8" [disabled]="api.busy">
+      </label>
+      <label>Generation
+        <input name="generation" type="number" min="1" step="1" [(ngModel)]="api.session.generation"
+          (ngModelChange)="api.saveSession()" [disabled]="api.busy">
+      </label>
+    </div>
+    <p class="hint">ID og generation bruges til at hente, rydde og sende hjælp i den valgte session. Valget gemmes mellem faner og genindlæsninger.</p>
+    <p *ngIf="api.session.id && !api.hasSessionId" class="error">Session-ID skal være en GUID, fx 12345678-1234-1234-1234-123456789abc.</p>
+    <p *ngIf="!api.hasGeneration" class="error">Generation skal være et heltal større end 0.</p>
+  </section>
+
+  <router-outlet />
+</main>
