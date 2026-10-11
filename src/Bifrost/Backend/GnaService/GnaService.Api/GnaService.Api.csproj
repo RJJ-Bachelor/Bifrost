@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Shared.Api\Shared.Api.csproj" />
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
     <ProjectReference Include="..\GnaService.Infrastructure\GnaService.Infrastructure.csproj" />
   </ItemGroup>

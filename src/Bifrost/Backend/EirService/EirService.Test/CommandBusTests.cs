@@ -1,9 +1,9 @@
+using Shared.Api.Authentication;
 using EirService.Sessions.Application.Features.Teacher.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
-using System.Xml.Linq;
 using EirService.Api.Authentication;
 using EirService.Api.Endpoints.Student.Participants.GetStudentIdentity;
 using EirService.Api.Endpoints.Teacher.Participants.GetTeacherIdentity;
@@ -22,7 +22,6 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.DataProtection.Repositories;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -80,13 +79,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<ISessionRepository, MemorySessionRepository>();
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddDataProtection()
-            .AddKeyManagementOptions(options => options.XmlRepository = new InMemoryKeyRepository())
-            .UseEphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                 JwtBearerDefaults.AuthenticationScheme, _ => { })
-            .AddScheme<AuthenticationSchemeOptions, StudentCookieHandler>(StudentCookieHandler.SchemeName, _ => { });
+            .AddStudentCookie(builder.Configuration, options => options.DataProtectionProvider = new EphemeralDataProtectionProvider());
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("Student", policy => policy
@@ -256,6 +252,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task StudentCanCreateHelpRequestUsingCookieIdentityAndCommandPipeline()
     {
+        AuthenticateStudent();
         using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest",
             new { Id = "request-123", Message = "Please help", UserId = "supplied-student" });
 
@@ -277,9 +274,7 @@ public sealed class CommandBusTests : IAsyncLifetime
             "Executed command CreateHelpRequestCommand"
         }, _executionOrder);
 
-        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie")).Split(';')[0];
-        Assert.StartsWith(StudentCookieHandler.CookieName + "=", cookie);
-        _client.DefaultRequestHeaders.Add("Cookie", cookie);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
 
         using var nextResponse = await _client.PostAsJsonAsync("/api/students/createhelprequest",
             new { Id = "request-456", Message = "Another request" });
@@ -304,6 +299,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [MemberData(nameof(InvalidHelpRequestBodies))]
     public async Task HelpRequestValidationReturnsBadRequestBeforeSideEffects(string? id, string? message, string property)
     {
+        AuthenticateStudent();
         using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest", new { Id = id, Message = message });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
@@ -317,6 +313,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task HelpRequestAcceptsExistingMaximumLengths()
     {
+        AuthenticateStudent();
         var id = new string('i', 100);
         var message = new string('m', 4000);
 
@@ -398,8 +395,9 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StudentIdentityCreatesCookieAndReusesIt()
+    public async Task StudentIdentityValidatesGatewayCookieAndReusesIt()
     {
+        var studentId = AuthenticateStudent();
         using var response = await _client.GetAsync("/api/students/me");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -410,8 +408,8 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Contains("\"roles\":", body);
         Assert.True(Guid.TryParseExact(identity.UserId, "N", out _));
         Assert.Equal(new[] { "Student" }, identity.Roles);
-        var cookie = Assert.Single(response.Headers.GetValues("Set-Cookie")).Split(';')[0];
-        _client.DefaultRequestHeaders.Add("Cookie", cookie);
+        Assert.Equal(studentId, identity.UserId);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
 
         using var nextResponse = await _client.GetAsync("/api/students/me?userId=supplied-student");
 
@@ -469,11 +467,11 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task HelpRequestHistoryUsesCookieIdentityAndPreservesArrayResponse()
     {
+        AuthenticateStudent();
         using var identityResponse = await _client.GetAsync("/api/students/me");
         var identity = await identityResponse.Content.ReadFromJsonAsync<StudentIdentityResponse>();
         Assert.NotNull(identity);
-        var cookie = Assert.Single(identityResponse.Headers.GetValues("Set-Cookie")).Split(';')[0];
-        _client.DefaultRequestHeaders.Add("Cookie", cookie);
+        Assert.False(identityResponse.Headers.Contains("Set-Cookie"));
         _requests.Saved.AddRange(
         [
             new HelpRequest("request-2", identity.UserId, "Second request"),
@@ -509,6 +507,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task HelpRequestHistoryReturnsEmptyArrayForNewStudent()
     {
+        AuthenticateStudent();
         using var response = await _client.GetAsync("/api/students/requests");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -563,15 +562,6 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Empty(_executionOrder);
     }
 
-    internal sealed class InMemoryKeyRepository : IXmlRepository
-    {
-        private readonly List<XElement> _keys = [];
-
-        public IReadOnlyCollection<XElement> GetAllElements() => _keys.Select(key => new XElement(key)).ToArray();
-
-        public void StoreElement(XElement element, string friendlyName) => _keys.Add(new XElement(element));
-    }
-
     private sealed class RecordingRequestServices(List<string> executionOrder)
         : IRequestRepository
     {
@@ -609,6 +599,28 @@ public sealed class CommandBusTests : IAsyncLifetime
         }
 
 
+    }
+
+    private string AuthenticateStudent()
+    {
+        var userId = Guid.NewGuid().ToString("N");
+        var cookie = _app.Services.GetRequiredService<StudentIdentityCookie>().Protect(userId);
+        _client.DefaultRequestHeaders.Add("Cookie", $"{StudentCookieHandler.CookieName}={cookie}");
+        return userId;
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("altered-cookie")]
+    public async Task DirectStudentCallWithoutValidCookieIsRejectedWithoutIssuingOne(string? cookie)
+    {
+        if (cookie is not null)
+            _client.DefaultRequestHeaders.Add("Cookie", $"{StudentCookieHandler.CookieName}={cookie}");
+        using var response = await _client.GetAsync("/api/students/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+        Assert.Empty(_requests.Reads);
+        Assert.Empty(_requests.Saved);
     }
 
     private void Authenticate(string role, string? teacherId, string scope = "Bifrost")

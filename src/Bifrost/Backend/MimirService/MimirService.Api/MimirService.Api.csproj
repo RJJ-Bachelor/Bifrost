@@ -11,6 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Shared.Api\Shared.Api.csproj" />
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
     <ProjectReference Include="..\MimirService.Infrastructure\MimirService.Infrastructure.csproj" />
   </ItemGroup>

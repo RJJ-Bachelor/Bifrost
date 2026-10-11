@@ -1,4 +1,4 @@
-
+using Shared.Api.Authentication;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
 
@@ -13,7 +13,7 @@ public class Program
         builder.Services.AddGnaInfrastructure(builder.Configuration);
 
         // Add services to the container.
-        builder.Services.AddAuthorization();
+        builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
 
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
@@ -37,6 +37,7 @@ public class Program
 
         app.UseHttpsRedirection();
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         var summaries = new[]

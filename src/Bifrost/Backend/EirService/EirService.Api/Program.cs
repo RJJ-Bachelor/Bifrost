@@ -1,4 +1,4 @@
-using EirService.Api.Authentication;
+using Shared.Api.Authentication;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
@@ -17,11 +17,8 @@ using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
 using FastEndpoints;
 using FluentValidation;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.IdentityModel.Tokens;
 
 namespace EirService.Api;
 
@@ -31,49 +28,12 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
-        builder.Services.AddDataProtection();
         builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
 
         // Add services to the container.
-        builder.Services
-            .AddAuthentication("EndpointAuthentication")
-            .AddPolicyScheme("EndpointAuthentication", null, options =>
-            {
-                options.ForwardDefaultSelector = context =>
-                    context.Request.Path.StartsWithSegments("/api/students")
-                        ? StudentCookieHandler.SchemeName
-                        : JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddScheme<AuthenticationSchemeOptions, StudentCookieHandler>(StudentCookieHandler.SchemeName, null)
-            .AddJwtBearer(options =>
-            {
-                options.Authority = builder.Configuration["Authentication:Authority"] ?? "http://localhost:6003";
-                options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-                options.Audience = "Bifrost";
-                options.MapInboundClaims = false;
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    NameClaimType = "name",
-                    RoleClaimType = "role"
-                };
-            });
-        builder.Services.AddAuthorization(options =>
-        {
-            options.AddPolicy("Student", policy => policy
-                .AddAuthenticationSchemes(StudentCookieHandler.SchemeName)
-                .RequireAuthenticatedUser()
-                .RequireClaim("sub")
-                .RequireRole("Student"));
-            options.AddPolicy("Teacher", policy => policy
-                .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
-                .RequireAuthenticatedUser()
-                .RequireClaim("sub")
-                .RequireRole("Teacher")
-                .RequireAssertion(context => context.User.FindAll("scope")
-                    .Any(claim => claim.Value.Split(' ').Contains("Bifrost"))));
-        });
+        builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
         builder.Services.AddFastEndpoints(options =>
         {
             options.Assemblies =
@@ -99,7 +59,7 @@ public class Program
         builder.Services.AddOpenApi();
 
         var app = builder.Build();
-        // Accept the protocol forwarded by the local gateway so HTTPS cookies are Secure.
+        // Accept the protocol forwarded by the local gateway.
         app.UseForwardedHeaders(new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedProto

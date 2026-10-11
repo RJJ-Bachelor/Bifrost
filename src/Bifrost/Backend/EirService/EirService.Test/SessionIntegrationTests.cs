@@ -1,3 +1,4 @@
+using Shared.Api.Authentication;
 using EirService.Contracts.Sessions.Common;
 using EirService.Sessions.Application.Features.Teacher.Common;
 using System.Net;
@@ -126,10 +127,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
         builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(typeof(CommandValidationMiddleware<,>), typeof(CommandLoggingMiddleware<,>)));
-        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddScheme<AuthenticationSchemeOptions, CommandBusTests.TestAuthenticationHandler>(JwtBearerDefaults.AuthenticationScheme, _ => { })
-            .AddScheme<AuthenticationSchemeOptions, StudentCookieHandler>(StudentCookieHandler.SchemeName, _ => { });
+            .AddStudentCookie(builder.Configuration, options => options.DataProtectionProvider = new EphemeralDataProtectionProvider());
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("Student", policy => policy.AddAuthenticationSchemes(StudentCookieHandler.SchemeName)
@@ -155,8 +155,13 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         teacher.DefaultRequestHeaders.Add("X-Test-Scope", "Bifrost");
         teacher.DefaultRequestHeaders.Add("X-Test-Subject", "provider|opaque-teacher");
         student = app.GetTestClient();
-        using var identity = await student.GetAsync("/api/students/me");
-        student.DefaultRequestHeaders.Add("Cookie", Assert.Single(identity.Headers.GetValues("Set-Cookie")).Split(';')[0]);
+        AuthenticateStudent(student);
+    }
+
+    private void AuthenticateStudent(HttpClient client)
+    {
+        var cookie = app.Services.GetRequiredService<StudentIdentityCookie>().Protect(Guid.NewGuid().ToString("N"));
+        client.DefaultRequestHeaders.Add("Cookie", $"{StudentCookieHandler.CookieName}={cookie}");
     }
 
     [PostgresFact]
@@ -239,6 +244,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Participants.CountAsync());
         using var stranger = app.GetTestClient();
+        AuthenticateStudent(stranger);
         using var strangerResponse = await stranger.GetAsync($"/api/students/sessions/{session.Id}");
         Assert.Equal(HttpStatusCode.NotFound, strangerResponse.StatusCode);
     }

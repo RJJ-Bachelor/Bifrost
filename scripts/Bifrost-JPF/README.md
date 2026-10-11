@@ -38,7 +38,8 @@ Teacher-sessioner returnerer lærerens ID som `createdByTeacherId`.
 
 ## Login
 
-- **Student:** Kør `Login/Student/Login`. Bruno gemmer elevcookien og genbruger identiteten.
+- **Student:** Første student-kald gennem Heimdall opretter automatisk elevcookien.
+  `Login/Student/Login` kan stadig bruges til at se identiteten; Bruno gemmer cookien og genbruger den.
 - **Teacher:** Vælg **Developer Mode** via skjoldikonet, og kør `Login/Teacher/Login`.
   Den eksisterende login-helper gemmer teacher-cookien i Bruno.
 
@@ -94,3 +95,12 @@ aspire.cmd start --apphost src/Bifrost/Orchestration/YggdrasilService/YggdrasilS
 aspire.cmd wait varservice --timeout 60 --non-interactive
 aspire.cmd wait heimdallgateway --timeout 60 --non-interactive
 ```
+
+## Student-authentication
+
+Heimdall udsteder `bifrost-anonymous-user` og sender den med til servicen allerede i det første kald.
+Eir, Mimir og Gna validerer cookien; direkte student-kald uden en gyldig cookie får 401.
+Student-login hos VarService er ikke nødvendigt. Se [authentication-flow og nøgleopsætning](../../docs/student-authentication.md).
+
+Gamle Eir-cookies erstattes ved første kald efter denne ændring. Det giver et nyt student-ID,
+så eksisterende session-medlemskaber skal oprettes igen med JoinSession.
