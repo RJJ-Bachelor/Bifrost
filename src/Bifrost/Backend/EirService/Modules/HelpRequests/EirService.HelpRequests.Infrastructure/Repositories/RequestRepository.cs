@@ -9,7 +9,7 @@ namespace EirService.HelpRequests.Infrastructure.Repositories;
 
 public sealed class RequestRepository(EirRequestDbContext dbContext, TimeProvider timeProvider) : IRequestRepository
 {
-    public async Task AddAsync(EirRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
+    public async Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
     {
         await dbContext.Requests.AddAsync(request, cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -18,7 +18,7 @@ public sealed class RequestRepository(EirRequestDbContext dbContext, TimeProvide
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<EirRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
     {
         return await dbContext.Requests.AsNoTracking()
             .Where(request => request.UserId == userId)

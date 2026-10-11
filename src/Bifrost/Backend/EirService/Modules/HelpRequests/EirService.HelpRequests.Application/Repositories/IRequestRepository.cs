@@ -5,6 +5,6 @@ namespace EirService.HelpRequests.Application.Repositories;
 
 public interface IRequestRepository
 {
-    Task AddAsync(EirRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken);
-    Task<IReadOnlyList<EirRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken);
+    Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken);
+    Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken);
 }

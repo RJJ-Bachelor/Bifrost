@@ -1,4 +1,4 @@
-using EirService.HelpRequests.Application.Features.GeneralizedMessage;
+using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

@@ -1,5 +1,5 @@
 using EirService.Api.Authentication;
-using EirService.Sessions.Application.Features.ClearSession;
+using EirService.Sessions.Application.Features.Teacher.ClearSession;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 

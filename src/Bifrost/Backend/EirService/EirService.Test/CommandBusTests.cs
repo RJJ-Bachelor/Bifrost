@@ -1,4 +1,4 @@
-using EirService.Sessions.Application.Features.Common;
+using EirService.Sessions.Application.Features.Teacher.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
@@ -9,14 +9,14 @@ using EirService.Api.Endpoints.Student.Participants.GetStudentIdentity;
 using EirService.Api.Endpoints.Teacher.Participants.GetTeacherIdentity;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
-using EirService.HelpRequests.Application.Features.CreateHelpRequest;
-using EirService.HelpRequests.Application.Features.GetHelpRequests;
+using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
-using EirService.Sessions.Application.Features.CreateSession;
+using EirService.Sessions.Application.Features.Teacher.CreateSession;
 using EirService.Sessions.Application.Repositories;
 using EirService.Participants.Application.Repositories;
-using EirService.Participants.Application.Features.JoinSession;
+using EirService.Participants.Application.Features.Student.JoinSession;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -476,10 +476,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         _client.DefaultRequestHeaders.Add("Cookie", cookie);
         _requests.Saved.AddRange(
         [
-            new EirRequest("request-2", identity.UserId, "Second request"),
-            new EirRequest("request-1", identity.UserId, "First request"),
-            new EirRequest("other-request", "other-student", "Private request"),
-            new EirRequest("legacy-request", null!, "Legacy request")
+            new HelpRequest("request-2", identity.UserId, "Second request"),
+            new HelpRequest("request-1", identity.UserId, "First request"),
+            new HelpRequest("other-request", "other-student", "Private request"),
+            new HelpRequest("legacy-request", null!, "Legacy request")
         ]);
 
         using var response = await _client.GetAsync("/api/students/requests?userId=other-student");
@@ -519,7 +519,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task QueryUsesCommandBusOutsideHttpAndForwardsCancellationToken()
     {
-        _requests.Saved.Add(new EirRequest("request-1", "student-123", "Please help"));
+        _requests.Saved.Add(new HelpRequest("request-1", "student-123", "Please help"));
         using var cancellation = new CancellationTokenSource();
 
         var results = await new GetHelpRequestsQuery("student-123").ExecuteAsync(cancellation.Token);
@@ -575,12 +575,12 @@ public sealed class CommandBusTests : IAsyncLifetime
     private sealed class RecordingRequestServices(List<string> executionOrder)
         : IRequestRepository
     {
-        public List<EirRequest> Saved { get; } = [];
+        public List<HelpRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(string Id, string Message)> RequestMessages { get; } = [];
         public List<(string Id, string? UserId, string Message)> Notifications { get; } = [];
 
-        public Task AddAsync(EirRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
+        public Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
         {
             Saved.Add(request);
             executionOrder.Add($"Saved help request {request.Id}");
@@ -600,11 +600,11 @@ public sealed class CommandBusTests : IAsyncLifetime
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<EirRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
         {
             Reads.Add((userId, cancellationToken));
             executionOrder.Add($"Read help requests for {userId}");
-            return Task.FromResult<IReadOnlyList<EirRequest>>(
+            return Task.FromResult<IReadOnlyList<HelpRequest>>(
                 Saved.Where(request => request.UserId == userId).OrderBy(request => request.Id).ToArray());
         }
 

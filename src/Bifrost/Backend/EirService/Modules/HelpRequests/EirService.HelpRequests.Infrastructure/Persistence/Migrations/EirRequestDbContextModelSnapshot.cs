@@ -17,12 +17,13 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
+                .HasDefaultSchema("helprequests")
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.EirRequest", b =>
+            modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.HelpRequest", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(100)
@@ -49,7 +50,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SessionId", "Generation", "UserId");
 
-                    b.ToTable("requests", (string)null);
+                    b.ToTable("HelpRequest", "helprequests");
                 });
 
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
@@ -102,7 +103,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("PublishedAtUtc", "CreatedAtUtc");
 
-                    b.ToTable("outbox", (string)null);
+                    b.ToTable("outbox", "helprequests");
                 });
 #pragma warning restore 612, 618
         }

@@ -9,6 +9,8 @@ using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -77,6 +79,72 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private static OutgoingMessage Reply(string id, Guid? sessionId = null, int? generation = null) =>
         new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+
+    [PostgresFact]
+    public async Task EirSchemaMigrationPreservesRequestsAndPendingOutboxMessages()
+    {
+        const string previousMigration = "20261011102800_AddMessagingOutbox";
+        await using var services = BuildServices("eir");
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(previousMigration);
+
+        await using var connection = new NpgsqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using (var seed = new NpgsqlCommand("""
+            INSERT INTO public.requests ("Id", "Message", "UserId", "SessionId", "Generation")
+            VALUES ('legacy', 'Keep this request', 'student', '11111111-1111-1111-1111-111111111111', 3);
+            INSERT INTO public.outbox (
+                "Id", "MessageId", "MessageType", "Payload", "ExchangeName", "RoutingKey", "CreatedAtUtc")
+            VALUES ('22222222-2222-2222-2222-222222222222', 'legacy', 'HelpRequestCreated',
+                '{"message":"Keep this request"}', 'requests', 'request.created', '2026-10-11T10:00:00Z');
+            CREATE TABLE public.request_references (
+                "RequestId" varchar(100) REFERENCES public.requests ("Id"));
+            INSERT INTO public.request_references VALUES ('legacy');
+            """, connection))
+            await seed.ExecuteNonQueryAsync();
+
+        await db.Database.MigrateAsync();
+        await db.Database.MigrateAsync();
+
+        var request = Assert.Single(await db.Requests.AsNoTracking().ToArrayAsync());
+        Assert.Equal("legacy", request.Id);
+        Assert.Equal("Keep this request", request.Message);
+        Assert.Equal("student", request.UserId);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), request.SessionId);
+        Assert.Equal(3, request.Generation);
+        var pending = Assert.Single(await db.Outbox.AsNoTracking().ToArrayAsync());
+        Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), pending.Id);
+        Assert.Equal("legacy", pending.MessageId);
+        Assert.Equal("Keep this request", JsonSerializer.Deserialize<JsonElement>(pending.Payload).GetProperty("message").GetString());
+        Assert.Null(pending.PublishedAtUtc);
+        Assert.False(db.Database.HasPendingModelChanges());
+
+        await using (var tables = new NpgsqlCommand("""
+            SELECT to_regclass('helprequests."HelpRequest"') IS NOT NULL
+                AND to_regclass('helprequests.outbox') IS NOT NULL
+                AND to_regclass('public.requests') IS NULL
+                AND to_regclass('public.outbox') IS NULL;
+            """, connection))
+            Assert.Equal(true, await tables.ExecuteScalarAsync());
+
+        await migrator.MigrateAsync(previousMigration);
+        await using (var legacyRows = new NpgsqlCommand("""
+            SELECT (SELECT count(*) FROM public.requests WHERE "Id" = 'legacy') = 1
+                AND (SELECT count(*) FROM public.outbox WHERE "MessageId" = 'legacy') = 1
+                AND (SELECT count(*) FROM public.request_references WHERE "RequestId" = 'legacy') = 1
+                AND to_regclass('helprequests."HelpRequest"') IS NULL
+                AND to_regclass('helprequests.outbox') IS NULL;
+            """, connection))
+            Assert.Equal(true, await legacyRows.ExecuteScalarAsync());
+
+        await db.Database.MigrateAsync();
+        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
+        await dispatcher.PublishPendingAsync(CancellationToken.None);
+        Assert.Equal("legacy", Assert.Single(bus.Messages).Id);
+        Assert.NotNull((await db.Outbox.AsNoTracking().SingleAsync()).PublishedAtUtc);
+    }
 
     [PostgresFact]
     public async Task MimirCommitsReplyWithRequestAndIgnoresRedelivery()
@@ -185,7 +253,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             using var activity = new Activity("incoming-request").Start();
             traceId = activity.TraceId;
-            var request = new EirRequest("generic", "student", "Help");
+            var request = new HelpRequest("generic", "student", "Help");
             OutgoingMessage[] messages =
             [
                 new("failed", new HelpRequestCreatedMessage("Help"), "requests", "fail"),
@@ -238,7 +306,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
             OutgoingMessage[] messages = [new("stable-id", new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new EirRequest("stable-id", "student", "Help"), messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new HelpRequest("stable-id", "student", "Help"), messages, CancellationToken.None);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -269,7 +337,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 new("request", new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
                 new("request", new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated)
             ];
-            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new EirRequest("request", "student", "Help"), messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new HelpRequest("request", "student", "Help"), messages, CancellationToken.None);
         }
         // Publisher confirmations alone do not reject messages without a bound queue. Mandatory publishing must keep them pending.
         await dispatcher.PublishPendingAsync(CancellationToken.None);

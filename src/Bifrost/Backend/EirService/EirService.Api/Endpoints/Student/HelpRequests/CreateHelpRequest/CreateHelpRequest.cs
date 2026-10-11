@@ -1,5 +1,5 @@
 using EirService.Api.Authentication;
-using EirService.HelpRequests.Application.Features.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 

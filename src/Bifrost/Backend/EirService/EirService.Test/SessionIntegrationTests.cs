@@ -1,25 +1,25 @@
 using EirService.Contracts.Sessions.Common;
-using EirService.Sessions.Application.Features.Common;
+using EirService.Sessions.Application.Features.Teacher.Common;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using EirService.Api.Authentication;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
-using EirService.HelpRequests.Application.Features.CreateHelpRequest;
-using EirService.HelpRequests.Application.Features.GetHelpRequests;
-using EirService.HelpRequests.Application.Features.GeneralizedMessage;
+using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
+using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
+using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
-using EirService.Participants.Application.Features.JoinSession;
+using EirService.Participants.Application.Features.Student.JoinSession;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
-using EirService.Sessions.Application.Features.ClearSession;
-using EirService.Sessions.Application.Features.CreateSession;
-using EirService.Sessions.Application.Features.GetSession;
-using EirService.Sessions.Application.Features.GetSessions;
-using EirService.Sessions.Application.Features.GetStudentSession;
+using EirService.Sessions.Application.Features.Teacher.ClearSession;
+using EirService.Sessions.Application.Features.Teacher.CreateSession;
+using EirService.Sessions.Application.Features.Teacher.GetSession;
+using EirService.Sessions.Application.Features.Teacher.GetSessions;
+using EirService.Sessions.Application.Features.Student.GetStudentSession;
 using EirService.Sessions.Domain.Entities;
 using EirService.Sessions.Domain.ValueObjects;
 using EirService.Sessions.Infrastructure;
@@ -281,7 +281,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await JoinAsync(session.Code);
         var identity = (await student.GetFromJsonAsync<EirService.Api.Endpoints.Student.Participants.GetStudentIdentity.StudentIdentityResponse>("/api/students/me"))!;
         // Represents an operation that captured generation 1 before the clear and commits afterwards.
-        var delayed = new EirRequest("delayed", identity.UserId, "Old content", session.Id, 1);
+        var delayed = new HelpRequest("delayed", identity.UserId, "Old content", session.Id, 1);
         using var cleared = await ClearAsync(session.Id, 1);
         Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
         await using (var scope = app.Services.CreateAsyncScope())
@@ -334,7 +334,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-            var request = new EirRequest("rollback-request", "student", "Help");
+            var request = new HelpRequest("rollback-request", "student", "Help");
             OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Message), "requests", new string('x', 256))];
             await Assert.ThrowsAsync<DbUpdateException>(() => new RequestRepository(db, clock).AddAsync(request, messages, CancellationToken.None));
         }

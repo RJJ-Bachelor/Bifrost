@@ -1,6 +1,6 @@
 using EirService.Contracts.Sessions.Common;
 using EirService.Api.Authentication;
-using EirService.Participants.Application.Features.GetStudentSessions;
+using EirService.Participants.Application.Features.Student.GetStudentSessions;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 

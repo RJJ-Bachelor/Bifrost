@@ -7,15 +7,16 @@ namespace EirService.HelpRequests.Infrastructure.Persistence
     public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> options)
         : DbContext(options)
     {
-        public DbSet<EirRequest> Requests => Set<EirRequest>();
+        public DbSet<HelpRequest> Requests => Set<HelpRequest>();
         public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.AddOutbox();
-            modelBuilder.Entity<EirRequest>(entity =>
+            modelBuilder.HasDefaultSchema("helprequests");
+            modelBuilder.AddOutbox("helprequests");
+            modelBuilder.Entity<HelpRequest>(entity =>
             {
-                entity.ToTable("requests");
+                entity.ToTable("HelpRequest");
                 entity.HasKey(request => request.Id);
                 entity.Property(request => request.Id)
                     .HasMaxLength(100)

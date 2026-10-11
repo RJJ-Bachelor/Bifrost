@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
-using EirService.HelpRequests.Application.Features.GeneralizedMessage;
+using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
 
 namespace EirService.HelpRequests.Infrastructure;
 
