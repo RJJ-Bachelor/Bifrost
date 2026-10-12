@@ -21,6 +21,9 @@ var gnaDatabase = postgres.AddDatabase("gna");
 var mimirDatabase = postgres.AddDatabase("mimir");
 var varDatabase = postgres.AddDatabase("var");
 
+// Gemini
+var geminiApiKey = builder.AddParameter("gemini-api-key", secret: true);
+
 // IdentityServer
 var varService = builder.AddProject<Projects.VarService>("varservice", launchProfileName: "http")
     .WithReference(varDatabase)
@@ -52,6 +55,7 @@ var mimirService = builder.AddProject<Projects.MimirService_Api>("mimirservice-a
     .WithReference(rabbitmq)
     .WithReference(mimirDatabase)
     .WithHttpEndpoint(port: 6002)
+    .WithEnvironment("Gemini__ApiKey", geminiApiKey)
     .WaitFor(postgres)
     .WaitFor(rabbitmq)
     .WaitFor(postgres);
