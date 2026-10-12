@@ -25,7 +25,7 @@ namespace MimirService.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("MimirService.Domain.Entities.MimirRequest", b =>
+            modelBuilder.Entity("MimirService.Domain.Entities.HelpRequest", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(100)

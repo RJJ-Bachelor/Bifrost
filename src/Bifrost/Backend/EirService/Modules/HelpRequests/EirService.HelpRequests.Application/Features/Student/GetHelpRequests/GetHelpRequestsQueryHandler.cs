@@ -6,7 +6,7 @@ using EirService.Contracts.Exceptions;
 
 namespace EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
 
-public sealed class GetHelpRequestsQueryHandler(IRequestRepository repository)
+public sealed class GetHelpRequestsQueryHandler(IHelpRequestRepository repository)
     : ICommandHandler<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>
 {
     public async Task<IReadOnlyList<HelpRequestResult>> ExecuteAsync(GetHelpRequestsQuery query, CancellationToken cancellationToken)

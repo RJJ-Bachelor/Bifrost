@@ -7,7 +7,7 @@ using Shared.Infrastructure.Persistence.Outbox;
 
 namespace EirService.HelpRequests.Infrastructure.Repositories;
 
-public sealed class RequestRepository(EirRequestDbContext dbContext, TimeProvider timeProvider) : IRequestRepository
+public sealed class HelpRequestRepository(EirRequestDbContext dbContext, TimeProvider timeProvider) : IHelpRequestRepository
 {
     public async Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
     {

@@ -31,7 +31,7 @@ public static class DependencyInjection
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirRequestDbContext>();
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
-        services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddHostedService<GeneralizedMessageSubscriber>();
 
         return services;

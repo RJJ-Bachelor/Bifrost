@@ -9,11 +9,11 @@ namespace MimirService.Application.Services.Messaging;
 
 public sealed class HelpRequestMessageHandler(
     ILogger<HelpRequestMessageHandler> logger,
-    IMimirRequestRepository requestRepository) : IHelpRequestMessageHandler
+    IHelpRequestRepository requestRepository) : IHelpRequestMessageHandler
 {
     public async Task HandleAsync(MessageEnvelope<HelpRequestCreatedMessage> message, CancellationToken cancellationToken)
     {
-        var request = MimirRequest.Create(message.Id, message.Payload.Message);
+        var request = HelpRequest.Create(message.Id, message.Payload.Message);
         var reply = new OutgoingMessage(message.Id,
             new GeneralizedCreatedMessage(message.Payload.Message, message.Payload.SessionId, message.Payload.Generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);

@@ -7,13 +7,13 @@ namespace MimirService.Infrastructure.Persistence;
 public sealed class MimirRequestDbContext(
     DbContextOptions<MimirRequestDbContext> options) : DbContext(options)
 {
-    public DbSet<MimirRequest> Requests => Set<MimirRequest>();
+    public DbSet<HelpRequest> Requests => Set<HelpRequest>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.AddOutbox();
-        modelBuilder.Entity<MimirRequest>(entity =>
+        modelBuilder.Entity<HelpRequest>(entity =>
         {
             entity.ToTable("requests");
             entity.HasKey(request => request.Id);

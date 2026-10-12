@@ -75,7 +75,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>>(commandLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>>(helpRequestLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
-        builder.Services.AddSingleton<IRequestRepository>(_requests);
+        builder.Services.AddSingleton<IHelpRequestRepository>(_requests);
         builder.Services.AddSingleton<ISessionRepository, MemorySessionRepository>();
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
         builder.Services.AddSingleton(TimeProvider.System);
@@ -563,7 +563,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     private sealed class RecordingRequestServices(List<string> executionOrder)
-        : IRequestRepository
+        : IHelpRequestRepository
     {
         public List<HelpRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];

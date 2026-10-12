@@ -31,7 +31,7 @@ public static class DependencyInjection
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<MimirRequestDbContext>();
         services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
-        services.AddScoped<IMimirRequestRepository, MimirRequestRepository>();
+        services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddHostedService<HelpRequestMessageSubscriber>();
 
         return services;

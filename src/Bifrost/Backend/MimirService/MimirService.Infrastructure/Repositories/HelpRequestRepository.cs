@@ -8,9 +8,9 @@ using Shared.Infrastructure.Persistence.Outbox;
 
 namespace MimirService.Infrastructure.Repositories;
 
-public sealed class MimirRequestRepository(MimirRequestDbContext dbContext, TimeProvider timeProvider) : IMimirRequestRepository
+public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeProvider timeProvider) : IHelpRequestRepository
 {
-    public async Task<bool> TryAddAsync(MimirRequest request, OutgoingMessage reply, CancellationToken cancellationToken)
+    public async Task<bool> TryAddAsync(HelpRequest request, OutgoingMessage reply, CancellationToken cancellationToken)
     {
         if (await dbContext.Requests.AnyAsync(existing => existing.Id == request.Id, cancellationToken)) return false;
         dbContext.Requests.Add(request);

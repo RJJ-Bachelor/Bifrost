@@ -1,12 +1,12 @@
 namespace MimirService.Domain.Entities;
 
-public sealed class MimirRequest
+public sealed class HelpRequest
 {
-    private MimirRequest()
+    private HelpRequest()
     {
     }
 
-    private MimirRequest(string id, string message)
+    private HelpRequest(string id, string message)
     {
         Id = id;
         Message = message;
@@ -19,11 +19,11 @@ public sealed class MimirRequest
 
     public DateTimeOffset ReceivedAt { get; private set; }
 
-    public static MimirRequest Create(string id, string message)
+    public static HelpRequest Create(string id, string message)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
-        return new MimirRequest(id, message);
+        return new HelpRequest(id, message);
     }
 }

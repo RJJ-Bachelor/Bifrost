@@ -11,7 +11,7 @@ using Shared.Application.Messaging.Outbox;
 namespace EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 
 public sealed class CreateHelpRequestCommandHandler(
-    IRequestRepository requestRepository)
+    IHelpRequestRepository requestRepository)
     : ICommandHandler<CreateHelpRequestCommand, string>
 {
     public async Task<string> ExecuteAsync(CreateHelpRequestCommand request, CancellationToken cancellationToken)

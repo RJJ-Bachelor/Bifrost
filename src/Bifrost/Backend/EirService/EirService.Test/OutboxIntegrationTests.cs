@@ -14,9 +14,9 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using MimirService.Application.Repositories;
+using IMimirHelpRequestRepository = MimirService.Application.Repositories.IHelpRequestRepository;
 using MimirService.Application.Services.Messaging;
-using MimirService.Domain.Entities;
+using MimirHelpRequest = MimirService.Domain.Entities.HelpRequest;
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
 using Npgsql;
@@ -185,9 +185,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
-            var repository = scope.ServiceProvider.GetRequiredService<IMimirRequestRepository>();
+            var repository = scope.ServiceProvider.GetRequiredService<IMimirHelpRequestRepository>();
             var reply = Reply("rollback") with { RoutingKey = new string('x', 256) };
-            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirRequest.Create("rollback", "Help"), reply, CancellationToken.None));
+            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create("rollback", "Help"), reply, CancellationToken.None));
         }
         await using var verification = services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
@@ -259,7 +259,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 new("failed", new HelpRequestCreatedMessage("Help"), "requests", "fail"),
                 new("custom", new { Value = "Any payload" }, "custom-exchange", "custom")
             ];
-            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(request, messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(request, messages, CancellationToken.None);
         }
         bus.FailRoutingKey = "fail";
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -306,7 +306,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
             OutgoingMessage[] messages = [new("stable-id", new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new HelpRequest("stable-id", "student", "Help"), messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest("stable-id", "student", "Help"), messages, CancellationToken.None);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -337,7 +337,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 new("request", new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
                 new("request", new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated)
             ];
-            await scope.ServiceProvider.GetRequiredService<IRequestRepository>().AddAsync(new HelpRequest("request", "student", "Help"), messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest("request", "student", "Help"), messages, CancellationToken.None);
         }
         // Publisher confirmations alone do not reject messages without a bound queue. Mandatory publishing must keep them pending.
         await dispatcher.PublishPendingAsync(CancellationToken.None);
