@@ -1,3 +1,4 @@
+using Shared.Application.Persistence;
 using EirService.Sessions.Application.Repositories;
 using EirService.Sessions.Domain.Entities;
 using EirService.Participants.Application.Repositories;
@@ -5,7 +6,7 @@ using EirService.Participants.Domain.Entities;
 
 namespace EirService.Test;
 
-internal sealed class MemorySessionRepository : ISessionRepository
+internal sealed class MemorySessionRepository : ISessionRepository, IUnitOfWork<ISessionRepository>
 {
     private readonly List<Session> sessions = [];
     public Task<bool> TryAddAsync(Session session, CancellationToken cancellationToken)
@@ -19,7 +20,12 @@ internal sealed class MemorySessionRepository : ISessionRepository
         Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => session.CreatedByTeacherId == teacherId).ToArray());
     public Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => ids.Contains(session.Id)).ToArray());
-    public Task<bool> TryClearAsync(Session session, CancellationToken cancellationToken) => Task.FromResult(true);
+    public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (var session in sessions) session.ClearDomainEvents();
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class MemoryParticipantRepository : IParticipantRepository

@@ -1,3 +1,7 @@
+using EirService.Sessions.Domain.DomainEvents;
+using EirService.Participants.Domain.ValueObjects;
+using Shared.Application.Persistence;
+using EirService.Sessions.Application.Repositories;
 using Shared.Api.Authentication;
 using EirService.Contracts.Sessions.Common;
 using EirService.Sessions.Application.Features.Teacher.Common;
@@ -317,6 +321,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
+        Assert.Equal(1, await db.Outbox.CountAsync());
     }
 
     [PostgresFact]
@@ -331,9 +336,86 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var second = await secondDb.Sessions.SingleAsync();
         first.Clear(1, clock.Now);
         second.Clear(1, clock.Now);
-        Assert.True(await new SessionRepository(firstDb).TryClearAsync(first, CancellationToken.None));
-        Assert.False(await new SessionRepository(secondDb).TryClearAsync(second, CancellationToken.None));
+        await firstScope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync();
+        await Assert.ThrowsAsync<UnitOfWorkConcurrencyException>(() =>
+            secondScope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync());
+        Assert.Equal(1, await firstDb.Outbox.CountAsync());
+        Assert.Empty(first.GetDomainEvents());
+        Assert.Single(second.GetDomainEvents());
         Assert.Equal(2, (await firstDb.Sessions.SingleAsync()).CurrentGeneration);
+    }
+
+    [PostgresFact]
+    public async Task ClearPromotesDomainEventAndCommitsIntegrationEventOnce()
+    {
+        var created = await CreateAsync();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        var session = await db.Sessions.SingleAsync();
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>();
+        clock.Now = clock.Now.AddMinutes(1);
+        session.Clear(1, clock.Now);
+        var domainEvent = Assert.IsType<SessionClearedDomainEvent>(Assert.Single(session.GetDomainEvents()));
+        await unitOfWork.SaveChangesAsync();
+        Assert.Empty(session.GetDomainEvents());
+        var queued = await db.Outbox.SingleAsync();
+        var integrationEvent = JsonSerializer.Deserialize<SessionClearedIntegrationEvent>(queued.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(domainEvent.Id, integrationEvent.EventId);
+        Assert.Equal(domainEvent.Id.ToString(), queued.MessageId);
+        Assert.Equal(created.Id, integrationEvent.SessionId);
+        Assert.Equal(1, integrationEvent.PreviousGeneration);
+        Assert.Equal(2, integrationEvent.CurrentGeneration);
+        Assert.Equal(clock.Now, integrationEvent.ClearedAtUtc);
+        Assert.Equal(MessageRoutes.Sessions, queued.ExchangeName);
+        Assert.Equal(MessageRoutes.SessionCleared, queued.RoutingKey);
+        Assert.Null(queued.PublishedAtUtc);
+        Assert.Empty(bus.Messages);
+        await unitOfWork.SaveChangesAsync();
+        Assert.Equal(1, await db.Outbox.CountAsync());
+        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirSessionDbContext>>(app.Services);
+        await dispatcher.PublishPendingAsync(CancellationToken.None);
+        Assert.Equal(MessageRoutes.SessionCleared, Assert.Single(bus.Messages).RoutingKey);
+    }
+
+    [PostgresFact]
+    public async Task FailedIntegrationEventInsertRollsBackClearAndCanRetryPendingDomainEvent()
+    {
+        await CreateAsync();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE sessions.outbox ADD CONSTRAINT "RejectClearForTest" CHECK ("RoutingKey" <> 'session.cleared');
+            """);
+        var session = await db.Sessions.SingleAsync();
+        session.Clear(1, clock.Now);
+        var domainEvent = Assert.Single(session.GetDomainEvents());
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>();
+        await Assert.ThrowsAsync<DbUpdateException>(() => unitOfWork.SaveChangesAsync());
+        Assert.Single(session.GetDomainEvents());
+        await using (var verification = app.Services.CreateAsyncScope())
+        {
+            var saved = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            Assert.Equal(1, (await saved.Sessions.SingleAsync()).CurrentGeneration);
+            Assert.Empty(await saved.Outbox.ToArrayAsync());
+        }
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE sessions.outbox DROP CONSTRAINT "RejectClearForTest";
+            """);
+        await unitOfWork.SaveChangesAsync();
+        Assert.Empty(session.GetDomainEvents());
+        Assert.Equal(domainEvent.Id.ToString(), (await db.Outbox.SingleAsync()).MessageId);
+        Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
+    }
+
+    [PostgresFact]
+    public async Task ParticipantIdentityUsesExistingCompositeKeyAfterMaterialization()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        await using var scope = app.Services.CreateAsyncScope();
+        var participant = await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Participants.SingleAsync();
+        Assert.Equal(new SessionParticipantId(participant.SessionId, participant.StudentSubjectId), participant.Id);
     }
 
     [PostgresFact]

@@ -1,8 +1,9 @@
+using Shared.Domain.Primitives;
 using GnaService.Domain.ValueObjects;
 
 namespace GnaService.Domain.Entities;
 
-public sealed class Notification
+public sealed class Notification : AggregateRoot<string>
 {
     private Notification()
     {
@@ -19,7 +20,6 @@ public sealed class Notification
         CreatedAt = DateTimeOffset.UtcNow;
     }
 
-    public string Id { get; private set; } = null!;
 
     public UserId UserId { get; private set; } = null!;
 

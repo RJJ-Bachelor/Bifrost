@@ -1,16 +1,19 @@
 using EirService.Sessions.Domain.Entities;
 using EirService.Sessions.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
+using Shared.Infrastructure.Persistence.Outbox;
 
 namespace EirService.Sessions.Infrastructure.Persistence;
 
 public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> options) : DbContext(options)
 {
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("sessions");
+        modelBuilder.AddOutbox("sessions");
         modelBuilder.Entity<Session>(entity =>
         {
             entity.ToTable("sessions");

@@ -320,11 +320,12 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     }
 
     [OutboxBrokerFact]
-    public async Task RabbitMqRetriesUntilQueuesExistAndDeliversAllThreeContracts()
+    public async Task RabbitMqRetriesUntilQueuesExistAndDeliversIntegrationContracts()
     {
         await using var services = BuildServices("eir", realBroker: true);
         var exchange = "outbox-test-" + Guid.NewGuid().ToString("N");
         var sessionId = Guid.NewGuid();
+        var clearedEvent = new SessionClearedIntegrationEvent(Guid.NewGuid(), sessionId, 3, 4, DateTimeOffset.UtcNow);
         var messageBus = services.GetRequiredService<IMessageBus>();
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
         await using (var scope = services.CreateAsyncScope())
@@ -335,23 +336,27 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             [
                 new("request", new HelpRequestCreatedMessage("Help", sessionId, 4), exchange, MessageRoutes.HelpRequestCreated),
                 new("request", new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
-                new("request", new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated)
+                new("request", new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated),
+                new(clearedEvent.EventId.ToString(), clearedEvent, exchange, MessageRoutes.SessionCleared)
             ];
             await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest("request", "student", "Help"), messages, CancellationToken.None);
         }
         // Publisher confirmations alone do not reject messages without a bound queue. Mandatory publishing must keep them pending.
         await dispatcher.PublishPendingAsync(CancellationToken.None);
         await using (var scope = services.CreateAsyncScope())
-            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc == null));
+            Assert.Equal(4, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc == null));
         var help = new TaskCompletionSource<MessageEnvelope<HelpRequestCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var notification = new TaskCompletionSource<MessageEnvelope<NotificationCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var generalized = new TaskCompletionSource<MessageEnvelope<GeneralizedCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleared = new TaskCompletionSource<MessageEnvelope<SessionClearedIntegrationEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var helpSubscription = await messageBus.SubscribeAsync<HelpRequestCreatedMessage>(exchange + "-help", exchange, MessageRoutes.HelpRequestCreated,
             (message, _) => { help.TrySetResult(message); return Task.CompletedTask; });
         await using var notificationSubscription = await messageBus.SubscribeAsync<NotificationCreatedMessage>(exchange + "-notification", exchange, MessageRoutes.NotificationCreated,
             (message, _) => { notification.TrySetResult(message); return Task.CompletedTask; });
         await using var generalizedSubscription = await messageBus.SubscribeAsync<GeneralizedCreatedMessage>(exchange + "-generalized", exchange, MessageRoutes.GeneralizedCreated,
             (message, _) => { generalized.TrySetResult(message); return Task.CompletedTask; });
+        await using var clearedSubscription = await messageBus.SubscribeAsync<SessionClearedIntegrationEvent>(exchange + "-cleared", exchange, MessageRoutes.SessionCleared,
+            (message, _) => { cleared.TrySetResult(message); return Task.CompletedTask; });
         try
         {
             await dispatcher.PublishPendingAsync(CancellationToken.None);
@@ -359,15 +364,17 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             Assert.Equal(new NotificationCreatedMessage("student", "Help", sessionId, 4), (await notification.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(new GeneralizedCreatedMessage("Answer", sessionId, 4), (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal("request", help.Task.Result.Id);
+            Assert.Equal(clearedEvent, (await cleared.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
+            Assert.Equal(clearedEvent.EventId.ToString(), cleared.Task.Result.Id);
             await using var scope = services.CreateAsyncScope();
-            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
+            Assert.Equal(4, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
         }
         finally
         {
             var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
             await using var connection = await factory.CreateConnectionAsync();
             await using var channel = await connection.CreateChannelAsync();
-            foreach (var suffix in new[] { "-help", "-notification", "-generalized" })
+            foreach (var suffix in new[] { "-help", "-notification", "-generalized", "-cleared" })
                 await channel.QueueDeleteAsync(exchange + suffix);
             await channel.ExchangeDeleteAsync(exchange);
         }

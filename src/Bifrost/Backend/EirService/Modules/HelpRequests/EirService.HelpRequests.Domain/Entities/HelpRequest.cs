@@ -1,6 +1,7 @@
+using Shared.Domain.Primitives;
 namespace EirService.HelpRequests.Domain.Entities;
 
-public sealed class HelpRequest
+public sealed class HelpRequest : AggregateRoot<string>
 {
     private HelpRequest()
     {
@@ -17,7 +18,6 @@ public sealed class HelpRequest
         Generation = generation;
     }
 
-    public string Id { get; private set; } = null!;
 
     // Legacy rows have no recoverable owner; new requests always have a user id.
     public string? UserId { get; private set; }

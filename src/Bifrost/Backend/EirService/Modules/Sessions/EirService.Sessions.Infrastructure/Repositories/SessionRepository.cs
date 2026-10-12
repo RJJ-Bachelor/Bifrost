@@ -38,17 +38,4 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
         await dbContext.Sessions.AsNoTracking().Where(session => ids.Contains(session.Id))
             .OrderByDescending(session => session.CreatedAtUtc).ThenBy(session => session.Id).ToListAsync(cancellationToken);
 
-    public async Task<bool> TryClearAsync(Session session, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return true;
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            dbContext.ChangeTracker.Clear();
-            return false;
-        }
-    }
 }

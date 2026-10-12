@@ -1,10 +1,12 @@
 using EirService.Sessions.Application.Repositories;
 using FastEndpoints;
 using EirService.Contracts.Exceptions;
+using Shared.Application.Persistence;
 
 namespace EirService.Sessions.Application.Features.Teacher.ClearSession;
 
-public sealed class ClearSessionCommandHandler(ISessionRepository repository, TimeProvider timeProvider)
+public sealed class ClearSessionCommandHandler(
+    ISessionRepository repository, IUnitOfWork<ISessionRepository> unitOfWork, TimeProvider timeProvider)
     : ICommandHandler<ClearSessionCommand, ClearSessionResult>
 {
     public async Task<ClearSessionResult> ExecuteAsync(ClearSessionCommand command, CancellationToken cancellationToken)
@@ -20,9 +22,15 @@ public sealed class ClearSessionCommandHandler(ISessionRepository repository, Ti
         var now = timeProvider.GetUtcNow();
 
         session.Clear(command.ExpectedGeneration, now);
-        
-        if (!await repository.TryClearAsync(session, cancellationToken))
+
+        try
+        {
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (UnitOfWorkConcurrencyException)
+        {
             throw new OperationConflictException("The session was cleared by another operation.");
+        }
 
         return new ClearSessionResult(session.Id, session.CurrentGeneration, now);
     }

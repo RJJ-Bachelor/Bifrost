@@ -9,5 +9,4 @@ public interface ISessionRepository
     Task<Session?> GetByCodeAsync(string code, CancellationToken cancellationToken);
     Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken);
-    Task<bool> TryClearAsync(Session session, CancellationToken cancellationToken);
 }

@@ -1,3 +1,4 @@
+using EirService.Sessions.Domain.DomainEvents;
 using EirService.Sessions.Domain.Entities;
 using EirService.Sessions.Domain.ValueObjects;
 
@@ -12,6 +13,7 @@ public sealed class SessionDomainTests
     {
         var session = Session.Create("  Algorithms  ", new SessionCode("abcd2345"), "provider|opaque-subject", null, CreatedAt);
         var id = session.Id;
+        Assert.Empty(session.GetDomainEvents());
         session.Clear(1, CreatedAt.AddHours(1));
         Assert.Equal(id, session.Id);
         Assert.Equal("Algorithms", session.Title);
@@ -21,9 +23,16 @@ public sealed class SessionDomainTests
         Assert.Equal(CreatedAt, session.CreatedAtUtc);
         Assert.Equal(2, session.CurrentGeneration);
         Assert.Equal(CreatedAt.AddHours(1), session.LastClearedAtUtc);
+        var domainEvent = Assert.IsType<SessionClearedDomainEvent>(Assert.Single(session.GetDomainEvents()));
+        Assert.NotEqual(Guid.Empty, domainEvent.Id);
+        Assert.Equal(session.Id, domainEvent.SessionId);
+        Assert.Equal(1, domainEvent.PreviousGeneration);
+        Assert.Equal(2, domainEvent.CurrentGeneration);
+        Assert.Equal(session.LastClearedAtUtc, domainEvent.ClearedAtUtc);
         Assert.Throws<InvalidOperationException>(() => session.Clear(1, CreatedAt.AddHours(2)));
         Assert.Equal(2, session.CurrentGeneration);
         Assert.Equal(CreatedAt.AddHours(1), session.LastClearedAtUtc);
+        Assert.Single(session.GetDomainEvents());
     }
 
     [Theory]

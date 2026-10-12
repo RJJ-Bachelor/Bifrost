@@ -1,12 +1,13 @@
 using EirService.Sessions.Domain.ValueObjects;
+using EirService.Sessions.Domain.DomainEvents;
+using Shared.Domain.Primitives;
 
 namespace EirService.Sessions.Domain.Entities;
 
-public sealed class Session
+public sealed class Session : AggregateRoot<Guid>
 {
     private Session() { }
 
-    public Guid Id { get; private set; }
     public string Title { get; private set; } = null!;
     public SessionCode Code { get; private set; } = null!;
     public string CreatedByTeacherId { get; private set; } = null!;
@@ -39,7 +40,9 @@ public sealed class Session
         if (CurrentGeneration != expectedGeneration)
             throw new InvalidOperationException("The session generation has changed.");
 
+        var previousGeneration = CurrentGeneration;
         CurrentGeneration = checked(CurrentGeneration + 1);
         LastClearedAtUtc = now.ToUniversalTime();
+        RaiseDomainEvent(new SessionClearedDomainEvent(Id, previousGeneration, CurrentGeneration, LastClearedAtUtc.Value));
     }
 }

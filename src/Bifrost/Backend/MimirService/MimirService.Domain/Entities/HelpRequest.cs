@@ -1,6 +1,7 @@
+using Shared.Domain.Primitives;
 namespace MimirService.Domain.Entities;
 
-public sealed class HelpRequest
+public sealed class HelpRequest : AggregateRoot<string>
 {
     private HelpRequest()
     {
@@ -13,7 +14,6 @@ public sealed class HelpRequest
         ReceivedAt = DateTimeOffset.UtcNow;
     }
 
-    public string Id { get; private set; } = null!;
 
     public string Message { get; private set; } = null!;
 

@@ -13,6 +13,7 @@ public sealed class EirParticipantDbContext(DbContextOptions<EirParticipantDbCon
         modelBuilder.Entity<SessionParticipant>(entity =>
         {
             entity.ToTable("session_participants");
+            entity.Ignore(participant => participant.Id);
             entity.HasKey(participant => new { participant.SessionId, participant.StudentSubjectId });
             entity.Property(participant => participant.SessionId).ValueGeneratedNever();
             entity.Property(participant => participant.StudentSubjectId).HasMaxLength(100).IsRequired();

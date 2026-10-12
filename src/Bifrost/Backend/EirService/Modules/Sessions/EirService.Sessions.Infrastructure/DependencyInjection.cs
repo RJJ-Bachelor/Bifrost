@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Shared.Infrastructure.Persistence.Messaging;
+using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.UnitOfWork;
 
 namespace EirService.Sessions.Infrastructure;
 
@@ -18,6 +21,9 @@ public static class DependencyInjection
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "sessions")));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ISessionRepository, SessionRepository>();
+        services.AddUnitOfWork<ISessionRepository, EirSessionDbContext>();
+        services.AddRabbitMqMessageBus(configuration);
+        services.AddOutbox<EirSessionDbContext>();
         return services;
     }
 }

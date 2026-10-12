@@ -1,3 +1,4 @@
+using Shared.Application.Persistence;
 using Shared.Api.Authentication;
 using EirService.Sessions.Application.Features.Teacher.Common;
 using System.Net;
@@ -76,7 +77,9 @@ public sealed class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>>(helpRequestLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
         builder.Services.AddSingleton<IHelpRequestRepository>(_requests);
-        builder.Services.AddSingleton<ISessionRepository, MemorySessionRepository>();
+        builder.Services.AddSingleton<MemorySessionRepository>();
+        builder.Services.AddSingleton<ISessionRepository>(provider => provider.GetRequiredService<MemorySessionRepository>());
+        builder.Services.AddSingleton<IUnitOfWork<ISessionRepository>>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

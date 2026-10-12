@@ -2,6 +2,8 @@ namespace Shared.Application.Messaging;
 
 public static class MessageRoutes
 {
+    public const string Sessions = "sessions";
+    public const string SessionCleared = "session.cleared";
     public const string Requests = "requests";
     public const string HelpRequestCreated = "request.created";
     public const string GeneralizedCreated = "generalized.created";
