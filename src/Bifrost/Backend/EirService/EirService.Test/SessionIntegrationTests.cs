@@ -52,6 +52,7 @@ using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.Migrations;
 using EirService.HelpRequests.Infrastructure.Repositories;
 
 namespace EirService.Test;
@@ -145,9 +146,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         app = builder.Build();
         await using (var scope = app.Services.CreateAsyncScope())
         {
-            await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAsync();
-            await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAsync();
-            await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAsync();
+            await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAtStartupAsync();
+            await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartupAsync();
+            await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartupAsync();
         }
         app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();

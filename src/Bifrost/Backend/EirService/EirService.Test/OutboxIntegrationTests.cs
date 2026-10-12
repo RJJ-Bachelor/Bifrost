@@ -29,6 +29,11 @@ using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.Migrations;
+using EirService.Sessions.Infrastructure;
+using EirService.Sessions.Infrastructure.Persistence;
+using EirService.Participants.Infrastructure;
+using EirService.Participants.Infrastructure.Persistence;
 
 namespace EirService.Test;
 
@@ -85,6 +90,41 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private static OutgoingMessage Reply(Guid id, Guid? sessionId = null, int? generation = null) =>
         new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+
+    [PostgresFact]
+    public async Task EirStartupMigrationsCreateEachHistoryTableBeforeReadingAndCanRunAgain()
+    {
+        var errors = new List<string>();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:eir"] = connectionString,
+            ["ConnectionStrings:rabbitmq"] = "amqp://unused-in-tests"
+        }).Build();
+        var registrations = new ServiceCollection();
+        registrations.AddLogging();
+        registrations.AddHelpRequestsInfrastructure(configuration);
+        registrations.AddSessionsInfrastructure(configuration);
+        registrations.AddParticipantsInfrastructure(configuration);
+        registrations.ConfigureDbContext<EirRequestDbContext>(options => options.LogTo(errors.Add, LogLevel.Error));
+        registrations.ConfigureDbContext<EirSessionDbContext>(options => options.LogTo(errors.Add, LogLevel.Error));
+        registrations.ConfigureDbContext<EirParticipantDbContext>(options => options.LogTo(errors.Add, LogLevel.Error));
+        await using var services = registrations.BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        DbContext[] contexts =
+        [
+            scope.ServiceProvider.GetRequiredService<EirRequestDbContext>(),
+            scope.ServiceProvider.GetRequiredService<EirSessionDbContext>(),
+            scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>()
+        ];
+        foreach (var db in contexts)
+        {
+            await db.Database.MigrateAtStartupAsync();
+            db.Database.MigrateAtStartup();
+            Assert.NotEmpty(await db.Database.GetAppliedMigrationsAsync());
+            Assert.False(db.Database.HasPendingModelChanges());
+        }
+        Assert.Empty(errors);
+    }
 
     [PostgresFact]
     public async Task EirSchemaMigrationPreservesRequestsAndPendingOutboxMessages()

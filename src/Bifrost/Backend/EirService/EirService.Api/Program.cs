@@ -17,7 +17,7 @@ using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
 using FastEndpoints;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
+using Shared.Infrastructure.Persistence.Migrations;
 using Microsoft.AspNetCore.HttpOverrides;
 
 namespace EirService.Api;
@@ -67,9 +67,9 @@ public class Program
 
         using (var scope = app.Services.CreateScope())
         {
-            scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.Migrate();
-            scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.Migrate();
-            scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.Migrate();
+            scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAtStartup();
+            scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartup();
+            scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartup();
         }
 
         app.MapDefaultEndpoints();
