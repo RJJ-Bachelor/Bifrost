@@ -1,0 +1,14 @@
+info:
+  name: DeleteSession
+  type: http
+  seq: 1
+
+http:
+  method: DELETE
+  url: "{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}"
+
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+  forwardAuthorizationHeader: true

@@ -21,6 +21,7 @@ using EirService.Participants.Application.Features.Student.JoinSession;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.Teacher.ClearSession;
+using EirService.Sessions.Application.Features.Teacher.DeleteSession;
 using EirService.Sessions.Application.Features.Teacher.CreateSession;
 using EirService.Sessions.Application.Features.Teacher.GetSession;
 using EirService.Sessions.Application.Features.Teacher.GetSessions;
@@ -125,6 +126,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<DeleteSessionCommand>, DeleteSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<GetSessionQuery>, GetSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<GetSessionsQuery>, GetSessionsQueryValidator>();
         builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();
@@ -576,6 +578,136 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(MessageRoutes.SessionUpdated, pending.RoutingKey);
         Assert.Equal(new SessionUpdatedIntegrationEvent(eventId, sessionId, 3, SessionUpdateType.Cleared, clock.Now, 2), update);
         Assert.Null(pending.PublishedAtUtc);
+    }
+
+    [PostgresFact]
+    public async Task DeleteRemovesSessionAndCommitsDeletedEventWhileKeepingRequestsFromAllGenerations()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        await CreateRequestAsync(session.Id, 1, TestIds.From("delete-generation-1"));
+        using var clear = await ClearAsync(session.Id, 1);
+        Assert.Equal(HttpStatusCode.OK, clear.StatusCode);
+        await CreateRequestAsync(session.Id, 2, TestIds.From("delete-generation-2"));
+        clock.Now = clock.Now.AddMinutes(2);
+        using var response = await teacher.DeleteAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Empty(await response.Content.ReadAsStringAsync());
+        using var get = await teacher.GetAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, get.StatusCode);
+        Assert.Empty((await teacher.GetFromJsonAsync<SessionResult[]>("/api/teachers/sessions"))!);
+        Assert.Empty((await student.GetFromJsonAsync<HelpRequestResult[]>("/api/students/requests"))!);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        Assert.Empty(await db.Sessions.ToArrayAsync());
+        var messages = await db.Outbox.AsNoTracking().ToArrayAsync();
+        var deleted = Assert.Single(messages, message =>
+            JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(message.Payload,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))!.EventType == SessionUpdateType.Deleted);
+        var payload = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(deleted.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(session.Id, payload.SessionId);
+        Assert.Equal(2, payload.Generation);
+        Assert.Equal(clock.Now, payload.UpdatedAtUtc);
+        Assert.Null(payload.PreviousGeneration);
+        Assert.Equal(payload.EventId, deleted.MessageId);
+        Assert.Equal(MessageRoutes.Sessions, deleted.ExchangeName);
+        Assert.Equal(MessageRoutes.SessionUpdated, deleted.RoutingKey);
+        Assert.Null(deleted.PublishedAtUtc);
+        var requests = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Requests
+            .Where(request => request.SessionId == session.Id).ToArrayAsync();
+        Assert.Equal(new[] { 1, 2 }, requests.Select(request => request.Generation!.Value).OrderBy(generation => generation));
+        using var repeated = await teacher.DeleteAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, repeated.StatusCode);
+        Assert.Equal(messages.Length, await db.Outbox.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task DeleteRejectsAnotherTeacherMissingSessionAndEmptyIdWithoutChangingData()
+    {
+        var session = await CreateAsync();
+        teacher.DefaultRequestHeaders.Remove("X-Test-Subject");
+        teacher.DefaultRequestHeaders.Add("X-Test-Subject", "other-teacher");
+        using var wrongOwner = await teacher.DeleteAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.NotFound, wrongOwner.StatusCode);
+        using var missing = await teacher.DeleteAsync($"/api/teachers/sessions/{Guid.NewGuid()}");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        using var invalid = await teacher.DeleteAsync($"/api/teachers/sessions/{Guid.Empty}");
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        Assert.Equal(session.Id, (await db.Sessions.SingleAsync()).Id);
+        Assert.Empty(await db.Outbox.ToArrayAsync());
+    }
+
+    [PostgresFact]
+    public async Task DeleteRequiresAuthenticatedTeacher()
+    {
+        var session = await CreateAsync();
+        using var anonymous = app.GetTestClient();
+        using var unauthenticated = await anonymous.DeleteAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+        using var studentCaller = app.GetTestClient();
+        studentCaller.DefaultRequestHeaders.Add("X-Test-Role", "Student");
+        studentCaller.DefaultRequestHeaders.Add("X-Test-Subject", "student");
+        studentCaller.DefaultRequestHeaders.Add("X-Test-Scope", "Bifrost");
+        using var forbidden = await studentCaller.DeleteAsync($"/api/teachers/sessions/{session.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+        await using var scope = app.Services.CreateAsyncScope();
+        Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Sessions.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task FailedDeletedEventInsertRollsBackSessionRemovalAndCanRetry()
+    {
+        var created = await CreateAsync();
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE sessions.outbox ADD CONSTRAINT "RejectDeletedForTest" CHECK ("Payload"::jsonb->>'eventType' <> 'Deleted');
+            """);
+        var repository = scope.ServiceProvider.GetRequiredService<ISessionRepository>();
+        var session = (await repository.GetAsync(created.Id, CancellationToken.None))!;
+        session.Delete(clock.Now);
+        repository.Remove(session);
+        var domainEvent = Assert.Single(session.GetDomainEvents());
+        var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>();
+        await Assert.ThrowsAsync<DbUpdateException>(() => unitOfWork.SaveChangesAsync());
+        Assert.Single(session.GetDomainEvents());
+        await using (var verification = app.Services.CreateAsyncScope())
+        {
+            var saved = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            Assert.Equal(created.Id, (await saved.Sessions.SingleAsync()).Id);
+            Assert.Empty(await saved.Outbox.ToArrayAsync());
+        }
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE sessions.outbox DROP CONSTRAINT "RejectDeletedForTest";
+            """);
+        await unitOfWork.SaveChangesAsync();
+        Assert.Empty(session.GetDomainEvents());
+        Assert.Empty(await db.Sessions.ToArrayAsync());
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync()).MessageId);
+    }
+
+    [PostgresFact]
+    public async Task DeleteRejectsConcurrentClearWithoutQueuingDeletedEvent()
+    {
+        var created = await CreateAsync();
+        await using var deleteScope = app.Services.CreateAsyncScope();
+        var deleteRepository = deleteScope.ServiceProvider.GetRequiredService<ISessionRepository>();
+        var toDelete = (await deleteRepository.GetAsync(created.Id, CancellationToken.None))!;
+        toDelete.Delete(clock.Now);
+        deleteRepository.Remove(toDelete);
+        using var cleared = await ClearAsync(created.Id, 1);
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        await Assert.ThrowsAsync<UnitOfWorkConcurrencyException>(() =>
+            deleteScope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync());
+        await using var verification = app.Services.CreateAsyncScope();
+        var saved = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        Assert.Equal(2, (await saved.Sessions.SingleAsync()).CurrentGeneration);
+        var payload = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>((await saved.Outbox.SingleAsync()).Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(SessionUpdateType.Cleared, payload.EventType);
     }
 
     private async Task<SessionResult> CreateAsync(string title = "Session title")

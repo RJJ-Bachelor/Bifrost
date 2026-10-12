@@ -7,6 +7,7 @@ using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.Teacher.CreateSession;
 using EirService.Sessions.Application.Features.Teacher.ClearSession;
+using EirService.Sessions.Application.Features.Teacher.DeleteSession;
 using EirService.Sessions.Application.Features.Teacher.GetSession;
 using EirService.Sessions.Application.Features.Teacher.GetSessions;
 using EirService.Sessions.Application.Features.Student.GetStudentSession;
@@ -47,6 +48,7 @@ public class Program
         builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<DeleteSessionCommand>, DeleteSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<GetSessionsQuery>, GetSessionsQueryValidator>();
         builder.Services.AddTransient<IValidator<GetSessionQuery>, GetSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();

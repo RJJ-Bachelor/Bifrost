@@ -24,6 +24,8 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
         }
     }
 
+    public void Remove(Session session) => dbContext.Sessions.Remove(session);
+
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Sessions.SingleOrDefaultAsync(session => session.Id == id, cancellationToken);
 

@@ -35,6 +35,22 @@ public sealed class SessionDomainTests
         Assert.Single(session.GetDomainEvents());
     }
 
+    [Fact]
+    public void DeleteRaisesDomainEventForTheWholeSessionAtItsCurrentGeneration()
+    {
+        var session = Session.Create("Title", new SessionCode("ABCD2345"), "teacher", null, CreatedAt);
+        session.Clear(1, CreatedAt.AddHours(1));
+        session.ClearDomainEvents();
+        var deletedAt = CreatedAt.AddHours(2).ToOffset(TimeSpan.FromHours(2));
+        session.Delete(deletedAt);
+        var deleted = Assert.IsType<SessionDeletedDomainEvent>(Assert.Single(session.GetDomainEvents()));
+        Assert.Equal(session.Id, deleted.SessionId);
+        Assert.Equal(2, deleted.Generation);
+        Assert.Equal(deletedAt.ToUniversalTime(), deleted.DeletedAtUtc);
+        Assert.Equal(TimeSpan.Zero, deleted.DeletedAtUtc.Offset);
+        Assert.NotEqual(Guid.Empty, deleted.Id);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]

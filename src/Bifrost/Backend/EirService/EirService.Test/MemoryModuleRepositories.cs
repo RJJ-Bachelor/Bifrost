@@ -9,11 +9,13 @@ namespace EirService.Test;
 internal sealed class MemorySessionRepository : ISessionRepository, IUnitOfWork<ISessionRepository>
 {
     private readonly List<Session> sessions = [];
+    private readonly List<Session> pendingDeletes = [];
     public Task<bool> TryAddAsync(Session session, CancellationToken cancellationToken)
     {
         sessions.Add(session);
         return Task.FromResult(true);
     }
+    public void Remove(Session session) => pendingDeletes.Add(session);
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(sessions.SingleOrDefault(session => session.Id == id));
     public Task<Session?> GetByCodeAsync(string code, CancellationToken cancellationToken) => Task.FromResult(sessions.SingleOrDefault(session => session.Code.Value == code));
     public Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken) =>
@@ -24,6 +26,8 @@ internal sealed class MemorySessionRepository : ISessionRepository, IUnitOfWork<
     {
         cancellationToken.ThrowIfCancellationRequested();
         foreach (var session in sessions) session.ClearDomainEvents();
+        foreach (var session in pendingDeletes) sessions.Remove(session);
+        pendingDeletes.Clear();
         return Task.CompletedTask;
     }
 }

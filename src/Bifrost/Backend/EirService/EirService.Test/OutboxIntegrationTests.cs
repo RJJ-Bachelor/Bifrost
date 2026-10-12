@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MimirService.Application.Features.Internal.SessionUpdated;
+using EirSessionUpdatedMessageHandler = EirService.HelpRequests.Application.Features.Internal.SessionUpdated.SessionUpdatedMessageHandler;
 using System.Text.Json;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
@@ -43,7 +44,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private string databaseName = null!;
     private string connectionString = null!;
     private readonly RecordingBus bus = new();
-    private readonly SessionUpdateLogger sessionUpdates = new();
+    private readonly SessionUpdateLogger<SessionUpdatedMessageHandler> sessionUpdates = new();
+    private readonly SessionUpdateLogger<EirSessionUpdatedMessageHandler> helpRequestSessionUpdates = new();
     private readonly FailPublicationSave interceptor = new();
 
     public async Task InitializeAsync()
@@ -69,6 +71,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<ILogger<SessionUpdatedMessageHandler>>(sessionUpdates);
+        services.AddSingleton<ILogger<EirSessionUpdatedMessageHandler>>(helpRequestSessionUpdates);
         services.AddSingleton<IConfiguration>(configuration);
         switch (service)
         {
@@ -500,6 +503,52 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         }
     }
 
+    [OutboxBrokerFact]
+    public async Task HelpRequestsSubscriberLogsDeletedSessionAndIgnoresOtherUpdates()
+    {
+        await using var services = BuildServices("eir", realBroker: true);
+        var sessionId = Guid.NewGuid();
+        var updates = Enum.GetValues<SessionUpdateType>().Select(type =>
+            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow)).ToArray();
+        await using (var scope = services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+            await db.Database.MigrateAtStartupAsync();
+            db.Outbox.AddRange(updates.Select(update => OutboxMessage.Create(
+                new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), DateTimeOffset.UtcNow)));
+            await db.SaveChangesAsync();
+        }
+        var subscriber = services.GetServices<IHostedService>().Single(service => service.GetType().Name == "SessionUpdatedMessageSubscriber");
+        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await subscriber.StartAsync(deadline.Token);
+        try
+        {
+            while (helpRequestSessionUpdates.Messages.IsEmpty)
+            {
+                await dispatcher.PublishPendingAsync(deadline.Token);
+                await Task.Delay(100, deadline.Token);
+            }
+            // The Deleted message proves the subscriber is bound. Retry any earlier update published before binding.
+            await dispatcher.PublishPendingAsync(deadline.Token);
+            var logged = Assert.Single(helpRequestSessionUpdates.Messages);
+            Assert.Contains(sessionId.ToString(), logged);
+            Assert.Contains(updates.Single(update => update.EventType == SessionUpdateType.Deleted).EventId.ToString(), logged);
+            Assert.Contains("all session messages across all generations", logged);
+            await using var scope = services.CreateAsyncScope();
+            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
+        }
+        finally
+        {
+            await subscriber.StopAsync(CancellationToken.None);
+            var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
+            await channel.QueueDeleteAsync("eir-helprequests-session-updated");
+            await channel.ExchangeDeleteAsync(MessageRoutes.Sessions);
+        }
+    }
+
     public async Task DisposeAsync()
     {
         if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
@@ -510,7 +559,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await drop.ExecuteNonQueryAsync();
     }
 
-    private sealed class SessionUpdateLogger : ILogger<SessionUpdatedMessageHandler>
+    private sealed class SessionUpdateLogger<T> : ILogger<T>
     {
         public ConcurrentQueue<string> Messages { get; } = new();
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;

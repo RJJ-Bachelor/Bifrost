@@ -9,6 +9,7 @@ using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
+using EirService.HelpRequests.Application.Features.Internal.SessionUpdated;
 
 namespace EirService.HelpRequests.Infrastructure;
 
@@ -33,6 +34,8 @@ public static class DependencyInjection
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddHostedService<GeneralizedMessageSubscriber>();
+        services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
+        services.AddHostedService<SessionUpdatedMessageSubscriber>();
 
         return services;
     }

@@ -35,6 +35,9 @@ public sealed class Session : AggregateRoot<Guid>
         };
     }
 
+    public void Delete(DateTimeOffset now) =>
+        RaiseDomainEvent(new SessionDeletedDomainEvent(Id, CurrentGeneration, now.ToUniversalTime()));
+
     public void Clear(int expectedGeneration, DateTimeOffset now)
     {
         if (CurrentGeneration != expectedGeneration)
