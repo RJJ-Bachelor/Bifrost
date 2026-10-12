@@ -7,7 +7,9 @@ using MimirService.Infrastructure.Persistence;
 using MimirService.Infrastructure.Repositories;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
+using Shared.Infrastructure.Persistence.Outbox;
 using MimirService.Application.Services.Messaging;
+using MimirService.Application.Features.Internal.SessionUpdated;
 
 namespace MimirService.Infrastructure;
 
@@ -28,10 +30,12 @@ public static class DependencyInjection
         services.AddDbContext<MimirRequestDbContext>(options =>
             options.UseNpgsql(connectionString));
         services.AddRabbitMqMessageBus(configuration);
-        services.AddScoped<IRequestMessageHandler, RequestMessageHandler>();
-        services.AddScoped<IGeneralizedMessagePublisher, GeneralizedMessagePublisher>();
-        services.AddScoped<IMimirRequestRepository, MimirRequestRepository>();
-        services.AddHostedService<RequestMessageSubscriber>();
+        services.AddOutbox<MimirRequestDbContext>();
+        services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
+        services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
+        services.AddHostedService<HelpRequestMessageSubscriber>();
+        services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
+        services.AddHostedService<SessionUpdatedMessageSubscriber>();
 
         return services;
     }

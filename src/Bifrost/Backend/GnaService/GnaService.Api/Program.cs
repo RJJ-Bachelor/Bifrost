@@ -1,6 +1,7 @@
-
+using Shared.Api.Authentication;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace GnaService.Api;
 
@@ -13,7 +14,7 @@ public class Program
         builder.Services.AddGnaInfrastructure(builder.Configuration);
 
         // Add services to the container.
-        builder.Services.AddAuthorization();
+        builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
 
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
@@ -24,7 +25,7 @@ public class Program
         {
             var dbContext = scope.ServiceProvider
                 .GetRequiredService<GnaNotificationDbContext>();
-            dbContext.Database.EnsureCreated();
+            dbContext.Database.Migrate();
         }
 
         app.MapDefaultEndpoints();
@@ -37,6 +38,7 @@ public class Program
 
         app.UseHttpsRedirection();
 
+        app.UseAuthentication();
         app.UseAuthorization();
 
         var summaries = new[]

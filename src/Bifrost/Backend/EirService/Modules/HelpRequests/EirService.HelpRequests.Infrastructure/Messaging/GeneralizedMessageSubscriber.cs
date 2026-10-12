@@ -1,4 +1,4 @@
-using EirService.HelpRequests.Application.Services.Messaging;
+using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -13,8 +13,8 @@ internal sealed class GeneralizedMessageSubscriber(
     ILogger<GeneralizedMessageSubscriber> logger) : BackgroundService
 {
     private const string QueueName = "eir-generalized-created";
-    private const string ExchangeName = "requests";
-    private const string GeneralizedCreatedRoutingKey = "generalized.created";
+    private const string ExchangeName = MessageRoutes.Requests;
+    private const string GeneralizedCreatedRoutingKey = MessageRoutes.GeneralizedCreated;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

@@ -2,6 +2,7 @@
   <Folder Name="/Backend/" />
   <Folder Name="/Backend/EirService/">
     <Project Path="Backend/EirService/EirService.Api/EirService.Api.csproj" />
+    <Project Path="Backend/EirService/EirService.Contracts/EirService.Contracts.csproj" />
     <Project Path="Backend/EirService/EirService.Test/EirService.Test.csproj" Id="37019f88-ece4-4db3-837c-70e45bddcee4" />
   </Folder>
   <Folder Name="/Backend/EirService/Modules/" />
@@ -59,6 +60,7 @@
   </Folder>
   <Folder Name="/Orchestration/">
     <Project Path="Orchestration/HeimdallGateway/HeimdallGateway.csproj" />
+    <Project Path="Orchestration/HeimdallGateway.Test/HeimdallGateway.Test.csproj" />
     <Project Path="Orchestration/VarService/VarService.csproj" Id="7b571413-0f97-4d16-98ab-2d95b5589345" />
     <Project Path="Orchestration/YggdrasilService/YggdrasilService.AppHost/YggdrasilService.AppHost.csproj" Id="3062fc6e-88ed-49d1-9038-ce5d3e45be5e" />
     <Project Path="Orchestration/YggdrasilService/YggdrasilService.ServiceDefaults/YggdrasilService.ServiceDefaults.csproj" />

@@ -1,41 +1,90 @@
 # Bifrost i Bruno
 
 Åbn `scripts/Bifrost-JPF` som collection i Bruno, og vælg **Local**.
-Til teacher-login skal du vælge **Developer Mode** via skjoldikonet øverst til højre.
+De nye session-requests er almindelige GET- og POST-kald med URL og eventuel JSON-body.
+Der er ingen tests eller automatisk opsamling af session-værdier i de nye requests.
+
+## Mapper
+
+EirService følger API-lagets mapper med rolle, modul og endpoint:
+
+```text
+EirService/
+├── Monitoring/
+│   └── Alive/
+├── Student/
+│   ├── Participants/
+│   │   ├── GetStudentIdentity/
+│   │   ├── JoinSession/
+│   │   └── GetStudentSessions/
+│   ├── Sessions/
+│   │   └── GetStudentSession/
+│   └── HelpRequests/
+│       ├── CreateHelpRequest/
+│       └── GetHelpRequests/
+└── Teacher/
+    ├── Participants/
+    │   └── GetTeacherIdentity/
+    └── Sessions/
+        ├── CreateSession/
+        ├── GetSessions/
+        ├── GetSession/
+        └── ClearSession/
+```
+
+Hver endpointmappe indeholder sin request. `GetHelpRequests` indeholder også
+`GetHelpRequestsForSession`, som kalder samme endpoint med et sessionfilter.
+Teacher-sessioner returnerer lærerens ID som `createdByTeacherId`.
 
 ## Login
 
-- **Student:** Kør `Login/Student/Login`. Eir opretter automatisk en student-cookie,
-  hvis den mangler. Bruno gemmer cookien og genbruger samme identitet.
-- **Teacher:** Kør `Login/Teacher/Login`. Scriptet logger ind hos VarService og
-  gemmer teacher-cookien i Bruno. Derefter kan teacher-endpoints køres direkte.
+- **Student:** Første student-kald gennem Heimdall opretter automatisk elevcookien.
+  `Login/Student/Login` kan stadig bruges til at se identiteten; Bruno gemmer cookien og genbruger den.
+- **Teacher:** Vælg **Developer Mode** via skjoldikonet, og kør `Login/Teacher/Login`.
+  Den eksisterende login-helper gemmer teacher-cookien i Bruno.
 
-`teacherUsername` og `teacherPassword` er allerede sat i collectionens variabler
-til de fungerende udviklingsværdier. Du kan også sætte dem i Local. Et udfyldt
-password i Local har forrang; et tomt password falder tilbage til collectionens værdi.
-CLI kan desuden bruge `BIFROST_TEACHER_PASSWORD` som process-variabel.
+`teacherUsername` og `teacherPassword` følger det eksisterende setup.
+Et udfyldt password i Local har forrang; et tomt password bruger collectionens værdi.
+Alle Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `http://localhost:6004`.
 
-## Requests
+## Session-variabler i Local
 
-Alle Eir-requests går gennem Heimdall på `http://localhost:6004`.
-VarService ligger på `http://localhost:6003`. Adresserne kan ændres i variablerne.
-Requests bruger automatisk Brunos gemte cookies.
+| Variabel | Værdi |
+|---|---|
+| `sessionId` | Kopiér `id` fra CreateSession eller GetSessions |
+| `sessionCode` | Kopiér `code` fra CreateSession eller GetSession som teacher |
+| `sessionGeneration` | Kopiér `currentGeneration` fra et session-svar; starter på 1 |
 
-| Mappe | Requests |
-| --- | --- |
-| `EirService/Students` | `Me`, `SendMessages`, `CreateRequest`, `Requests` |
-| `EirService/Teacher` | `Me`, `SendMessages`, `CreateSession` |
-| `EirService/Monitoring` | `Alive` |
-| `Heimdall` | `Health`, `Alive`, `OpenApi` |
-| `VarService` | `Discovery` |
-| `Session` | `Logout` |
+Variablerne udfyldes manuelt. Efter ClearSession opdateres `sessionGeneration` med den nye værdi fra svaret.
 
-`CreateSession` kalder `POST /api/teachers/createsession` uden body og returnerer
-JSON-værdien `true`. Endpointet kræver login og Teacher-rollen.
+## Teacher
 
-Studentens `CreateRequest` bruger et nyt GUID som id ved hver afsendelse.
-`Requests` viser historikken for den aktuelle student.
-`Session/Logout` logger teacher ud. Kør teacher-login igen, når sessionen udløber.
+| Request | Metode og route |
+|---|---|
+| GetTeacherIdentity | `GET /api/teachers/me` |
+| CreateSession | `POST /api/teachers/sessions` med titel |
+| GetSessions | `GET /api/teachers/sessions` |
+| GetSession | `GET /api/teachers/sessions/{{sessionId}}` |
+| ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` med forventet generation |
+
+## Student
+
+| Request | Metode og route |
+|---|---|
+| GetStudentIdentity | `GET /api/students/me` |
+| JoinSession | `POST /api/students/sessions/join` med sessionskode |
+| GetStudentSessions | `GET /api/students/sessions` |
+| GetStudentSession | `GET /api/students/sessions/{{sessionId}}` |
+| CreateHelpRequest | `POST /api/students/createhelprequest` med besked, session-id og generation |
+| GetHelpRequests | `GET /api/students/requests` |
+| GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
+
+CreateHelpRequest bruger Brunos indbyggede `{{$guid}}` til et nyt request-id ved hver afsendelse.
+
+Et almindeligt forløb er: teacher-login → CreateSession → udfyld Local → student-login → JoinSession → CreateHelpRequest → GetHelpRequestsForSession.
+Kør derefter ClearSession som teacher, opdater generationen, og læs GetHelpRequestsForSession igen.
+
+Monitoring, Heimdall, VarService og Logout ligger fortsat i deres eksisterende mapper.
 
 ## Start services
 
@@ -47,35 +96,11 @@ aspire.cmd wait varservice --timeout 60 --non-interactive
 aspire.cmd wait heimdallgateway --timeout 60 --non-interactive
 ```
 
-## CLI
+## Student-authentication
 
-Fra `scripts/Bifrost-JPF`:
+Heimdall udsteder `bifrost-anonymous-user` og sender den med til servicen allerede i det første kald.
+Eir, Mimir og Gna validerer cookien; direkte student-kald uden en gyldig cookie får 401.
+Student-login hos VarService er ikke nødvendigt. Se [authentication-flow og nøgleopsætning](../../docs/student-authentication.md).
 
-```powershell
-npm.cmd ci
-npm.cmd run validate
-npm.cmd test
-```
-
-CLI sender de simple requests sekventielt: Login → EirService → Heimdall →
-VarService → Session. Logout ligger sidst. Collectionen har ingen test-assertions.
-
-## Browser login regression
-
-Bruno's cookie jar does not apply Chrome's SameSite rules. This test runs the real
-Angular login button in an isolated Chrome session, checks that only Bifrost login
-is offered, verifies the return to port 7001 and calls the Teacher API through both
-Heimdall and the Angular proxy.
-
-With Bifrost running via Aspire and Chrome installed, run from the repository root:
-
-```powershell
-npm.cmd install --prefix artifacts/login-browser --no-save --package-lock=false playwright-core
-node scripts/Bifrost-JPF/lib/browser-login-test.cjs
-```
-
-Optional process variables: `BIFROST_FRONTEND_URL`, `BIFROST_GATEWAY_URL`,
-`BIFROST_TEACHER_USERNAME`, `BIFROST_TEACHER_PASSWORD`.
-Defaults use localhost ports 7001/6004 and the development seed account.
-Development uses SameSite=Lax for the VarService authentication and session cookies
-so that Chrome accepts them on local HTTP.
+Gamle Eir-cookies erstattes ved første kald efter denne ændring. Det giver et nyt student-ID,
+så eksisterende session-medlemskaber skal oprettes igen med JoinSession.

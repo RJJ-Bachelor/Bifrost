@@ -8,11 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Shared.Api\Shared.Api.csproj" />
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
     <ProjectReference Include="..\GnaService.Infrastructure\GnaService.Infrastructure.csproj" />
   </ItemGroup>

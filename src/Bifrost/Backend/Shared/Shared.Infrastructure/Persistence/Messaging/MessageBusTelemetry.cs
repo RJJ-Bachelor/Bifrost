@@ -26,6 +26,12 @@ internal static class MessageBusTelemetry
             });
     }
 
+    internal static Activity? StartOutboxActivity(string? traceParent, string? traceState)
+    {
+        ActivityContext.TryParse(traceParent, traceState, isRemote: true, out var parentContext);
+        return Source.StartActivity("dispatch outbox", ActivityKind.Internal, parentContext);
+    }
+
     internal static void InjectContext(BasicProperties properties)
     {
         if (Activity.Current is null)

@@ -1,3 +1,3 @@
 namespace Shared.Application.Messaging;
 
-public sealed record MessageEnvelope<T>(string Id, T Payload);
+public sealed record MessageEnvelope<T>(Guid Id, T Payload);

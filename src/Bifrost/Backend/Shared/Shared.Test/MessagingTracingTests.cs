@@ -12,6 +12,7 @@ namespace Shared.Test;
 
 public sealed class MessagingTracingTests : IDisposable
 {
+    private static readonly Guid FirstMessageId = Guid.Parse("11111111-1111-4111-8111-111111111111");
     private readonly List<Activity> _completed = [];
     private readonly ActivityListener _listener;
 
@@ -60,7 +61,7 @@ public sealed class MessagingTracingTests : IDisposable
                 Assert.True(process.HasRemoteParent);
                 Assert.Equal("vendor=state", process.TraceStateString);
                 Assert.Equal("request-created", process.GetBaggageItem("workflow"));
-                Assert.Equal("first", message.Id);
+                Assert.Equal(FirstMessageId, message.Id);
 
                 using var reply = MessageBusTelemetry.StartPublishActivity("requests", "generalized.created", "reply");
                 Assert.NotNull(reply);
@@ -190,7 +191,7 @@ public sealed class MessagingTracingTests : IDisposable
         string routingKey = "request.created", byte[]? body = null)
     {
         return new BasicDeliverEventArgs("consumer", 42, false, "requests", routingKey, properties,
-            body ?? JsonSerializer.SerializeToUtf8Bytes(new { id = "first", payload = "message" }));
+            body ?? JsonSerializer.SerializeToUtf8Bytes(new { id = FirstMessageId, payload = "message" }));
     }
 
     private static IChannel CreateChannel() => DispatchProxy.Create<IChannel, AcknowledgementChannel>();

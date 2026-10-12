@@ -15,9 +15,7 @@ public sealed class GnaNotificationDbContext(
             entity.ToTable("notifications");
             entity.HasKey(notification => notification.Id);
 
-            entity.Property(notification => notification.Id)
-                .HasMaxLength(100)
-                .IsRequired();
+            entity.Property(notification => notification.Id).ValueGeneratedNever();
             entity.Property(notification => notification.UserId)
                 .HasMaxLength(100)
                 .HasConversion(

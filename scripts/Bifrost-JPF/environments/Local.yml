@@ -9,3 +9,9 @@ variables:
   - name: teacherPassword
     value: ''
     secret: true
+  - name: sessionId
+    value: ''
+  - name: sessionCode
+    value: ''
+  - name: sessionGeneration
+    value: '1'

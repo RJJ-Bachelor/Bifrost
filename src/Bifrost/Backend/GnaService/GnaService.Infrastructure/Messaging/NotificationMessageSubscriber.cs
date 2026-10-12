@@ -12,9 +12,9 @@ internal sealed class NotificationMessageSubscriber(
     IServiceScopeFactory scopeFactory,
     ILogger<NotificationMessageSubscriber> logger) : BackgroundService
 {
-    private const string QueueName = "gna-notification-requested";
-    private const string ExchangeName = "notifications";
-    private const string NotificationRequestedRoutingKey = "gna-notification-requested";
+    private const string QueueName = MessageRoutes.NotificationCreated;
+    private const string ExchangeName = MessageRoutes.Notifications;
+    private const string NotificationRequestedRoutingKey = MessageRoutes.NotificationCreated;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

@@ -1,0 +1,18 @@
+info:
+  name: CreateSession
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Testsession"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

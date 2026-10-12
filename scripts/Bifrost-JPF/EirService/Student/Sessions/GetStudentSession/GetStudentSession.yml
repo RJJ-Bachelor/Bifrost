@@ -1,0 +1,15 @@
+info:
+  name: GetStudentSession
+  type: http
+  seq: 1
+
+http:
+  method: GET
+  url: "{{gatewayUrl}}/api/students/sessions/b18446ff-e426-48cb-9c65-fa4f9f34993e"
+
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

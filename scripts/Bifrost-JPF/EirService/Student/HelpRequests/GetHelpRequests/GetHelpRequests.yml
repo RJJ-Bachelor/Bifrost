@@ -1,0 +1,12 @@
+info:
+  name: GetHelpRequests
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/requests'
+  auth: null
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

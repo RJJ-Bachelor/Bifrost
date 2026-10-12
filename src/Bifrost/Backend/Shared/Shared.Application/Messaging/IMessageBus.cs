@@ -3,11 +3,12 @@ namespace Shared.Application.Messaging;
 public interface IMessageBus
 {
     Task PublishAsync(
-        string id,
+        Guid id,
         object payload,
         string exchangeName,
         string routingKey,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? messageType = null);
 
     Task<IAsyncDisposable> SubscribeAsync<T>(
         string queueName,

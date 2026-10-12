@@ -7,7 +7,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
-using EirService.HelpRequests.Application.Services.Messaging;
+using Shared.Infrastructure.Persistence.Outbox;
+using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
+using EirService.HelpRequests.Application.Features.Internal.SessionUpdated;
 
 namespace EirService.HelpRequests.Infrastructure;
 
@@ -26,13 +28,14 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<EirRequestDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(connectionString, postgres => postgres.MigrationsHistoryTable("__HelpRequestsMigrationsHistory")));
         services.AddRabbitMqMessageBus(configuration);
-        services.AddScoped<IRequestMessagePublisher, RequestMessagePublisher>();
-        services.AddScoped<INotificationMessagePublisher, NotificationMessagePublisher>();
+        services.AddOutbox<EirRequestDbContext>();
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
-        services.AddScoped<IRequestRepository, RequestRepository>();
+        services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddHostedService<GeneralizedMessageSubscriber>();
+        services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
+        services.AddHostedService<SessionUpdatedMessageSubscriber>();
 
         return services;
     }

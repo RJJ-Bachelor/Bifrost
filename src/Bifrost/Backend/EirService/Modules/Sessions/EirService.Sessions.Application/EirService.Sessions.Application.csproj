@@ -7,12 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FastEndpoints.Messaging" Version="8.3.0" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
-    <PackageReference Include="MediatR.Contracts" Version="2.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\" />
+    <ProjectReference Include="..\EirService.Sessions.Domain\EirService.Sessions.Domain.csproj" />
+    <ProjectReference Include="..\..\..\EirService.Contracts\EirService.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Shared\Shared.Application\Shared.Application.csproj" />
   </ItemGroup>
 
 </Project>

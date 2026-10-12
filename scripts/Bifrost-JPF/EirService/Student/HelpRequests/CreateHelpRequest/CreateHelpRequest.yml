@@ -1,0 +1,21 @@
+info:
+  name: CreateHelpRequest
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/createhelprequest'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "id": "{{$guid}}",
+        "message": "Hjælp fra student",
+        "sessionId": "{{sessionId}}",
+        "generation": {{sessionGeneration}}
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shared.Application.Messaging;
 
 namespace Shared.Infrastructure.Persistence.Messaging;
@@ -10,7 +11,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddSingleton<IMessageBus, RabbitMqMessageBus>();
+        services.TryAddSingleton<IMessageBus, RabbitMqMessageBus>();
         return services;
     }
 }

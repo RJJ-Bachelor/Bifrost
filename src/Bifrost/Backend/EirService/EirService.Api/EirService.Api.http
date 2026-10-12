@@ -1,29 +1,47 @@
 @EirService.Api_HostAddress = http://localhost:6000
+@teacherToken = REPLACE_WITH_TEACHER_ACCESS_TOKEN
+@sessionId = REPLACE_WITH_CREATED_SESSION_ID
+@sessionCode = REPLACE_WITH_CREATED_SESSION_CODE
 
-### Student endpoint without a cookie. Eir creates one when called directly.
-POST {{EirService.Api_HostAddress}}/api/students/sendmessages
+### Anonymous monitoring
+GET {{EirService.Api_HostAddress}}/api/monitoring/alive
+
+### Create: title only; creator and time are taken from the server
+POST {{EirService.Api_HostAddress}}/api/teachers/sessions
+Authorization: Bearer {{teacherToken}}
 Content-Type: application/json
 
-{
-  "id": "direct-student",
-  "message": "Direct Eir student request"
-}
+{"title":"Algorithms"}
 
-### Student request endpoint
-POST {{EirService.Api_HostAddress}}/api/students/createrequest
+### Teacher list
+GET {{EirService.Api_HostAddress}}/api/teachers/sessions
+Authorization: Bearer {{teacherToken}}
+
+### Teacher detail
+GET {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}
+Authorization: Bearer {{teacherToken}}
+
+### Join: keep the student cookie between requests
+POST {{EirService.Api_HostAddress}}/api/students/sessions/join
 Content-Type: application/json
 
-{
-  "id": "request-2",
-  "userId": "direct-student",
-  "message": "Direct Eir request"
-}
+{"code":"{{sessionCode}}"}
 
-### Teacher endpoint without a bearer token. Expected: 401 Unauthorized.
-POST {{EirService.Api_HostAddress}}/api/teachers/sendmessages
+### Student detail
+GET {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}
+
+### Session request: send the generation read from the session detail
+POST {{EirService.Api_HostAddress}}/api/students/createhelprequest
 Content-Type: application/json
 
-{
-  "id": "direct-teacher",
-  "message": "This should be rejected without a token"
-}
+{"id":"request-1","message":"Please help","sessionId":"{{sessionId}}","generation":1}
+
+### Clear: a stale or repeated expectedGeneration returns 409
+POST {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/clear
+Authorization: Bearer {{teacherToken}}
+Content-Type: application/json
+
+{"expectedGeneration":1}
+
+### Current session requests
+GET {{EirService.Api_HostAddress}}/api/students/requests?sessionId={{sessionId}}
