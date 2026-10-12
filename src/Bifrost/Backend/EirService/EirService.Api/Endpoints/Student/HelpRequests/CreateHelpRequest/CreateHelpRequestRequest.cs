@@ -4,6 +4,6 @@ public sealed class CreateHelpRequestRequest
 {
     public Guid? SessionId { get; set; }
     public int? Generation { get; set; }
-    public string Id { get; set; } = string.Empty;
+    public Guid Id { get; set; }
     public string Message { get; set; } = string.Empty;
 }

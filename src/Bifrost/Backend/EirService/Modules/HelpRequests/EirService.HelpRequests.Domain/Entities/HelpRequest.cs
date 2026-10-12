@@ -1,14 +1,15 @@
 using Shared.Domain.Primitives;
 namespace EirService.HelpRequests.Domain.Entities;
 
-public sealed class HelpRequest : AggregateRoot<string>
+public sealed class HelpRequest : AggregateRoot<Guid>
 {
     private HelpRequest()
     {
     }
 
-    public HelpRequest(string id, string userId, string message, Guid? sessionId = null, int? generation = null)
+    public HelpRequest(Guid id, string userId, string message, Guid? sessionId = null, int? generation = null)
     {
+        if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
         Id = id;
         UserId = userId;
         if ((sessionId is null) != (generation is null) || sessionId == Guid.Empty || generation <= 0)

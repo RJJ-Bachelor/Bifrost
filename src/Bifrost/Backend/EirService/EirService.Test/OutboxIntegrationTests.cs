@@ -1,4 +1,8 @@
 using System.Diagnostics;
+using System.Collections.Concurrent;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using MimirService.Application.Features.Internal.SessionUpdated;
 using System.Text.Json;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
@@ -34,6 +38,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private string databaseName = null!;
     private string connectionString = null!;
     private readonly RecordingBus bus = new();
+    private readonly SessionUpdateLogger sessionUpdates = new();
     private readonly FailPublicationSave interceptor = new();
 
     public async Task InitializeAsync()
@@ -58,6 +63,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         }).Build();
         var services = new ServiceCollection();
         services.AddLogging();
+        services.AddSingleton<ILogger<SessionUpdatedMessageHandler>>(sessionUpdates);
         services.AddSingleton<IConfiguration>(configuration);
         switch (service)
         {
@@ -76,7 +82,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         return services.BuildServiceProvider();
     }
 
-    private static OutgoingMessage Reply(string id, Guid? sessionId = null, int? generation = null) =>
+    private static OutgoingMessage Reply(Guid id, Guid? sessionId = null, int? generation = null) =>
         new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
 
@@ -109,14 +115,14 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await db.Database.MigrateAsync();
 
         var request = Assert.Single(await db.Requests.AsNoTracking().ToArrayAsync());
-        Assert.Equal("legacy", request.Id);
+        Assert.Equal(TestIds.From("legacy"), request.Id);
         Assert.Equal("Keep this request", request.Message);
         Assert.Equal("student", request.UserId);
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), request.SessionId);
         Assert.Equal(3, request.Generation);
         var pending = Assert.Single(await db.Outbox.AsNoTracking().ToArrayAsync());
         Assert.Equal(Guid.Parse("22222222-2222-2222-2222-222222222222"), pending.Id);
-        Assert.Equal("legacy", pending.MessageId);
+        Assert.Equal(TestIds.From("legacy"), pending.MessageId);
         Assert.Equal("Keep this request", JsonSerializer.Deserialize<JsonElement>(pending.Payload).GetProperty("message").GetString());
         Assert.Null(pending.PublishedAtUtc);
         Assert.False(db.Database.HasPendingModelChanges());
@@ -131,9 +137,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
 
         await migrator.MigrateAsync(previousMigration);
         await using (var legacyRows = new NpgsqlCommand("""
-            SELECT (SELECT count(*) FROM public.requests WHERE "Id" = 'legacy') = 1
-                AND (SELECT count(*) FROM public.outbox WHERE "MessageId" = 'legacy') = 1
-                AND (SELECT count(*) FROM public.request_references WHERE "RequestId" = 'legacy') = 1
+            SELECT (SELECT count(*) FROM public.requests WHERE "Id" = '0c62a425-29da-ecb7-202d-2f230d2a8d3f') = 1
+                AND (SELECT count(*) FROM public.outbox WHERE "MessageId" = '0c62a425-29da-ecb7-202d-2f230d2a8d3f') = 1
+                AND (SELECT count(*) FROM public.request_references WHERE "RequestId" = '0c62a425-29da-ecb7-202d-2f230d2a8d3f') = 1
                 AND to_regclass('helprequests."HelpRequest"') IS NULL
                 AND to_regclass('helprequests.outbox') IS NULL;
             """, connection))
@@ -142,7 +148,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await db.Database.MigrateAsync();
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal("legacy", Assert.Single(bus.Messages).Id);
+        Assert.Equal(TestIds.From("legacy"), Assert.Single(bus.Messages).Id);
         Assert.NotNull((await db.Outbox.AsNoTracking().SingleAsync()).PublishedAtUtc);
     }
 
@@ -156,7 +162,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
             var handler = scope.ServiceProvider.GetRequiredService<IHelpRequestMessageHandler>();
-            var message = new MessageEnvelope<HelpRequestCreatedMessage>("request-1", new("Help me", sessionId, 3));
+            var message = new MessageEnvelope<HelpRequestCreatedMessage>(TestIds.From("request-1"), new("Help me", sessionId, 3));
             await handler.HandleAsync(message, CancellationToken.None);
             await handler.HandleAsync(message, CancellationToken.None);
         }
@@ -164,7 +170,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
         Assert.Single(await saved.Requests.ToArrayAsync());
         var outgoing = Assert.Single(await saved.Outbox.ToArrayAsync());
-        Assert.Equal("request-1", outgoing.MessageId);
+        Assert.Equal(TestIds.From("request-1"), outgoing.MessageId);
         Assert.Equal(typeof(GeneralizedCreatedMessage).FullName, outgoing.MessageType);
         var payload = JsonSerializer.Deserialize<GeneralizedCreatedMessage>(outgoing.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(sessionId, payload.SessionId);
@@ -186,8 +192,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
             var repository = scope.ServiceProvider.GetRequiredService<IMimirHelpRequestRepository>();
-            var reply = Reply("rollback") with { RoutingKey = new string('x', 256) };
-            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create("rollback", "Help"), reply, CancellationToken.None));
+            var reply = Reply(TestIds.From("rollback")) with { RoutingKey = new string('x', 256) };
+            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), "Help"), reply, CancellationToken.None));
         }
         await using var verification = services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
@@ -226,9 +232,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using (var scope = services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
-            await db.Database.EnsureCreatedAsync();
+            await db.Database.MigrateAsync();
             var handler = scope.ServiceProvider.GetRequiredService<INotificationMessageHandler>();
-            var message = new MessageEnvelope<NotificationCreatedMessage>("notification-1", new("student-1", "Help needed"));
+            var message = new MessageEnvelope<NotificationCreatedMessage>(TestIds.From("notification-1"), new("student-1", "Help needed"));
             await handler.HandleAsync(message, CancellationToken.None);
             await handler.HandleAsync(message, CancellationToken.None);
         }
@@ -253,11 +259,11 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             using var activity = new Activity("incoming-request").Start();
             traceId = activity.TraceId;
-            var request = new HelpRequest("generic", "student", "Help");
+            var request = new HelpRequest(TestIds.From("generic"), "student", "Help");
             OutgoingMessage[] messages =
             [
-                new("failed", new HelpRequestCreatedMessage("Help"), "requests", "fail"),
-                new("custom", new { Value = "Any payload" }, "custom-exchange", "custom")
+                new(TestIds.From("failed"), new HelpRequestCreatedMessage("Help"), "requests", "fail"),
+                new(TestIds.From("custom"), new { Value = "Any payload" }, "custom-exchange", "custom")
             ];
             await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(request, messages, CancellationToken.None);
         }
@@ -265,7 +271,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
         var delivered = Assert.Single(bus.Messages);
-        Assert.Equal("custom", delivered.Id);
+        Assert.Equal(TestIds.From("custom"), delivered.Id);
         Assert.Equal("Any payload", delivered.Payload.GetProperty("value").GetString());
         Assert.Equal(traceId, delivered.TraceId);
         await using (var scope = services.CreateAsyncScope())
@@ -285,8 +291,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             var oldTime = DateTimeOffset.UtcNow.AddHours(-1);
             for (var i = 0; i < 50; i++)
-                db.Outbox.Add(OutboxMessage.Create(new OutgoingMessage($"failed-{i}", new { Value = i }, "requests", "fail"), oldTime));
-            db.Outbox.Add(OutboxMessage.Create(new OutgoingMessage("new", new { Value = "Deliver me" }, "requests", "ready"), DateTimeOffset.UtcNow));
+                db.Outbox.Add(OutboxMessage.Create(new OutgoingMessage(TestIds.From($"failed-{i}"), new { Value = i }, "requests", "fail"), oldTime));
+            db.Outbox.Add(OutboxMessage.Create(new OutgoingMessage(TestIds.From("new"), new { Value = "Deliver me" }, "requests", "ready"), DateTimeOffset.UtcNow));
             await db.SaveChangesAsync();
         }
         bus.FailRoutingKey = "fail";
@@ -294,7 +300,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await dispatcher.PublishPendingAsync(CancellationToken.None);
         Assert.Empty(bus.Messages);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal("new", Assert.Single(bus.Messages).Id);
+        Assert.Equal(TestIds.From("new"), Assert.Single(bus.Messages).Id);
     }
 
     [PostgresFact]
@@ -305,8 +311,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
-            OutgoingMessage[] messages = [new("stable-id", new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest("stable-id", "student", "Help"), messages, CancellationToken.None);
+            OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
+            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest(TestIds.From("stable-id"), "student", "Help"), messages, CancellationToken.None);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -314,7 +320,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using (var scope = services.CreateAsyncScope())
             Assert.Null((await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.SingleAsync()).PublishedAtUtc);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal(new[] { "stable-id", "stable-id" }, bus.Messages.Select(message => message.Id));
+        Assert.Equal(new[] { TestIds.From("stable-id"), TestIds.From("stable-id") }, bus.Messages.Select(message => message.Id));
         await using var verification = services.CreateAsyncScope();
         Assert.NotNull((await verification.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.SingleAsync()).PublishedAtUtc);
     }
@@ -325,7 +331,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using var services = BuildServices("eir", realBroker: true);
         var exchange = "outbox-test-" + Guid.NewGuid().ToString("N");
         var sessionId = Guid.NewGuid();
-        var clearedEvent = new SessionClearedIntegrationEvent(Guid.NewGuid(), sessionId, 3, 4, DateTimeOffset.UtcNow);
+        var clearedEvent = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, SessionUpdateType.Cleared, DateTimeOffset.UtcNow, 3);
         var messageBus = services.GetRequiredService<IMessageBus>();
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
         await using (var scope = services.CreateAsyncScope())
@@ -334,12 +340,12 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             OutgoingMessage[] messages =
             [
-                new("request", new HelpRequestCreatedMessage("Help", sessionId, 4), exchange, MessageRoutes.HelpRequestCreated),
-                new("request", new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
-                new("request", new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated),
-                new(clearedEvent.EventId.ToString(), clearedEvent, exchange, MessageRoutes.SessionCleared)
+                new(TestIds.From("request"), new HelpRequestCreatedMessage("Help", sessionId, 4), exchange, MessageRoutes.HelpRequestCreated),
+                new(TestIds.From("request"), new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
+                new(TestIds.From("request"), new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated),
+                new(clearedEvent.EventId, clearedEvent, exchange, MessageRoutes.SessionUpdated)
             ];
-            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest("request", "student", "Help"), messages, CancellationToken.None);
+            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest(TestIds.From("request"), "student", "Help"), messages, CancellationToken.None);
         }
         // Publisher confirmations alone do not reject messages without a bound queue. Mandatory publishing must keep them pending.
         await dispatcher.PublishPendingAsync(CancellationToken.None);
@@ -348,14 +354,14 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         var help = new TaskCompletionSource<MessageEnvelope<HelpRequestCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var notification = new TaskCompletionSource<MessageEnvelope<NotificationCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
         var generalized = new TaskCompletionSource<MessageEnvelope<GeneralizedCreatedMessage>>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cleared = new TaskCompletionSource<MessageEnvelope<SessionClearedIntegrationEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cleared = new TaskCompletionSource<MessageEnvelope<SessionUpdatedIntegrationEvent>>(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var helpSubscription = await messageBus.SubscribeAsync<HelpRequestCreatedMessage>(exchange + "-help", exchange, MessageRoutes.HelpRequestCreated,
             (message, _) => { help.TrySetResult(message); return Task.CompletedTask; });
         await using var notificationSubscription = await messageBus.SubscribeAsync<NotificationCreatedMessage>(exchange + "-notification", exchange, MessageRoutes.NotificationCreated,
             (message, _) => { notification.TrySetResult(message); return Task.CompletedTask; });
         await using var generalizedSubscription = await messageBus.SubscribeAsync<GeneralizedCreatedMessage>(exchange + "-generalized", exchange, MessageRoutes.GeneralizedCreated,
             (message, _) => { generalized.TrySetResult(message); return Task.CompletedTask; });
-        await using var clearedSubscription = await messageBus.SubscribeAsync<SessionClearedIntegrationEvent>(exchange + "-cleared", exchange, MessageRoutes.SessionCleared,
+        await using var clearedSubscription = await messageBus.SubscribeAsync<SessionUpdatedIntegrationEvent>(exchange + "-cleared", exchange, MessageRoutes.SessionUpdated,
             (message, _) => { cleared.TrySetResult(message); return Task.CompletedTask; });
         try
         {
@@ -363,9 +369,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             Assert.Equal(new HelpRequestCreatedMessage("Help", sessionId, 4), (await help.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(new NotificationCreatedMessage("student", "Help", sessionId, 4), (await notification.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(new GeneralizedCreatedMessage("Answer", sessionId, 4), (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
-            Assert.Equal("request", help.Task.Result.Id);
+            Assert.Equal(TestIds.From("request"), help.Task.Result.Id);
             Assert.Equal(clearedEvent, (await cleared.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
-            Assert.Equal(clearedEvent.EventId.ToString(), cleared.Task.Result.Id);
+            Assert.Equal(clearedEvent.EventId, cleared.Task.Result.Id);
             await using var scope = services.CreateAsyncScope();
             Assert.Equal(4, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
         }
@@ -380,6 +386,80 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         }
     }
 
+    [PostgresFact]
+    public async Task GnaAdoptsLegacyNotificationsAndPreservesGuidAndOpaqueIds()
+    {
+        var existingId = Guid.NewGuid();
+        await using (var connection = new NpgsqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+            await using var seed = new NpgsqlCommand("""
+                CREATE TABLE public.notifications (
+                    "Id" varchar(100) PRIMARY KEY, "UserId" varchar(100) NOT NULL,
+                    "Messages" varchar(4000) NOT NULL, "CreatedAt" timestamptz NOT NULL);
+                INSERT INTO public.notifications VALUES ('legacy', 'provider|student', 'Preserve me', '2026-10-11T10:00:00Z');
+                INSERT INTO public.notifications VALUES (@id, 'provider|student', 'Keep my GUID', '2026-10-11T10:00:00Z');
+                """, connection);
+            seed.Parameters.AddWithValue("id", existingId.ToString());
+            await seed.ExecuteNonQueryAsync();
+        }
+        await using var services = BuildServices("gna");
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
+        await db.Database.MigrateAsync();
+        await db.Database.MigrateAsync();
+        var notifications = await db.Notifications.AsNoTracking().ToArrayAsync();
+        Assert.Equal(2, notifications.Length);
+        Assert.Contains(notifications, notification => notification.Id == TestIds.From("legacy") && notification.Messages.Value == "Preserve me");
+        Assert.Contains(notifications, notification => notification.Id == existingId && notification.Messages.Value == "Keep my GUID");
+        Assert.All(notifications, notification => Assert.Equal("provider|student", notification.UserId.Value));
+        Assert.False(db.Database.HasPendingModelChanges());
+    }
+
+    [OutboxBrokerFact]
+    public async Task MimirSubscriberReceivesAllSessionUpdateTypesFromTheOutbox()
+    {
+        await using var services = BuildServices("mimir", realBroker: true);
+        var sessionId = Guid.NewGuid();
+        var updates = Enum.GetValues<SessionUpdateType>().Select(type =>
+            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow, 3)).ToArray();
+        await using (var scope = services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
+            await db.Database.MigrateAsync();
+            db.Outbox.AddRange(updates.Select(update => OutboxMessage.Create(
+                new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), DateTimeOffset.UtcNow)));
+            await db.SaveChangesAsync();
+        }
+        var subscriber = services.GetServices<IHostedService>().Single(service => service.GetType().Name == "SessionUpdatedMessageSubscriber");
+        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<MimirRequestDbContext>>(services);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        await subscriber.StartAsync(deadline.Token);
+        try
+        {
+            // Publishing before the queue is bound keeps messages pending; retry until the real subscriber receives them.
+            while (sessionUpdates.Messages.Count < 3)
+            {
+                await dispatcher.PublishPendingAsync(deadline.Token);
+                await Task.Delay(100, deadline.Token);
+            }
+            foreach (var update in updates)
+                Assert.Contains(sessionUpdates.Messages, logged => logged.Contains(update.EventType.ToString())
+                    && logged.Contains(sessionId.ToString()) && logged.Contains(update.EventId.ToString()));
+            await using var scope = services.CreateAsyncScope();
+            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
+        }
+        finally
+        {
+            await subscriber.StopAsync(CancellationToken.None);
+            var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
+            await channel.QueueDeleteAsync("mimir-session-updated");
+            await channel.ExchangeDeleteAsync(MessageRoutes.Sessions);
+        }
+    }
+
     public async Task DisposeAsync()
     {
         if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
@@ -390,11 +470,20 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await drop.ExecuteNonQueryAsync();
     }
 
+    private sealed class SessionUpdateLogger : ILogger<SessionUpdatedMessageHandler>
+    {
+        public ConcurrentQueue<string> Messages { get; } = new();
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) => Messages.Enqueue(formatter(state, exception));
+    }
+
     private sealed class RecordingBus : IMessageBus
     {
         public string? FailRoutingKey { get; set; }
-        public List<(string Id, JsonElement Payload, string RoutingKey, ActivityTraceId? TraceId)> Messages { get; } = [];
-        public Task PublishAsync(string id, object payload, string exchangeName, string routingKey,
+        public List<(Guid Id, JsonElement Payload, string RoutingKey, ActivityTraceId? TraceId)> Messages { get; } = [];
+        public Task PublishAsync(Guid id, object payload, string exchangeName, string routingKey,
             CancellationToken cancellationToken = default, string? messageType = null)
         {
             if (routingKey == FailRoutingKey) throw new InvalidOperationException("Simulated broker failure");

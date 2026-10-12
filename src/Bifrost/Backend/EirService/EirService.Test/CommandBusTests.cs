@@ -49,7 +49,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         _logger = new RecordingLogger<CreateSessionCommandHandler>(_executionOrder);
         var commandLogger = new RecordingLogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>(_executionOrder);
-        var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>(_executionOrder);
+        var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, Guid>>(_executionOrder);
         var queryLogger = new RecordingLogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>(_executionOrder);
         _requests = new RecordingRequestServices(_executionOrder);
         var builder = WebApplication.CreateBuilder();
@@ -74,7 +74,7 @@ public sealed class CommandBusTests : IAsyncLifetime
             typeof(CommandLoggingMiddleware<,>)));
         builder.Services.AddSingleton<ILogger<CreateSessionCommandHandler>>(_logger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>>(commandLogger);
-        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, string>>>(helpRequestLogger);
+        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, Guid>>>(helpRequestLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
         builder.Services.AddSingleton<IHelpRequestRepository>(_requests);
         builder.Services.AddSingleton<MemorySessionRepository>();
@@ -257,30 +257,30 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         AuthenticateStudent();
         using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest",
-            new { Id = "request-123", Message = "Please help", UserId = "supplied-student" });
+            new { Id = TestIds.From("request-123"), Message = "Please help", UserId = "supplied-student" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("request-123", await response.Content.ReadFromJsonAsync<string>());
+        Assert.Equal(TestIds.From("request-123"), await response.Content.ReadFromJsonAsync<Guid>());
         var saved = Assert.Single(_requests.Saved);
         Assert.True(Guid.TryParseExact(saved.UserId, "N", out _));
         Assert.NotEqual("supplied-student", saved.UserId);
-        Assert.Equal("request-123", saved.Id);
+        Assert.Equal(TestIds.From("request-123"), saved.Id);
         Assert.Equal("Please help", saved.Message);
-        Assert.Equal(("request-123", "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal(("request-123", saved.UserId, "Please help"), Assert.Single(_requests.Notifications));
+        Assert.Equal((TestIds.From("request-123"), "Please help"), Assert.Single(_requests.RequestMessages));
+        Assert.Equal((TestIds.From("request-123"), saved.UserId, "Please help"), Assert.Single(_requests.Notifications));
         Assert.Equal(new[]
         {
             "Executing command CreateHelpRequestCommand",
-            "Saved help request request-123",
-            "Queued help request request-123",
-            "Queued notification request-123",
+            $"Saved help request {TestIds.From("request-123")}",
+            $"Queued help request {TestIds.From("request-123")}",
+            $"Queued notification {TestIds.From("request-123")}",
             "Executed command CreateHelpRequestCommand"
         }, _executionOrder);
 
         Assert.False(response.Headers.Contains("Set-Cookie"));
 
         using var nextResponse = await _client.PostAsJsonAsync("/api/students/createhelprequest",
-            new { Id = "request-456", Message = "Another request" });
+            new { Id = TestIds.From("request-456"), Message = "Another request" });
 
         Assert.Equal(HttpStatusCode.OK, nextResponse.StatusCode);
         Assert.Equal(saved.UserId, _requests.Saved[1].UserId);
@@ -289,13 +289,15 @@ public sealed class CommandBusTests : IAsyncLifetime
     public static TheoryData<string?, string?, string> InvalidHelpRequestBodies => new()
     {
         { null, "Please help", "Id" },
+        { Guid.Empty.ToString(), "Please help", "Id" },
+        { "not-a-guid", "Please help", "Id" },
         { "", "Please help", "Id" },
         { " ", "Please help", "Id" },
         { new string('i', 101), "Please help", "Id" },
-        { "request-123", null, "Message" },
-        { "request-123", "", "Message" },
-        { "request-123", " ", "Message" },
-        { "request-123", new string('m', 4001), "Message" }
+        { TestIds.From("request-123").ToString(), null, "Message" },
+        { TestIds.From("request-123").ToString(), "", "Message" },
+        { TestIds.From("request-123").ToString(), " ", "Message" },
+        { TestIds.From("request-123").ToString(), new string('m', 4001), "Message" }
     };
 
     [Theory]
@@ -314,41 +316,38 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task HelpRequestAcceptsExistingMaximumLengths()
+    public async Task HelpRequestAcceptsGuidIdAndMaximumMessageLength()
     {
         AuthenticateStudent();
-        var id = new string('i', 100);
+        var id = Guid.NewGuid();
         var message = new string('m', 4000);
 
         using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest", new { Id = id, Message = message });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(id, await response.Content.ReadFromJsonAsync<string>());
+        Assert.Equal(id, await response.Content.ReadFromJsonAsync<Guid>());
         Assert.Equal(message, Assert.Single(_requests.Saved).Message);
     }
 
-    public static TheoryData<string?, string?, string?, string> InvalidHelpRequestCommands => new()
+    public static TheoryData<Guid, string?, string?, string> InvalidHelpRequestCommands => new()
     {
-        { null, "student-123", "Please help", "Id" },
-        { "", "student-123", "Please help", "Id" },
-        { " ", "student-123", "Please help", "Id" },
-        { new string('i', 101), "student-123", "Please help", "Id" },
-        { "request-123", null, "Please help", "UserId" },
-        { "request-123", "", "Please help", "UserId" },
-        { "request-123", " ", "Please help", "UserId" },
-        { "request-123", "student-123", null, "Message" },
-        { "request-123", "student-123", "", "Message" },
-        { "request-123", "student-123", " ", "Message" },
-        { "request-123", "student-123", new string('m', 4001), "Message" }
+        { Guid.Empty, "student-123", "Please help", "Id" },
+        { TestIds.From("request-123"), null, "Please help", "UserId" },
+        { TestIds.From("request-123"), "", "Please help", "UserId" },
+        { TestIds.From("request-123"), " ", "Please help", "UserId" },
+        { TestIds.From("request-123"), "student-123", null, "Message" },
+        { TestIds.From("request-123"), "student-123", "", "Message" },
+        { TestIds.From("request-123"), "student-123", " ", "Message" },
+        { TestIds.From("request-123"), "student-123", new string('m', 4001), "Message" }
     };
 
     [Theory]
     [MemberData(nameof(InvalidHelpRequestCommands))]
     public async Task CommandBusRejectsInvalidHelpRequestsWithoutHttpOrSideEffects(
-        string? id, string? userId, string? message, string property)
+        Guid id, string? userId, string? message, string property)
     {
         var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            new CreateHelpRequestCommand(id!, userId!, message!).ExecuteAsync(CancellationToken.None));
+            new CreateHelpRequestCommand(id, userId!, message!).ExecuteAsync(CancellationToken.None));
 
         Assert.Equal(property, Assert.Single(exception.Errors).PropertyName, ignoreCase: true);
         Assert.Empty(_requests.Saved);
@@ -360,13 +359,13 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task CommandBusCreatesHelpRequestWithoutHttp()
     {
-        var result = await new CreateHelpRequestCommand("request-123", "student-123", "Please help")
+        var result = await new CreateHelpRequestCommand(TestIds.From("request-123"), "student-123", "Please help")
             .ExecuteAsync(CancellationToken.None);
 
-        Assert.Equal("request-123", result);
+        Assert.Equal(TestIds.From("request-123"), result);
         Assert.Equal("student-123", Assert.Single(_requests.Saved).UserId);
-        Assert.Equal(("request-123", "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal(("request-123", "student-123", "Please help"), Assert.Single(_requests.Notifications));
+        Assert.Equal((TestIds.From("request-123"), "Please help"), Assert.Single(_requests.RequestMessages));
+        Assert.Equal((TestIds.From("request-123"), "student-123", "Please help"), Assert.Single(_requests.Notifications));
         Assert.Equal("Executing command CreateHelpRequestCommand", _executionOrder[0]);
         Assert.Equal("Executed command CreateHelpRequestCommand", _executionOrder[^1]);
     }
@@ -378,7 +377,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new CreateHelpRequestCommand("request-123", "student-123", "Please help").ExecuteAsync(cancellation.Token));
+            new CreateHelpRequestCommand(TestIds.From("request-123"), "student-123", "Please help").ExecuteAsync(cancellation.Token));
 
         Assert.Empty(_requests.Saved);
         Assert.Empty(_requests.RequestMessages);
@@ -477,10 +476,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.False(identityResponse.Headers.Contains("Set-Cookie"));
         _requests.Saved.AddRange(
         [
-            new HelpRequest("request-2", identity.UserId, "Second request"),
-            new HelpRequest("request-1", identity.UserId, "First request"),
-            new HelpRequest("other-request", "other-student", "Private request"),
-            new HelpRequest("legacy-request", null!, "Legacy request")
+            new HelpRequest(TestIds.From("request-2"), identity.UserId, "Second request"),
+            new HelpRequest(TestIds.From("request-1"), identity.UserId, "First request"),
+            new HelpRequest(TestIds.From("other-request"), "other-student", "Private request"),
+            new HelpRequest(TestIds.From("legacy-request"), null!, "Legacy request")
         ]);
 
         using var response = await _client.GetAsync("/api/students/requests?userId=other-student");
@@ -492,9 +491,9 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Contains("\"id\":", body);
         Assert.Contains("\"userId\":", body);
         Assert.Contains("\"message\":", body);
-        Assert.Equal(new[] { "request-1", "request-2" }, requests.Select(request => request.Id));
+        Assert.Equal(new[] { TestIds.From("request-1"), TestIds.From("request-2") }.OrderBy(id => id), requests.Select(request => request.Id));
         Assert.All(requests, request => Assert.Equal(identity.UserId, request.UserId));
-        Assert.Equal(new[] { "First request", "Second request" }, requests.Select(request => request.Message));
+        Assert.Equal(new[] { "First request", "Second request" }, requests.Select(request => request.Message).OrderBy(message => message));
         Assert.Equal(identity.UserId, Assert.Single(_requests.Reads).UserId);
         Assert.Equal(new[]
         {
@@ -521,12 +520,12 @@ public sealed class CommandBusTests : IAsyncLifetime
     [Fact]
     public async Task QueryUsesCommandBusOutsideHttpAndForwardsCancellationToken()
     {
-        _requests.Saved.Add(new HelpRequest("request-1", "student-123", "Please help"));
+        _requests.Saved.Add(new HelpRequest(TestIds.From("request-1"), "student-123", "Please help"));
         using var cancellation = new CancellationTokenSource();
 
         var results = await new GetHelpRequestsQuery("student-123").ExecuteAsync(cancellation.Token);
 
-        Assert.Equal(new HelpRequestResult("request-1", "student-123", "Please help"), Assert.Single(results));
+        Assert.Equal(new HelpRequestResult(TestIds.From("request-1"), "student-123", "Please help"), Assert.Single(results));
         var read = Assert.Single(_requests.Reads);
         Assert.Equal("student-123", read.UserId);
         Assert.Equal(cancellation.Token, read.CancellationToken);
@@ -570,8 +569,8 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         public List<HelpRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
-        public List<(string Id, string Message)> RequestMessages { get; } = [];
-        public List<(string Id, string? UserId, string Message)> Notifications { get; } = [];
+        public List<(Guid Id, string Message)> RequestMessages { get; } = [];
+        public List<(Guid Id, string? UserId, string Message)> Notifications { get; } = [];
 
         public Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
         {

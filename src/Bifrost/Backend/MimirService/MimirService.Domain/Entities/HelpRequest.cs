@@ -1,13 +1,13 @@
 using Shared.Domain.Primitives;
 namespace MimirService.Domain.Entities;
 
-public sealed class HelpRequest : AggregateRoot<string>
+public sealed class HelpRequest : AggregateRoot<Guid>
 {
     private HelpRequest()
     {
     }
 
-    private HelpRequest(string id, string message)
+    private HelpRequest(Guid id, string message)
     {
         Id = id;
         Message = message;
@@ -19,9 +19,9 @@ public sealed class HelpRequest : AggregateRoot<string>
 
     public DateTimeOffset ReceivedAt { get; private set; }
 
-    public static HelpRequest Create(string id, string message)
+    public static HelpRequest Create(Guid id, string message)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
         ArgumentException.ThrowIfNullOrWhiteSpace(message);
 
         return new HelpRequest(id, message);

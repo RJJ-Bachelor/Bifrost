@@ -22,19 +22,19 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
     }
 
     public async Task PublishAsync(
-        string id,
+        Guid id,
         object payload,
         string exchangeName,
         string routingKey,
         CancellationToken cancellationToken = default,
         string? messageType = null)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (id == Guid.Empty) throw new ArgumentException("A message id is required.", nameof(id));
         ArgumentNullException.ThrowIfNull(payload);
         ArgumentException.ThrowIfNullOrWhiteSpace(exchangeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(routingKey);
 
-        using var activity = MessageBusTelemetry.StartPublishActivity(exchangeName, routingKey, id);
+        using var activity = MessageBusTelemetry.StartPublishActivity(exchangeName, routingKey, id.ToString());
         try
         {
             var connection = await GetConnectionAsync(cancellationToken);
@@ -58,7 +58,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
             {
                 ContentType = "application/json",
                 DeliveryMode = DeliveryModes.Persistent,
-                MessageId = id,
+                MessageId = id.ToString(),
                 Type = messageType ?? payload.GetType().FullName
             };
             MessageBusTelemetry.InjectContext(properties);
@@ -153,7 +153,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                     ?? throw new InvalidOperationException(
                         $"RabbitMQ message for '{typeof(T).FullName}' was empty or invalid.");
 
-                activity?.SetTag("messaging.message.id", message.Id);
+                activity?.SetTag("messaging.message.id", message.Id.ToString());
                 await handler(message, cancellationToken);
                 await channel.BasicAckAsync(
                     deliveryTag: eventArgs.DeliveryTag,

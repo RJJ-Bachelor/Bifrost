@@ -18,9 +18,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence
             {
                 entity.ToTable("HelpRequest");
                 entity.HasKey(request => request.Id);
-                entity.Property(request => request.Id)
-                    .HasMaxLength(100)
-                    .IsRequired();
+                entity.Property(request => request.Id).ValueGeneratedNever();
                 entity.Property(request => request.Message)
                     .HasMaxLength(4000)
                     .IsRequired();

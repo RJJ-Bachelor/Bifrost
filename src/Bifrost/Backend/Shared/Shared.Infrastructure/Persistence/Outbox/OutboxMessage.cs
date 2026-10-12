@@ -9,7 +9,7 @@ public sealed class OutboxMessage
     private OutboxMessage() { }
 
     public Guid Id { get; private set; }
-    public string MessageId { get; private set; } = null!;
+    public Guid MessageId { get; private set; }
     public string MessageType { get; private set; } = null!;
     public string Payload { get; private set; } = null!;
     public string ExchangeName { get; private set; } = null!;
@@ -22,7 +22,7 @@ public sealed class OutboxMessage
 
     public static OutboxMessage Create(OutgoingMessage message, DateTimeOffset now)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(message.Id);
+        if (message.Id == Guid.Empty) throw new ArgumentException("A message id is required.", nameof(message));
         ArgumentNullException.ThrowIfNull(message.Payload);
         ArgumentException.ThrowIfNullOrWhiteSpace(message.ExchangeName);
         ArgumentException.ThrowIfNullOrWhiteSpace(message.RoutingKey);

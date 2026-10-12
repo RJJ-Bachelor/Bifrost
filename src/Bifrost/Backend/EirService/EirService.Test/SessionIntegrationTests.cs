@@ -234,7 +234,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         using var denied = await student.GetAsync($"/api/students/sessions/{session.Id}");
         Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
         using var deniedRequest = await student.PostAsJsonAsync("/api/students/createhelprequest", new
-            { Id = "unjoined", Message = "Help", SessionId = session.Id, Generation = 1 });
+            { Id = TestIds.From("unjoined"), Message = "Help", SessionId = session.Id, Generation = 1 });
         Assert.Equal(HttpStatusCode.NotFound, deniedRequest.StatusCode);
         await JoinAsync(session.Code.ToLowerInvariant());
         await JoinAsync(session.Code);
@@ -258,7 +258,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
-        await CreateRequestAsync(session.Id, 1, "old-request");
+        await CreateRequestAsync(session.Id, 1, TestIds.From("old-request"));
         clock.Now = clock.Now.AddHours(1);
         using var response = await ClearAsync(session.Id, 1);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -271,15 +271,15 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var studentSession = (await student.GetFromJsonAsync<StudentSessionSummary>($"/api/students/sessions/{session.Id}"))!;
         Assert.Equal(2, studentSession.CurrentGeneration);
         using var stale = await student.PostAsJsonAsync("/api/students/createhelprequest", new
-            { Id = "stale-request", Message = "Late request", SessionId = session.Id, Generation = 1 });
+            { Id = TestIds.From("stale-request"), Message = "Late request", SessionId = session.Id, Generation = 1 });
         Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
-        await CreateRequestAsync(session.Id, 2, "new-request");
+        await CreateRequestAsync(session.Id, 2, TestIds.From("new-request"));
         var current = (await student.GetFromJsonAsync<HelpRequestResult[]>("/api/students/requests"))!;
-        Assert.Equal("new-request", Assert.Single(current).Id);
+        Assert.Equal(TestIds.From("new-request"), Assert.Single(current).Id);
         Assert.Equal(2, current[0].Generation);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-        var queued = await db.Outbox.SingleAsync(message => message.MessageId == "new-request" && message.RoutingKey == MessageRoutes.HelpRequestCreated);
+        var queued = await db.Outbox.SingleAsync(message => message.MessageId == TestIds.From("new-request") && message.RoutingKey == MessageRoutes.HelpRequestCreated);
         var payload = JsonSerializer.Deserialize<HelpRequestCreatedMessage>(queued.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(session.Id, payload.SessionId);
         Assert.Equal(2, payload.Generation);
@@ -293,7 +293,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await JoinAsync(session.Code);
         var identity = (await student.GetFromJsonAsync<EirService.Api.Endpoints.Student.Participants.GetStudentIdentity.StudentIdentityResponse>("/api/students/me"))!;
         // Represents an operation that captured generation 1 before the clear and commits afterwards.
-        var delayed = new HelpRequest("delayed", identity.UserId, "Old content", session.Id, 1);
+        var delayed = new HelpRequest(TestIds.From("delayed"), identity.UserId, "Old content", session.Id, 1);
         using var cleared = await ClearAsync(session.Id, 1);
         Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
         await using (var scope = app.Services.CreateAsyncScope())
@@ -359,23 +359,24 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
         var queued = await db.Outbox.SingleAsync();
-        var integrationEvent = JsonSerializer.Deserialize<SessionClearedIntegrationEvent>(queued.Payload,
+        var integrationEvent = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(queued.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(domainEvent.Id, integrationEvent.EventId);
-        Assert.Equal(domainEvent.Id.ToString(), queued.MessageId);
+        Assert.Equal(domainEvent.Id, queued.MessageId);
         Assert.Equal(created.Id, integrationEvent.SessionId);
         Assert.Equal(1, integrationEvent.PreviousGeneration);
-        Assert.Equal(2, integrationEvent.CurrentGeneration);
-        Assert.Equal(clock.Now, integrationEvent.ClearedAtUtc);
+        Assert.Equal(2, integrationEvent.Generation);
+        Assert.Equal(SessionUpdateType.Cleared, integrationEvent.EventType);
+        Assert.Equal(clock.Now, integrationEvent.UpdatedAtUtc);
         Assert.Equal(MessageRoutes.Sessions, queued.ExchangeName);
-        Assert.Equal(MessageRoutes.SessionCleared, queued.RoutingKey);
+        Assert.Equal(MessageRoutes.SessionUpdated, queued.RoutingKey);
         Assert.Null(queued.PublishedAtUtc);
         Assert.Empty(bus.Messages);
         await unitOfWork.SaveChangesAsync();
         Assert.Equal(1, await db.Outbox.CountAsync());
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirSessionDbContext>>(app.Services);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal(MessageRoutes.SessionCleared, Assert.Single(bus.Messages).RoutingKey);
+        Assert.Equal(MessageRoutes.SessionUpdated, Assert.Single(bus.Messages).RoutingKey);
     }
 
     [PostgresFact]
@@ -385,7 +386,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         await db.Database.ExecuteSqlRawAsync("""
-            ALTER TABLE sessions.outbox ADD CONSTRAINT "RejectClearForTest" CHECK ("RoutingKey" <> 'session.cleared');
+            ALTER TABLE sessions.outbox ADD CONSTRAINT "RejectClearForTest" CHECK ("RoutingKey" <> 'session.updated');
             """);
         var session = await db.Sessions.SingleAsync();
         session.Clear(1, clock.Now);
@@ -404,7 +405,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
             """);
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
-        Assert.Equal(domainEvent.Id.ToString(), (await db.Outbox.SingleAsync()).MessageId);
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync()).MessageId);
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
     }
 
@@ -424,13 +425,13 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-            var request = new HelpRequest("rollback-request", "student", "Help");
+            var request = new HelpRequest(TestIds.From("rollback-request"), "student", "Help");
             OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Message), "requests", new string('x', 256))];
             await Assert.ThrowsAsync<DbUpdateException>(() => new HelpRequestRepository(db, clock).AddAsync(request, messages, CancellationToken.None));
         }
         await using var verification = app.Services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-        Assert.False(await saved.Requests.AnyAsync(request => request.Id == "rollback-request"));
+        Assert.False(await saved.Requests.AnyAsync(request => request.Id == TestIds.From("rollback-request")));
         Assert.Empty(await saved.Outbox.ToArrayAsync());
     }
 
@@ -439,7 +440,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
-        await CreateRequestAsync(session.Id, 1, "queued-request");
+        await CreateRequestAsync(session.Id, 1, TestIds.From("queued-request"));
         Assert.Empty(bus.Messages);
         var dispatcher = new OutboxDispatcher<EirRequestDbContext>(app.Services.GetRequiredService<IServiceScopeFactory>(), bus, clock,
             NullLogger<OutboxDispatcher<EirRequestDbContext>>.Instance);
@@ -477,10 +478,10 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         using var clear = await ClearAsync(session.Id, 1);
         var logger = new RecordingLogger<GeneralizedMessageHandler>();
         var handler = new GeneralizedMessageHandler(logger);
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>("late", new("Old answer", session.Id, 1)), CancellationToken.None);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"), new("Old answer", session.Id, 1)), CancellationToken.None);
         Assert.Contains("Discarded", Assert.Single(logger.Messages));
         logger.Messages.Clear();
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>("new", new("New answer", session.Id, 2)), CancellationToken.None);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("new"), new("New answer", session.Id, 2)), CancellationToken.None);
         Assert.Contains("New answer", Assert.Single(logger.Messages));
     }
 
@@ -548,6 +549,34 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.False(db.Database.HasPendingModelChanges());
     }
 
+    [PostgresFact]
+    public async Task PendingClearMessageMigratesToSessionUpdatedWithoutChangingItsIdentity()
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync("20261012065459_AddSessionClearedIntegrationOutbox");
+        var eventId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var payload = JsonSerializer.Serialize(new
+        {
+            eventId, sessionId, previousGeneration = 2, currentGeneration = 3, clearedAtUtc = clock.Now
+        });
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO sessions.outbox ("Id", "MessageId", "MessageType", "Payload", "ExchangeName", "RoutingKey", "CreatedAtUtc")
+            VALUES ({Guid.NewGuid()}, {eventId.ToString()}, 'Shared.Application.Messaging.Contracts.SessionClearedIntegrationEvent',
+                {payload}, 'sessions', 'session.cleared', {clock.Now});
+            """);
+        await db.Database.MigrateAsync();
+        var pending = await db.Outbox.AsNoTracking().SingleAsync();
+        var update = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(pending.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(eventId, pending.MessageId);
+        Assert.Equal(typeof(SessionUpdatedIntegrationEvent).FullName, pending.MessageType);
+        Assert.Equal(MessageRoutes.SessionUpdated, pending.RoutingKey);
+        Assert.Equal(new SessionUpdatedIntegrationEvent(eventId, sessionId, 3, SessionUpdateType.Cleared, clock.Now, 2), update);
+        Assert.Null(pending.PublishedAtUtc);
+    }
+
     private async Task<SessionResult> CreateAsync(string title = "Session title")
     {
         using var response = await teacher.PostAsJsonAsync("/api/teachers/sessions", new { Title = title });
@@ -561,7 +590,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
     }
     private Task<HttpResponseMessage> ClearAsync(Guid id, int generation) =>
         teacher.PostAsJsonAsync($"/api/teachers/sessions/{id}/clear", new { ExpectedGeneration = generation });
-    private async Task CreateRequestAsync(Guid sessionId, int generation, string id)
+    private async Task CreateRequestAsync(Guid sessionId, int generation, Guid id)
     {
         using var response = await student.PostAsJsonAsync("/api/students/createhelprequest", new { Id = id, Message = "Please help", SessionId = sessionId, Generation = generation });
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -589,7 +618,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
     {
         public bool Fail { get; set; }
         public List<(object Payload, string RoutingKey)> Messages { get; } = [];
-        public Task PublishAsync(string id, object payload, string exchangeName, string routingKey, CancellationToken cancellationToken = default, string? messageType = null)
+        public Task PublishAsync(Guid id, object payload, string exchangeName, string routingKey, CancellationToken cancellationToken = default, string? messageType = null)
         {
             if (Fail) throw new InvalidOperationException("Simulated broker failure");
             Messages.Add((payload, routingKey));

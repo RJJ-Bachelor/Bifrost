@@ -5,7 +5,7 @@ using EndpointTags = EirService.Api.Endpoints.Tags;
 
 namespace EirService.Api.Endpoints.Student.HelpRequests.CreateHelpRequest;
 
-internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, string>
+internal sealed class CreateHelpRequest : Endpoint<CreateHelpRequestRequest, Guid>
 {
     public override void Configure()
     {

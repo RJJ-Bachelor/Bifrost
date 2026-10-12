@@ -11,7 +11,7 @@ public static class OutboxModelBuilderExtensions
             entity.ToTable("outbox", schema);
             entity.HasKey(message => message.Id);
             entity.Property(message => message.Id).ValueGeneratedNever();
-            entity.Property(message => message.MessageId).HasMaxLength(200).IsRequired();
+            entity.Property(message => message.MessageId).IsRequired();
             entity.Property(message => message.MessageType).HasMaxLength(1000).IsRequired();
             entity.Property(message => message.Payload).IsRequired();
             entity.Property(message => message.ExchangeName).HasMaxLength(255).IsRequired();

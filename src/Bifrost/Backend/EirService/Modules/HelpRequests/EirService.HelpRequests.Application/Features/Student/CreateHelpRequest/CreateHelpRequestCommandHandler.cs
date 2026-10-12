@@ -12,9 +12,9 @@ namespace EirService.HelpRequests.Application.Features.Student.CreateHelpRequest
 
 public sealed class CreateHelpRequestCommandHandler(
     IHelpRequestRepository requestRepository)
-    : ICommandHandler<CreateHelpRequestCommand, string>
+    : ICommandHandler<CreateHelpRequestCommand, Guid>
 {
-    public async Task<string> ExecuteAsync(CreateHelpRequestCommand request, CancellationToken cancellationToken)
+    public async Task<Guid> ExecuteAsync(CreateHelpRequestCommand request, CancellationToken cancellationToken)
     {
         if (request.SessionId is { } sessionId)
         {

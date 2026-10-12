@@ -3,7 +3,7 @@ namespace Shared.Application.Messaging;
 public interface IMessageBus
 {
     Task PublishAsync(
-        string id,
+        Guid id,
         object payload,
         string exchangeName,
         string routingKey,

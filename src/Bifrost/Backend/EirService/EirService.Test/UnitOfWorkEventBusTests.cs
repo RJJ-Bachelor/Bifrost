@@ -99,7 +99,7 @@ public sealed class UnitOfWorkEventBusTests
         {
             gate.Started.TrySetResult();
             await gate.Release.Task.WaitAsync(cancellationToken);
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(notification.DomainEvent.Id.ToString(), new { Value = "Promoted" }, "events", "promoted"));
+            notification.EnqueueIntegrationEvent(new OutgoingMessage(notification.DomainEvent.Id, new { Value = "Promoted" }, "events", "promoted"));
         }
     }
 
@@ -107,7 +107,7 @@ public sealed class UnitOfWorkEventBusTests
     {
         public Task HandleAsync(DomainEventNotification<FailingDomainEvent> notification, CancellationToken cancellationToken)
         {
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(notification.DomainEvent.Id.ToString(), new { Value = "Do not commit" }, "events", "failed"));
+            notification.EnqueueIntegrationEvent(new OutgoingMessage(notification.DomainEvent.Id, new { Value = "Do not commit" }, "events", "failed"));
             throw new InvalidOperationException("Simulated domain handler failure");
         }
     }

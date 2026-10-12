@@ -81,10 +81,8 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastAttemptAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("MessageId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("MessageType")
                         .IsRequired()

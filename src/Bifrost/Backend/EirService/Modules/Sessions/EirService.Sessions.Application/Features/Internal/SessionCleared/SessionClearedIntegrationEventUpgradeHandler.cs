@@ -14,10 +14,10 @@ public sealed class SessionClearedIntegrationEventUpgradeHandler
     {
         cancellationToken.ThrowIfCancellationRequested();
         var domainEvent = notification.DomainEvent;
-        var integrationEvent = new SessionClearedIntegrationEvent(domainEvent.Id, domainEvent.SessionId,
-            domainEvent.PreviousGeneration, domainEvent.CurrentGeneration, domainEvent.ClearedAtUtc);
-        notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id.ToString(), integrationEvent,
-            MessageRoutes.Sessions, MessageRoutes.SessionCleared));
+        var integrationEvent = new SessionUpdatedIntegrationEvent(domainEvent.Id, domainEvent.SessionId,
+            domainEvent.CurrentGeneration, SessionUpdateType.Cleared, domainEvent.ClearedAtUtc, domainEvent.PreviousGeneration);
+        notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
+            MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
         return Task.CompletedTask;
     }
 }

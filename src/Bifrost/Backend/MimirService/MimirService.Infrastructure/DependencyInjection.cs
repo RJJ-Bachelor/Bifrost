@@ -9,6 +9,7 @@ using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using MimirService.Application.Services.Messaging;
+using MimirService.Application.Features.Internal.SessionUpdated;
 
 namespace MimirService.Infrastructure;
 
@@ -33,6 +34,8 @@ public static class DependencyInjection
         services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddHostedService<HelpRequestMessageSubscriber>();
+        services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
+        services.AddHostedService<SessionUpdatedMessageSubscriber>();
 
         return services;
     }

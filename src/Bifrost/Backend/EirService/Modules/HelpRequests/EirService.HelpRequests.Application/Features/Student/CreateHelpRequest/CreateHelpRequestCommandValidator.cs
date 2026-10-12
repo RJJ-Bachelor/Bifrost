@@ -8,8 +8,7 @@ namespace EirService.HelpRequests.Application.Features.Student.CreateHelpRequest
         {
             RuleFor(x => x.Id)
                 .NotEmpty()
-                .WithMessage(nameof(CreateHelpRequestCommand.Id))
-                .MaximumLength(100);
+                .WithMessage(nameof(CreateHelpRequestCommand.Id));
 
             RuleFor(x => x.UserId)
                 .NotEmpty()

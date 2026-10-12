@@ -3,14 +3,14 @@ using GnaService.Domain.ValueObjects;
 
 namespace GnaService.Domain.Entities;
 
-public sealed class Notification : AggregateRoot<string>
+public sealed class Notification : AggregateRoot<Guid>
 {
     private Notification()
     {
     }
 
     private Notification(
-        string id,
+        Guid id,
         UserId userId,
         NotificationMessages messages)
     {
@@ -28,11 +28,11 @@ public sealed class Notification : AggregateRoot<string>
     public DateTimeOffset CreatedAt { get; private set; }
 
     public static Notification Create(
-        string id,
+        Guid id,
         string userId,
         string messages)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
 
         return new Notification(
             id,
