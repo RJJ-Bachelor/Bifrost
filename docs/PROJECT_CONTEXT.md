@@ -17,4 +17,5 @@ Bifrost is a software engineering bachelor project focused on building a scalabl
 - **Core Rule:** Dependencies must always point inward. No database calls in controllers.
 
 ## 4. Modules & Domain Services
-*(This section is automatically updated by the review bot during reviews)*
+- **MimirService:** Handles help requests and integrates with the Google Gemini LLM API via `ILlmClient` and `GeminiLlmClient` in the infrastructure layer to process student queries. Managed via Aspire AppHost.
+- **VarService:** Identity and user management service.
