@@ -14,7 +14,7 @@ Key capabilities:
 ## 2. Tech Stack & Key Technologies
 - **Backend Runtime & Language:** .NET 10 (`net10.0`), C# 13.
 - **Orchestration & Diagnostics:** .NET Aspire (`YggdrasilService.AppHost` & `YggdrasilService.ServiceDefaults`) orchestrating PostgreSQL databases, RabbitMQ broker, OpenTelemetry metrics, traces, and health checks.
-- **API Framework:** FastEndpoints 8.3.0 (REPR pattern: Request-Endpoint-Response) for API endpoints, internal in-process commands, and domain event notifications.
+- **API Framework:** FastEndpoints 8.3.0 (REPR pattern: Request-Endpoint-Response) for API endpoints, internal in-process commands, and domain event notifications. Global serializer uses `JsonStringEnumConverter` for string-based enum serialization.
 - **Validation:** FluentValidation 12.1.1 integrated into FastEndpoints via pipeline command middleware (`CommandValidationMiddleware`).
 - **Gateway & Reverse Proxy:** YARP (Yet Another Reverse Proxy) in `HeimdallGateway` managing edge routing, token extraction, and student cookie issuance.
 - **Identity & Authentication:**
@@ -98,12 +98,27 @@ Every service and module strictly adheres to Clean Architecture:
        - Teacher: `GET /api/teachers/me` (Teacher identity).
      - **Contracts:** Exposes `IsSessionParticipantQuery` to verify student enrollment.
   3. **HelpRequests Module (`helprequests` schema):**
-     - **Aggregate:** `HelpRequest` (Id, `UserId`, `Message`, `SessionId`, `Generation`).
-     - **Endpoints:**
-       - Student: `POST /api/students/helprequests` (Submit help request; stages `HelpRequestCreatedMessage` into outbox), `GET /api/students/helprequests` (List help requests).
-     - **Messaging Consumers:**
-       - `GeneralizedMessageSubscriber`: Consumes `requests / generalized.created` from `MimirService`.
-       - `SessionUpdatedMessageSubscriber`: Consumes `sessions / session.updated` to invalidate or clean up requests on session deletion.
+     - **Aggregate:** `HelpRequest` is a conversation thread containing child `HelpRequestMessage` entities ordered by `SequenceNumber`. Fields include `UserId`, `SessionId`, `Generation`, `HelpType` (`Physical` | `Digital`), `HelpRequestStatus`, and a per-generation `RequestNumber`.
+     - **Status Lifecycle:** `Pending` → `Active` → `AwaitingConfirmation` → `Completed`. Students can append follow-up messages to reopen `Completed` requests back into `Pending`. Teacher cancellation returns a request to `Pending` with front-of-queue priority; student cancellation closes it as `Cancelled`.
+     - **Queueing & Reservation:** Queue is ordered by `ReturnedToQueueAt DESC NULLS LAST`, then `QueuedAt ASC`, then `Id ASC`. Atomic teacher reservation uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`. A partial unique index enforces at most one open request (`Pending` | `Active` | `AwaitingConfirmation`) per student per session generation.
+     - **Concurrency:** PostgreSQL `xmin` is used as the concurrency token on `HelpRequest`; message mutations update the aggregate root's timestamp to detect concurrent updates.
+     - **Display Numbering:** A per-session/per-generation `HelpRequestNumberCounter` with a PostgreSQL `BEFORE INSERT` trigger assigns sequential `DisplayNumber` values (`BF-001`, `BF-002`, ...), resetting per generation.
+     - **Contracts:** Exposes `GetHelpRequestSessionQuery` (verifies session ownership, generation, and teacher identity) alongside `IsSessionParticipantQuery`. The `HelpRequestAccess` helper centralizes cross-module authorization checks.
+     - **Endpoints — Student:**
+       - `POST /api/students/sessions/{sessionId}/requests` (Create; replaces legacy `/api/students/createhelprequest`)
+       - `GET /api/students/sessions/{sessionId}/queue` (Privacy-preserving queue status: position, waiting count, estimated wait time)
+       - `GET /api/students/requests/{id}` (Conversation details and messages)
+       - `POST /api/students/requests/{id}/messages` (Follow-up message; reopens request in queue)
+       - `PATCH /api/students/requests/{id}/status` (Cancel)
+     - **Endpoints — Teacher:**
+       - `GET /api/teachers/sessions/{sessionId}/queue` (Queue breakdown)
+       - `POST /api/teachers/sessions/{sessionId}/queue/take-next` (Atomic reservation)
+       - `GET /api/teachers/requests/{id}` (Conversation details)
+       - `POST /api/teachers/requests/{id}/messages` (Digital answer; completes request)
+       - `PATCH /api/teachers/requests/{id}/status` (Transitions: `Start`, `Complete`, `Cancel`)
+     - **Messaging:**
+       - Consumes `requests / generalized.created` (`GeneralizedMessageSubscriber`) and `sessions / session.updated` (`SessionUpdatedMessageSubscriber`).
+       - Publishes `HelpRequestUpdatedIntegrationEvent` (`requests / request.updated`) on all status and queue transitions, and `HelpRequestAnsweredMessage` (`requests / request.answered`) when digital answers are posted — both via transactional outbox.
   4. **KnowledgeBase Module:**
      - Scaffolded bounded context for domain questions, answers, and educational knowledge base.
   5. **Insights Module:**
@@ -131,6 +146,7 @@ Every service and module strictly adheres to Clean Architecture:
   - `RabbitMqMessageBus`: RabbitMQ client wrapper with OpenTelemetry distributed activity tracing.
   - `OutboxDispatcher<TDbContext>`: Background worker polling pending outbox messages and publishing to RabbitMQ with retry backoff and tracing propagation.
   - `UnitOfWork<TOwner, TDbContext>`: EF Core Unit of Work that discovers domain events on tracked aggregates, triggers domain event handlers, and commits aggregate mutations alongside staged `OutboxMessage` records atomically.
+  - `RabbitMqQueueInitializer`: Hosted service (`AddRabbitMqQueue`) that declares durable subscriber queues ahead of active consumers (e.g. `gna-request-updated` in `GnaService`, `mimir-request-answered` in `MimirService`).
   - Database migration utilities (`DatabaseMigrationExtensions.MigrateAtStartup()`).
 - **`Shared.Api`:**
   - `StudentCookieHandler` & `StudentIdentityCookie`: ASP.NET Data Protection cookie scheme for student sessions.
@@ -144,6 +160,8 @@ Every service and module strictly adheres to Clean Architecture:
 | :--- | :--- | :--- | :--- | :--- |
 | `sessions` | `session.updated` | `SessionUpdatedIntegrationEvent`<br>*(SessionId, Generation, EventType: Cleared\|Deleted\|Archived, PreviousGeneration)* | `EirService.Sessions` (Outbox) | `EirService.HelpRequests`, `MimirService` |
 | `requests` | `request.created` | `HelpRequestCreatedMessage`<br>*(Message, SessionId, Generation)* | `EirService.HelpRequests` (Outbox) | `MimirService` |
+| `requests` | `request.updated` | `HelpRequestUpdatedIntegrationEvent`<br>*(RequestId, SessionId, Generation, Status)* | `EirService.HelpRequests` (Outbox) | `GnaService` |
+| `requests` | `request.answered` | `HelpRequestAnsweredMessage`<br>*(RequestId, SessionId, Generation, Message)* | `EirService.HelpRequests` (Outbox) | `MimirService` |
 | `requests` | `generalized.created` | `GeneralizedCreatedMessage`<br>*(Message, SessionId, Generation)* | `MimirService` (Outbox) | `EirService.HelpRequests` |
 | `notifications` | `gna-notification-requested` | `NotificationCreatedMessage`<br>*(UserId, Messages, SessionId, Generation)* | External / Domain Triggers | `GnaService` |
 
@@ -160,43 +178,3 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 6. **English in Codebase:** All code, identifiers, comments, and log messages must be in English.
 7. **Frontend Exemption:** Ignore legacy frontend projects until the new frontend architecture is implemented.
 
----
-
-## Update 2026-10-13 (PR #NNN)
-
-- **HelpRequest Aggregate & Conversation Model:** Refactored `HelpRequest` aggregate into a multi-message conversation thread containing child `HelpRequestMessage` entities ordered by `SequenceNumber`.
-- **Request Types & Lifecycle State Machine:**
-  - Introduced `HelpType` (`Physical`, `Digital`).
-  - Introduced `HelpRequestStatus` (`Pending`, `Active`, `AwaitingConfirmation`, `Completed`, `Cancelled`).
-  - Physical flow: reserved by teacher (`Pending`), started by teacher (`Active`), and resolved (`Completed`).
-  - Digital flow: reserved and answered by teacher (transitions directly to `Completed`); students can append follow-up messages to reopen completed requests back into `Pending` status.
-  - Teacher cancellation returns requests to `Pending` with front-of-queue priority; student cancellation closes the request as `Cancelled`.
-- **Queueing & Fair Ordering:**
-  - Queue ordered by `ReturnedToQueueAt DESC NULLS LAST`, then `QueuedAt ASC`, then `Id ASC`. Requests returned by teachers jump ahead of new waiting requests.
-  - Atomic teacher reservation via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` (`TakeNextAsync`) preventing concurrent pickup conflicts.
-- **Display Numbering & Session Counters:**
-  - Added per-session and per-generation sequence counter table (`HelpRequestNumberCounter`) driven by PostgreSQL `BEFORE INSERT` trigger to assign sequential `RequestNumber` values formatted as `DisplayNumber` (`BF-001`, `BF-002`, etc.), resetting per session generation.
-- **Single Open Request Constraint:**
-  - Added PostgreSQL partial unique index `IX_HelpRequest_OneOpenPerStudent` restricting each student to at most one open request (`Pending`, `Active`, `AwaitingConfirmation`) per session generation.
-- **Concurrency Control:**
-  - Concurrency token tracked on `HelpRequest` via PostgreSQL `xmin` system column; modifying conversation messages updates the aggregate root's timestamp to detect concurrent updates.
-- **Student API Endpoints:**
-  - `POST /api/students/sessions/{sessionId}/requests`: Create a new help request tied to an active session generation (replaces legacy `/api/students/createhelprequest`).
-  - `GET /api/students/sessions/{sessionId}/queue`: Retrieve privacy-preserving queue status (position, waiting count, and estimated wait time without exposing other students' data).
-  - `GET /api/students/requests/{id}`: Fetch conversation details and messages.
-  - `POST /api/students/requests/{id}/messages`: Submit follow-up messages, reopening the request in the queue.
-  - `PATCH /api/students/requests/{id}/status`: Student cancellation endpoint (`action: Cancel`).
-- **Teacher API Endpoints:**
-  - `GET /api/teachers/sessions/{sessionId}/queue`: View session queue breakdown (waiting pending requests and active physical help).
-  - `POST /api/teachers/sessions/{sessionId}/queue/take-next`: Atomically reserve next available request in queue.
-  - `GET /api/teachers/requests/{id}`: Inspect request details and conversation.
-  - `POST /api/teachers/requests/{id}/messages`: Submit digital answers and complete the request.
-  - `PATCH /api/teachers/requests/{id}/status`: Execute status transitions (`Start`, `Complete`, or `Cancel` to return to queue).
-- **In-Process Module Contracts:**
-  - Added `GetHelpRequestSessionQuery` contract to `EirService.Contracts.Sessions` allowing `HelpRequests` module to verify session ownership, generation, and teacher identity via FastEndpoints command bus.
-  - `HelpRequestAccess` helper centralizes cross-module authorization checks combining `IsSessionParticipantQuery` and `GetHelpRequestSessionQuery`.
-- **Integration Events & Message Broker:**
-  - Added `HelpRequestUpdatedIntegrationEvent` published to `requests / request.updated` via transactional outbox on all status and queue lifecycle transitions.
-  - Added `HelpRequestAnsweredMessage` published to `requests / request.answered` via transactional outbox when digital answers are posted.
-  - Added `RabbitMqQueueInitializer` hosted service (`AddRabbitMqQueue`) to declare durable subscriber queues ahead of active consumers (`gna-request-updated` in `GnaService`, `mimir-request-answered` in `MimirService`).
-- **Serialization:** Configured `JsonStringEnumConverter` globally in FastEndpoints API serializer settings.

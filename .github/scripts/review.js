@@ -651,8 +651,12 @@ The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, r
 Rules:
 1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
-3. The new section MUST begin with a level-2 heading in the form: ## Update ${today} — <Short Topic>
-4. List ONLY the new or changed architectural facts. Keep it concise — typically 5 to 20 bullet points.
+3. The new section MUST begin with a level-2 heading in EXACTLY this form: ## Update ${today}
+   Do NOT add a PR reference, PR number, topic, or any placeholder text to the heading.
+4. List ONLY the most important new or changed architectural facts. Keep it CONCISE:
+   - Between 5 and 10 bullet points maximum.
+   - NO sub-bullets. If a topic needs more detail, use a single bullet with a short sentence.
+   - Do NOT copy implementation details from the diff; summarise at the architecture level.
 5. Write 100% in English.
 6. Later sections override earlier sections when facts conflict. This is expected and intentional — do NOT try to resolve conflicts.
 `;
