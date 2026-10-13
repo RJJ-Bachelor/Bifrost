@@ -653,7 +653,19 @@ Rules:
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
 3. The new section MUST begin with a level-2 heading in EXACTLY this form: ## Update ${today}
    Do NOT add a PR reference, PR number, topic, or any placeholder text to the heading.
-4. List ONLY the most important new or changed architectural facts. Keep it CONCISE:
+4. Apply this test to EVERY bullet BEFORE including it:
+   "Would this fact help me review a FUTURE, unrelated PR in this codebase?"
+   If the answer is no, OMIT it. When in doubt, lean towards omitting.
+
+   DO NOT include:
+   - Refactorings, renames, or internal code cleanups
+   - Bug fixes and their details
+   - Test additions or test infrastructure
+   - Individual DTO field names, parameter names, or endpoint payload shapes
+   - Database column names, index names, or migration internals (unless architecturally significant)
+   - Anything already covered by the existing sections above
+
+   List ONLY the most important new or changed architectural facts. Keep it CONCISE:
    - Between 5 and 10 bullet points maximum.
    - NO sub-bullets. If a topic needs more detail, use a single bullet with a short sentence.
    - Do NOT copy implementation details from the diff; summarise at the architecture level.
