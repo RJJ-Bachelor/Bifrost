@@ -9,6 +9,7 @@ const REPO = process.env.GITHUB_REPOSITORY;
 const CONTEXT_FILE_PATH = path.join(process.cwd(), "docs", "PROJECT_CONTEXT.md");
 
 const GITHUB_API = "https://api.github.com";
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Model Pools
 const LIGHT_MODELS = [
@@ -68,7 +69,7 @@ function extractAndCleanJson(rawText) {
   return null;
 }
 
-async function requestGeminiModel(model, prompt, systemInstruction, expectJson = true) {
+async function requestGeminiModel(model, prompt, systemInstruction, expectJson = true, maxRetries = 2) {
   const generationConfig = {
     temperature: 0.2
   };
@@ -83,35 +84,46 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
 
   const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(API_KEY);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      generationConfig
-    })
-  });
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig
+      })
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Model ${model} returned status ${response.status}: ${errText}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      // Retry on transient server/load errors (503 High Demand / Unavailable, 429 Rate Limit, 500+)
+      if ((response.status === 503 || response.status === 429 || response.status >= 500) && attempt <= maxRetries) {
+        const delayMs = attempt * 3000;
+        console.warn(`⏳ Model ${model} returned status ${response.status} (attempt ${attempt}/${maxRetries + 1}). Retrying in ${delayMs / 1000}s...`);
+        await sleep(delayMs);
+        continue;
+      }
+      throw new Error(`Model ${model} returned status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
+    const rawText = answerPart?.text;
+
+    if (!expectJson) {
+      return rawText ? rawText.trim() : null;
+    }
+
+    const parsedJson = extractAndCleanJson(rawText);
+    if (!parsedJson && rawText) {
+      console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
+    }
+    return parsedJson;
   }
-
-  const data = await response.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
-  const rawText = answerPart?.text;
-
-  if (!expectJson) {
-    return rawText ? rawText.trim() : null;
-  }
-
-  const parsedJson = extractAndCleanJson(rawText);
-  if (!parsedJson && rawText) {
-    console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
-  }
-  return parsedJson;
 }
 
 function loadRequestedFiles(requestedFiles, loadedFilesMap) {
@@ -213,7 +225,7 @@ Du SKAL starte dit JSON-svar med at evaluere PR'ens kompleksitet ("complexity_ev
 
 Hvis "scope_score" >= 6 eller "cross_layer_impact" er true, må du ALDRIG godkende selv. Du SKAL eskalere.`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
-  } else if (mode === "HEAVY_INVESTIGATE") {
+  } else if (mode === "HEAVY_INVESTIGATE" || mode === "INVESTIGATE") {
     contextRule = `6. **Supplerende fil-efterspørgsel:**
 * Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de præcise filstier fra 'Repository Files' i "requested_files" og forklare hvorfor i "context_reason".
 * Hvis du allerede har tilstrækkelig information i diff'et og den hidtidige kontekst, SKAL du levere det endelige review med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
@@ -406,6 +418,7 @@ async function performReview(basePrompt, diffText = "") {
         }
       } catch (err) {
         console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
+        await sleep(1500);
       }
     }
   }
@@ -452,27 +465,48 @@ async function performReview(basePrompt, diffText = "") {
       }
     } catch (err) {
       console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next heavy model...`);
+      await sleep(1500);
     }
   }
 
-  // Phase 3: Emergency fallback queue with forced review on light models (no escalation allowed)
-  console.log("All heavy models failed. Falling back to light models with forced review as emergency backup...");
-  const emergencyFilesText = formatLoadedFiles(loadedFiles);
-  const emergencyPrompt = emergencyFilesText
-    ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${emergencyFilesText}\n`
-    : basePrompt;
-
+  // Phase 3: Emergency fallback queue with light models (can still request context if needed)
+  console.log("All heavy models failed. Falling back to light models with file context investigation as emergency backup...");
   for (const model of LIGHT_MODELS) {
     try {
       console.log(`Attempting emergency review with light model: ${model}...`);
-      const fallbackInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
-      const result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+      let filesText = formatLoadedFiles(loadedFiles);
+      let emergencyPrompt = filesText
+        ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`
+        : basePrompt;
+
+      // Round 1: Light model can request context or finish review
+      const fallbackInstruction = buildSystemInstruction("INVESTIGATE", loadedFiles.size > 0);
+      let result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+
+      if (result && result.verdict === "NEED_CONTEXT") {
+        console.log(`⚡ Emergency light model ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        if (result.context_reason) {
+          console.log(`   Reason: ${result.context_reason}`);
+        }
+        const addedCount = loadRequestedFiles(result.requested_files, loadedFiles);
+        if (addedCount > 0) {
+          console.log(`Loaded ${addedCount} additional file(s) into context. Executing final evaluation round with ${model}...`);
+          filesText = formatLoadedFiles(loadedFiles);
+          emergencyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`;
+        }
+
+        // Round 2: Forced final review
+        const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+        result = await requestGeminiModel(model, emergencyPrompt, finalInstruction, true);
+      }
+
       if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
         console.log(`✅ Review successfully completed by emergency light model: ${model}`);
         return result;
       }
     } catch (err) {
       console.warn(`Emergency fallback model ${model} failed (${err.message}). Trying next...`);
+      await sleep(1500);
     }
   }
 
@@ -607,6 +641,7 @@ ${diff}
         }
       } catch (err) {
         console.warn(`Context evaluation with ${model} failed (${err.message}). Trying next...`);
+        await sleep(1500);
       }
     }
 
