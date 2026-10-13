@@ -606,15 +606,38 @@ async function updateContextFile(diff, prBranch) {
     currentContext = fs.readFileSync(CONTEXT_FILE_PATH, "utf-8");
   }
 
-  const systemInstruction = `
+  const CONTEXT_LINE_THRESHOLD = 400;
+  const nonEmptyLineCount = currentContext.split("\n").filter((l) => l.trim().length > 0).length;
+  const needsConsolidation = nonEmptyLineCount > CONTEXT_LINE_THRESHOLD;
+
+  if (needsConsolidation) {
+    console.log(`📚 PROJECT_CONTEXT.md is large (${nonEmptyLineCount} non-empty lines > ${CONTEXT_LINE_THRESHOLD}). Running consolidation mode.`);
+  }
+
+  const systemInstruction = needsConsolidation
+    ? `
 You are a software architecture documentation assistant for the Bifrost project.
-Your task is to evaluate if this Pull Request introduces high-level architecture changes, new modules, domain models, APIs, external integrations, or structural patterns that belong in 'docs/PROJECT_CONTEXT.md'.
+The existing 'docs/PROJECT_CONTEXT.md' has grown large and is now in CONSOLIDATION mode.
 
 Rules:
 1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
-2. ONLY if significant new architectural concepts, domain models, entities, database tables, or modules are introduced: Output the COMPLETE updated Markdown file.
-3. Write 100% in English without markdown code blocks (\`\`\`markdown ... \`\`\`).
-4. Maintain high-level architectural value. Do NOT log commit histories or small implementation details.
+2. Otherwise, output the COMPLETE consolidated Markdown file.
+3. You MAY merge duplicate or overlapping sections, remove outdated entries, and reorder for clarity. The goal is a clean, accurate, high-level architecture document.
+4. You MUST NOT lose factual information: every architecture concept, module, endpoint, dependency rule, and integration that is still true must remain present — either in its original form or in a clearly equivalent consolidated form.
+5. Write 100% in English without markdown code blocks (\`\`\`markdown ... \`\`\`).
+6. Maintain high-level architectural value. Do NOT log commit histories or small implementation details.
+`
+    : `
+You are a software architecture documentation assistant for the Bifrost project.
+The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, reorder, or remove existing content — only append a new section at the very end.
+
+Rules:
+1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
+3. The new section MUST begin with a level-2 heading in the form: ## Update YYYY-MM-DD (PR #NNN)
+4. List ONLY the new or changed architectural facts. Keep it concise — typically 5 to 20 bullet points.
+5. Write 100% in English.
+6. Later sections override earlier sections when facts conflict. This is expected and intentional — do NOT try to resolve conflicts.
 `;
 
   const prompt = `
@@ -655,25 +678,72 @@ ${diff}
       return;
     }
 
-    const cleanedContext = response
+    const cleanedResponse = response
       .replace(/^```markdown\s*/i, "")
       .replace(/^```\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
 
-    if (cleanedContext && cleanedContext !== currentContext.trim()) {
+    if (!cleanedResponse) {
+      console.warn("Model returned empty context update. Skipping.");
+      return;
+    }
+
+    let newFileContent;
+    let commitMessage;
+    let logLabel;
+
+    if (needsConsolidation) {
+      const oldNonEmpty = currentContext.split("\n").filter((l) => l.trim().length > 0).length;
+      const newNonEmpty = cleanedResponse.split("\n").filter((l) => l.trim().length > 0).length;
+      const ratio = oldNonEmpty > 0 ? newNonEmpty / oldNonEmpty : 1;
+
+      if (ratio < 0.85) {
+        console.warn(`⚡ Consolidation shrank content by ${Math.round((1 - ratio) * 100)}% (${oldNonEmpty} -> ${newNonEmpty} non-empty lines). Skipping commit to avoid data loss.`);
+        return;
+      }
+      if (cleanedResponse === currentContext.trim()) {
+        console.log(`[${usedModel}] Consolidation produced no change. Skipping.`);
+        return;
+      }
+
+      newFileContent = cleanedResponse + "\n";
+      commitMessage = "docs: auto-consolidate PROJECT_CONTEXT.md [skip review]";
+      logLabel = "consolidated";
+    } else {
+      if (cleanedResponse === currentContext.trim()) {
+        console.log(`[${usedModel}] Append produced no change. Skipping.`);
+        return;
+      }
+
+      const separator = currentContext.trim().length > 0 ? "\n\n---\n\n" : "";
+      newFileContent = currentContext.trimEnd() + separator + cleanedResponse + "\n";
+      commitMessage = "docs: auto-append to PROJECT_CONTEXT.md [skip review]";
+      logLabel = "appended";
+    }
+
+    if (newFileContent && newFileContent !== currentContext) {
       execSync(`git fetch origin ${prBranch}`);
       execSync(`git checkout -B ${prBranch} FETCH_HEAD`);
 
+      const latestContext = fs.existsSync(CONTEXT_FILE_PATH)
+        ? fs.readFileSync(CONTEXT_FILE_PATH, "utf-8")
+        : "";
+
+      if (latestContext && latestContext !== currentContext) {
+        console.warn("PROJECT_CONTEXT.md changed on disk since evaluation. Aborting to avoid clobbering concurrent updates.");
+        return;
+      }
+
       fs.mkdirSync(path.dirname(CONTEXT_FILE_PATH), { recursive: true });
-      fs.writeFileSync(CONTEXT_FILE_PATH, cleanedContext + "\n", "utf-8");
+      fs.writeFileSync(CONTEXT_FILE_PATH, newFileContent, "utf-8");
 
       execSync("git config user.name 'github-actions[bot]'");
       execSync("git config user.email 'github-actions[bot]@users.noreply.github.com'");
       execSync("git add docs/PROJECT_CONTEXT.md");
-      execSync("git commit -m 'docs: auto-update PROJECT_CONTEXT.md [skip review]'");
+      execSync(`git commit -m '${commitMessage}'`);
       execSync(`git push origin ${prBranch}`);
-      console.log(`[${usedModel}] docs/PROJECT_CONTEXT.md updated and committed to ${prBranch}.`);
+      console.log(`[${usedModel}] docs/PROJECT_CONTEXT.md ${logLabel} and committed to ${prBranch}.`);
       return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     }
   } catch (err) {
@@ -781,8 +851,10 @@ PR Author: ${pr.user.login}
 Commit History (Chronological):
 ${commitHistoryText || "No commit history available."}
 
-Project Context:
+Project Context (docs/PROJECT_CONTEXT.md):
 ${projectContext || "No additional project context provided."}
+
+Note on Project Context format: The document is append-only. Later sections (nearer the bottom) override earlier sections when facts conflict. When reading it, treat the bottom-most statement about a given topic as the current truth.
 
 Historical Review Feedback:
 ${historicalFeedback || "No previous review comments."}
