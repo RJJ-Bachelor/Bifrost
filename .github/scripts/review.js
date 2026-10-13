@@ -686,6 +686,7 @@ async function run() {
   const pr = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`);
 
   // Ensure local repository is checked out to the PR branch commit so on-demand file reads and local diff match PR state
+  let checkedOut = false;
   try {
     console.log(`Checking out PR branch ${pr.head.ref} (${pr.head.sha})...`);
     try {
@@ -699,6 +700,7 @@ async function run() {
       // Ignore if head branch is already up-to-date
     }
     execSync(`git checkout ${pr.head.sha}`, { stdio: "ignore" });
+    checkedOut = true;
   } catch (err) {
     console.warn(`Could not checkout PR branch locally (${err.message}). Reading disk files will use current branch.`);
   }
@@ -709,7 +711,7 @@ async function run() {
       headers: { "Accept": "application/vnd.github.v3.diff" }
     });
   } catch (err) {
-    if (err.message.includes("406") || err.message.toLowerCase().includes("exceeded")) {
+    if (err.message.includes("406") || err.message.includes("maximum number of files")) {
       console.warn("⚡ GitHub API diff limit exceeded (406). Falling back to local git diff...");
       try {
         diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...${pr.head.sha}`, {
@@ -717,11 +719,24 @@ async function run() {
           maxBuffer: 30 * 1024 * 1024
         });
       } catch (gitErr) {
-        console.warn(`Triple-dot git diff failed (${gitErr.message}). Trying fallback git diff...`);
-        diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...HEAD`, {
-          encoding: "utf-8",
-          maxBuffer: 30 * 1024 * 1024
-        });
+        if (gitErr.message.includes("maxBuffer")) {
+          throw new Error("Local git diff exceeded maxBuffer (30 MB). Cannot compute PR diff.");
+        }
+        if (!checkedOut) {
+          throw new Error("Local git diff fallback unavailable: PR branch was not checked out successfully.");
+        }
+        console.warn(`Triple-dot git diff failed (${gitErr.message}). Trying fallback git diff against HEAD...`);
+        try {
+          diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...HEAD`, {
+            encoding: "utf-8",
+            maxBuffer: 30 * 1024 * 1024
+          });
+        } catch (headErr) {
+          if (headErr.message.includes("maxBuffer")) {
+            throw new Error("Local git diff exceeded maxBuffer (30 MB). Cannot compute PR diff.");
+          }
+          throw headErr;
+        }
       }
     } else {
       throw err;
