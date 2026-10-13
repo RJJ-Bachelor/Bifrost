@@ -712,13 +712,13 @@ async function run() {
     if (err.message.includes("406") || err.message.toLowerCase().includes("exceeded")) {
       console.warn("⚡ GitHub API diff limit exceeded (406). Falling back to local git diff...");
       try {
-        diff = execSync(`git diff origin/${pr.base.ref}...${pr.head.sha}`, {
+        diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...${pr.head.sha}`, {
           encoding: "utf-8",
           maxBuffer: 30 * 1024 * 1024
         });
       } catch (gitErr) {
         console.warn(`Triple-dot git diff failed (${gitErr.message}). Trying fallback git diff...`);
-        diff = execSync(`git diff origin/${pr.base.ref}...HEAD`, {
+        diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...HEAD`, {
           encoding: "utf-8",
           maxBuffer: 30 * 1024 * 1024
         });
