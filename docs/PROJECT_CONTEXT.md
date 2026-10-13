@@ -115,7 +115,7 @@ Every service and module strictly adheres to Clean Architecture:
 - **Messaging Consumer:** `NotificationMessageSubscriber` listens to exchange `notifications` with routing key `gna-notification-requested` (`NotificationCreatedMessage`) and persists notifications for recipient users.
 
 ### 4.5 MimirService (Intelligence & Request Processing)
-- **Role:** Asynchronous intelligence and request analysis service (port 6002) with dedicated PostgreSQL database (`mimir`).
+- **Role:** Asynchronous intelligence and request analysis service (port 6002) with dedicated PostgreSQL database (`mimir`). Integrates with the Google Gemini LLM API via `ILlmClient` and `GeminiLlmClient` in the infrastructure layer to process student queries. Managed via Aspire AppHost.
 - **Aggregate:** `HelpRequest` (Id, `Message`, `ReceivedAt`).
 - **Messaging Consumers:**
   - `HelpRequestMessageSubscriber`: Listens to exchange `requests` with routing key `request.created` (`HelpRequestCreatedMessage`). Stores the request and emits a `GeneralizedCreatedMessage` to `requests / generalized.created` via its transactional outbox.
