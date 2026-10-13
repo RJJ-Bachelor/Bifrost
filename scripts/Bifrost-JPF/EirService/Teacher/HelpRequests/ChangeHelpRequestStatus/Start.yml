@@ -1,0 +1,18 @@
+info:
+  name: Start
+  type: http
+  seq: 1
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/teachers/requests/{{helpRequestId}}/status'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "action": "Start"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

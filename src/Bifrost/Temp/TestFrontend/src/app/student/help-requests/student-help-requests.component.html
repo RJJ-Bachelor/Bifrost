@@ -1,0 +1,75 @@
+<p>Vælg en af dine tilmeldte sessioner, stil et spørgsmål, og tilføj senere beskeder i samme samtale.</p>
+<p *ngIf="view.identity" class="identity"><strong>Student-ID:</strong> {{ view.identity.userId }}</p>
+
+<h3>Mine tilmeldte sessioner</h3>
+<button class="secondary" (click)="view.loadStudentSessions(true)" [disabled]="view.busy">Hent mine tilmeldte sessions</button>
+<div *ngIf="view.studentSessions !== null" class="table-wrap">
+  <p *ngIf="view.studentSessions.length === 0">Du er ikke tilmeldt nogen sessioner. Tilmeld dig med lærerens sessionskode nedenfor.</p>
+  <table *ngIf="view.studentSessions.length > 0">
+    <thead><tr><th>Session</th><th>Generation</th><th>Hjælp</th></tr></thead>
+    <tbody><tr *ngFor="let session of view.studentSessions" [class.selected]="session.id === view.api.session.id">
+      <td>{{ session.title }}<small>{{ session.id }}</small></td><td>{{ session.currentGeneration }}</td>
+      <td><button class="secondary" (click)="view.chooseSession(session)" [disabled]="view.busy">Vælg session</button></td>
+    </tr></tbody>
+  </table>
+</div>
+
+<details class="divider">
+  <summary>Tilmeld en session</summary>
+  <form #joinForm="ngForm" (ngSubmit)="view.joinSession()">
+    <label for="help-join-code">Sessionskode fra læreren</label>
+    <input id="help-join-code" name="code" [(ngModel)]="view.api.session.code" (ngModelChange)="view.api.saveSession()"
+      placeholder="8 tegn" required maxlength="8" [disabled]="view.busy">
+    <button type="submit" [disabled]="view.busy || joinForm.invalid || !view.api.session.code.trim()">Tilmeld som studerende</button>
+  </form>
+</details>
+
+<form #helpForm="ngForm" (ngSubmit)="view.createHelpRequest()">
+  <h3>Opret hjælpeanmodning</h3>
+  <p><strong>Session:</strong> {{ view.hasStudentSession ? view.api.session.title : 'Vælg en tilmeldt session fra listen' }}</p>
+  <label for="help-type">Hjælpeform</label>
+  <select id="help-type" name="helpType" [(ngModel)]="view.helpType" [disabled]="view.busy || !view.hasStudentSession">
+    <option value="Physical">Fysisk hjælp</option>
+    <option value="Digital">Digitalt svar</option>
+  </select>
+  <label for="message">Dit spørgsmål</label>
+  <textarea id="message" name="message" [(ngModel)]="view.message" required maxlength="4000" rows="3"
+    [disabled]="view.busy || !view.hasStudentSession"></textarea>
+  <button type="submit" [disabled]="view.busy || helpForm.invalid || !view.message.trim() || !view.hasStudentSession">Send hjælpeanmodning</button>
+</form>
+
+<div class="divider">
+  <h3>Mine hjælpeanmodninger</h3>
+  <div class="actions">
+    <button (click)="view.loadRequests(true)" [disabled]="view.busy || !view.hasStudentSession">Hent for valgt session</button>
+    <button class="secondary" (click)="view.loadRequests()" [disabled]="view.busy">Hent mine hjælpeanmodninger</button>
+  </div>
+  <div *ngIf="view.requests !== null" class="table-wrap">
+    <p>{{ view.requestScope }}</p>
+    <p *ngIf="view.requests.length === 0">Ingen hjælpeanmodninger.</p>
+    <table *ngIf="view.requests.length > 0">
+      <thead><tr><th>Nummer</th><th>Besked</th><th>Status</th><th>Hjælpeform</th><th>Generation</th><th>Samtale</th></tr></thead>
+      <tbody><tr *ngFor="let request of view.requests">
+        <td><strong>{{ request.displayNumber }}</strong></td>
+        <td class="message">{{ request.message }}<small>{{ request.id }}</small><small>Session: {{ request.sessionId }}</small></td>
+        <td>{{ request.status }}</td><td>{{ request.helpType }}</td><td>{{ request.generation }}</td>
+        <td><button class="secondary" (click)="view.loadHelpRequest(request.id)" [disabled]="view.busy">Åbn samtale</button></td>
+      </tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="divider">
+  <h3>Min køplacering</h3>
+  <button (click)="view.loadQueue()" [disabled]="view.busy || !view.hasStudentSession">Hent min køplacering</button>
+  <ng-container *ngIf="view.studentQueue as queue">
+    <div *ngIf="queue.sessionId === view.api.session.id && queue.generation === view.api.session.generation" class="queue-position">
+      <p><strong>Antal ventende:</strong> {{ queue.waitingCount }}</p>
+      <p *ngIf="queue.displayNumber"><strong>Dit nummer:</strong> {{ queue.displayNumber }}</p>
+      <p *ngIf="queue.position !== null"><strong>Din placering:</strong> {{ queue.position }} · <strong>Estimeret ventetid:</strong> {{ queue.estimatedWaitMinutes }} min.</p>
+      <p *ngIf="queue.position === null">Du er ikke i ventekøen.</p>
+      <button *ngIf="queue.ownRequestId" class="secondary" (click)="view.loadHelpRequest(queue.ownRequestId)" [disabled]="view.busy">Åbn min anmodning</button>
+    </div>
+  </ng-container>
+  <p class="hint">Hent køplacering og samtale igen for at se lærerens ændringer.</p>
+</div>

@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Logging;
-using MimirService.Application.Features.Internal.SessionUpdated;
+using MimirService.Application.Services.Messaging;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 

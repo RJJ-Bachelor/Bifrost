@@ -1,4 +1,6 @@
 using Shared.Api.Authentication;
+using System.Text.Json.Serialization;
+using EirService.HelpRequests.Application;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
@@ -30,6 +32,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
         builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
+        builder.Services.AddHelpRequestsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
 
@@ -44,8 +47,6 @@ public class Program
                 typeof(JoinSessionCommandHandler).Assembly
             ];
         });
-        builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
-        builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<DeleteSessionCommand>, DeleteSessionCommandValidator>();
@@ -85,7 +86,11 @@ public class Program
         app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();
-        app.UseFastEndpoints(configuration => configuration.Endpoints.RoutePrefix = "api");
+        app.UseFastEndpoints(configuration =>
+        {
+            configuration.Endpoints.RoutePrefix = "api";
+            configuration.Serializer.Options.Converters.Add(new JsonStringEnumConverter());
+        });
 
         app.Run();
     }

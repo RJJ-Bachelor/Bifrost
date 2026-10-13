@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
-using MimirService.Application.Features.Internal.SessionUpdated;
+using MimirService.Application.Services.Messaging;
 using Shared.Application.Messaging.Contracts;
 
 namespace MimirService.Infrastructure.Messaging;

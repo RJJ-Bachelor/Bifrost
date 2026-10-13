@@ -97,22 +97,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
 
         try
         {
-            await channel.ExchangeDeclareAsync(
-                exchange: exchangeName,
-                type: ExchangeType.Direct,
-                durable: true,
-                cancellationToken: cancellationToken);
-            await channel.QueueDeclareAsync(
-                queue: queueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                cancellationToken: cancellationToken);
-            await channel.QueueBindAsync(
-                queue: queueName,
-                exchange: exchangeName,
-                routingKey: routingKey,
-                cancellationToken: cancellationToken);
+            await DeclareQueueAsync(channel, queueName, exchangeName, routingKey, cancellationToken);
 
             var consumer = new AsyncEventingBasicConsumer(channel);
             consumer.ReceivedAsync += (_, eventArgs) => HandleMessageAsync(
@@ -131,6 +116,21 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
             await channel.DisposeAsync();
             throw;
         }
+    }
+
+    internal static async Task DeclareQueueAsync(
+        IChannel channel, string queueName, string exchangeName, string routingKey,
+        CancellationToken cancellationToken)
+    {
+        await channel.ExchangeDeclareAsync(
+            exchange: exchangeName, type: ExchangeType.Direct, durable: true,
+            cancellationToken: cancellationToken);
+        await channel.QueueDeclareAsync(
+            queue: queueName, durable: true, exclusive: false, autoDelete: false,
+            cancellationToken: cancellationToken);
+        await channel.QueueBindAsync(
+            queue: queueName, exchange: exchangeName, routingKey: routingKey,
+            cancellationToken: cancellationToken);
     }
 
     internal static async Task HandleMessageAsync<T>(

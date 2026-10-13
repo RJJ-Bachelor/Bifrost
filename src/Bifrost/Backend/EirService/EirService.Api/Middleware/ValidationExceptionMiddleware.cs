@@ -1,6 +1,7 @@
 using FastEndpoints;
 using FluentValidation;
 using EirService.Contracts.Exceptions;
+using EirService.HelpRequests.Domain.Entities;
 
 namespace EirService.Api.Middleware;
 
@@ -10,7 +11,7 @@ public sealed class ValidationExceptionMiddleware(RequestDelegate next)
     {
         try { await next(context); }
         catch (Exception exception) when (
-            exception is ValidationException or ResourceNotFoundException or OperationConflictException &&
+            exception is ValidationException or ResourceNotFoundException or OperationConflictException or HelpRequestRuleException &&
             !context.Response.HasStarted &&
             context.GetEndpoint()?.Metadata.GetMetadata<EndpointDefinition>() is not null)
         {
@@ -19,6 +20,7 @@ public sealed class ValidationExceptionMiddleware(RequestDelegate next)
             {
                 ResourceNotFoundException => StatusCodes.Status404NotFound,
                 OperationConflictException => StatusCodes.Status409Conflict,
+                HelpRequestRuleException => StatusCodes.Status409Conflict,
                 _ => StatusCodes.Status400BadRequest
             };
             context.Response.StatusCode = statusCode;

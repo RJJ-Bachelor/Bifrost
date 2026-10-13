@@ -1,4 +1,4 @@
-@EirService.Api_HostAddress = http://localhost:6000
+@EirService.Api_HostAddress = http://localhost:6004
 @teacherToken = REPLACE_WITH_TEACHER_ACCESS_TOKEN
 @sessionId = REPLACE_WITH_CREATED_SESSION_ID
 @sessionCode = REPLACE_WITH_CREATED_SESSION_CODE
@@ -30,11 +30,22 @@ Content-Type: application/json
 ### Student detail
 GET {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}
 
-### Session request: send the generation read from the session detail
-POST {{EirService.Api_HostAddress}}/api/students/createhelprequest
+### Student request: the server sets the ID and current generation
+POST {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}/requests
 Content-Type: application/json
 
-{"id":"request-1","message":"Please help","sessionId":"{{sessionId}}","generation":1}
+{"message":"Please help","helpType":"Physical"}
+
+### Student queue position
+GET {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}/queue
+
+### Teacher queue overview
+GET {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/queue
+Authorization: Bearer {{teacherToken}}
+
+### Teacher reservation
+POST {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/queue/take-next
+Authorization: Bearer {{teacherToken}}
 
 ### Clear: a stale or repeated expectedGeneration returns 409
 POST {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/clear

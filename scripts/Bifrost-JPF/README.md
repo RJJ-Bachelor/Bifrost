@@ -6,7 +6,8 @@ Der er ingen tests eller automatisk opsamling af session-værdier i de nye reque
 
 ## Mapper
 
-EirService følger API-lagets mapper med rolle, modul og endpoint:
+EirService følger API-lagets rolle- og modulmapper. Elevens læsekald til
+HelpRequests ligger samlet i én mappe:
 
 ```text
 EirService/
@@ -21,19 +22,33 @@ EirService/
 │   │   └── GetStudentSession/
 │   └── HelpRequests/
 │       ├── CreateHelpRequest/
-│       └── GetHelpRequests/
+│       ├── GetHelpRequests/
+│       │   ├── GetHelpRequests.yml
+│       │   ├── GetHelpRequestsForSession.yml
+│       │   └── GetHelpRequestById.yml
+│       ├── GetStudentQueue/
+│       ├── AddStudentMessage/
+│       └── CancelHelpRequest/
 └── Teacher/
     ├── Participants/
     │   └── GetTeacherIdentity/
-    └── Sessions/
-        ├── CreateSession/
-        ├── GetSessions/
-        ├── GetSession/
-        └── ClearSession/
+    ├── Sessions/
+    │   ├── CreateSession/
+    │   ├── GetSessions/
+    │   ├── GetSession/
+    │   └── ClearSession/
+    └── HelpRequests/
+        ├── GetQueue/
+        ├── GetHelpRequest/
+        ├── TakeNextHelpRequest/
+        ├── AnswerHelpRequest/
+        └── ChangeHelpRequestStatus/
 ```
 
-Hver endpointmappe indeholder sin request. `GetHelpRequests` indeholder også
-`GetHelpRequestsForSession`, som kalder samme endpoint med et sessionfilter.
+`GetHelpRequests`-mappen samler listen, listen filtreret på en session og én samtale
+via ID. Listekaldene viser dine anmodninger i sessionernes aktuelle generation.
+`GetHelpRequestById` henter status og alle samtalens beskeder og kan også bruges
+til en anmodning fra før ClearSession.
 Teacher-sessioner returnerer lærerens ID som `createdByTeacherId`.
 
 ## Login
@@ -54,6 +69,7 @@ Alle Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `htt
 | `sessionId` | Kopiér `id` fra CreateSession eller GetSessions |
 | `sessionCode` | Kopiér `code` fra CreateSession eller GetSession som teacher |
 | `sessionGeneration` | Kopiér `currentGeneration` fra et session-svar; starter på 1 |
+| `helpRequestId` | Kopiér `id` fra CreateHelpRequest eller TakeNextHelpRequest |
 
 Variablerne udfyldes manuelt. Efter ClearSession opdateres `sessionGeneration` med den nye værdi fra svaret.
 
@@ -75,11 +91,24 @@ Variablerne udfyldes manuelt. Efter ClearSession opdateres `sessionGeneration` m
 | JoinSession | `POST /api/students/sessions/join` med sessionskode |
 | GetStudentSessions | `GET /api/students/sessions` |
 | GetStudentSession | `GET /api/students/sessions/{{sessionId}}` |
-| CreateHelpRequest | `POST /api/students/createhelprequest` med besked, session-id og generation |
+| CreateHelpRequest | `POST /api/students/sessions/{{sessionId}}/requests` med `message` og `helpType` |
 | GetHelpRequests | `GET /api/students/requests` |
 | GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
+| GetHelpRequestById | `GET /api/students/requests/{{helpRequestId}}` |
 
-CreateHelpRequest bruger Brunos indbyggede `{{$guid}}` til et nyt request-id ved hver afsendelse.
+CreateHelpRequest får ID, generation, `requestNumber` og `displayNumber` fra serveren.
+Displaynummeret er fx `BF-001` og følger anmodningen ved returnering og genåbning.
+Numrene starter forfra i hver session og efter ClearSession. Brug fortsat GUID'en
+som `helpRequestId`; køplaceringen er et separat tal.
+Kø- og samtalekald ligger
+under `EirService/Student/HelpRequests` og `EirService/Teacher/HelpRequests`.
+Student-kald bruger elevcookien; teacher-kald bruger lærerlogin.
+De kan bruges i samme cookiejar uden at logge læreren ud.
+Start, Complete og Cancel ligger i lærerens `ChangeHelpRequestStatus`-mappe
+og bruger samme endpoint. Teacher Cancel frigiver reservationen og sender
+anmodningen forrest i køen med `Pending`. Student Cancel lukker anmodningen
+med `Cancelled` og fjerner den fra køen.
+Se [HelpRequests og testforløb](../../docs/help-requests.md).
 
 Et almindeligt forløb er: teacher-login → CreateSession → udfyld Local → student-login → JoinSession → CreateHelpRequest → GetHelpRequestsForSession.
 Kør derefter ClearSession som teacher, opdater generationen, og læs GetHelpRequestsForSession igen.

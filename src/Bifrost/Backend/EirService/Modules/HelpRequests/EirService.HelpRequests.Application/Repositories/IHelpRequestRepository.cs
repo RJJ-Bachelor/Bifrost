@@ -1,10 +1,14 @@
 using EirService.HelpRequests.Domain.Entities;
-using Shared.Application.Messaging.Outbox;
 
 namespace EirService.HelpRequests.Application.Repositories;
 
 public interface IHelpRequestRepository
 {
-    Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken);
-    Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken);
+    Task AddAsync(HelpRequest request, CancellationToken cancellationToken);
+    Task<HelpRequest?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string studentId, CancellationToken cancellationToken);
+    // Returns requests in queue order: latest return first, then QueuedAt and Id.
+    Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
+    Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken);
+    Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken);
 }

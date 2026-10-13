@@ -1,7 +1,7 @@
 using Shared.Api.Authentication;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using Shared.Infrastructure.Persistence.Migrations;
 
 namespace GnaService.Api;
 
@@ -25,7 +25,7 @@ public class Program
         {
             var dbContext = scope.ServiceProvider
                 .GetRequiredService<GnaNotificationDbContext>();
-            dbContext.Database.Migrate();
+            dbContext.Database.MigrateAtStartup();
         }
 
         app.MapDefaultEndpoints();

@@ -12,8 +12,7 @@ public sealed class StudentIdentityMiddleware(RequestDelegate next)
             context.Request.Cookies.TryGetValue(StudentCookieHandler.CookieName, out var cookie);
             if (!studentCookie.TryUnprotect(cookie, out _))
             {
-                var userId = Guid.NewGuid().ToString("N");
-                var protectedIdentity = studentCookie.Protect(userId);
+                var protectedIdentity = studentCookie.Protect(Guid.NewGuid().ToString("N"));
                 context.Response.Cookies.Append(StudentCookieHandler.CookieName, protectedIdentity, new CookieOptions
                 {
                     Path = "/api/students",
@@ -24,7 +23,7 @@ public sealed class StudentIdentityMiddleware(RequestDelegate next)
                     MaxAge = StudentIdentityCookie.Lifetime
                 });
 
-                // The first proxied request must already carry the cookie issued in this response.
+                // The first proxied request must already carry a newly issued identity.
                 CookieHeaderValue.TryParseList(context.Request.Headers.Cookie.OfType<string>().ToArray(), out var requestCookies);
                 var otherCookies = (requestCookies ?? [])
                     .Where(cookieHeader => cookieHeader.Name != StudentCookieHandler.CookieName)

@@ -14,16 +14,15 @@ public sealed class GetHelpRequestsQueryHandler(IHelpRequestRepository repositor
         if (query.SessionId is { } sessionId &&
             !await new IsSessionParticipantQuery(sessionId, query.UserId).ExecuteAsync(cancellationToken))
             throw new ResourceNotFoundException();
-
         var requests = await repository.GetByUserIdAsync(query.UserId, cancellationToken);
-        var scopedRequests = requests.Where(request => query.SessionId == null || request.SessionId == query.SessionId).ToArray();
-        var ids = scopedRequests.Where(request => request.SessionId != null).Select(request => request.SessionId!.Value).Distinct().ToArray();
+        var scoped = requests.Where(request => query.SessionId == null || request.SessionId == query.SessionId).ToArray();
+        var ids = scoped.Select(request => request.SessionId).Distinct().ToArray();
         var generations = ids.Length == 0 ? new Dictionary<Guid, int>() :
             await new GetSessionGenerationsQuery(ids).ExecuteAsync(cancellationToken);
-
-        // The legacy, unscoped list must also exclude old generations of session requests.
-        return scopedRequests.Where(request => request.SessionId == null ||
-                generations.TryGetValue(request.SessionId.Value, out var generation) && request.Generation == generation)
-            .Select(request => new HelpRequestResult(request.Id, request.UserId, request.Message, request.SessionId, request.Generation)).ToArray();
+        return scoped.Where(request => generations.TryGetValue(request.SessionId, out var current) && request.Generation == current)
+            .Select(request => new HelpRequestResult(request.Id, request.StudentId,
+                request.Messages.OrderBy(message => message.SequenceNumber).First().Text.Value,
+                request.SessionId, request.Generation, request.Status.ToString(), request.HelpType.ToString(),
+                request.RequestNumber, request.DisplayNumber)).ToArray();
     }
 }

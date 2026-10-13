@@ -159,3 +159,44 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
 6. **English in Codebase:** All code, identifiers, comments, and log messages must be in English.
 7. **Frontend Exemption:** Ignore legacy frontend projects until the new frontend architecture is implemented.
+
+---
+
+## Update 2026-10-13 (PR #NNN)
+
+- **HelpRequest Aggregate & Conversation Model:** Refactored `HelpRequest` aggregate into a multi-message conversation thread containing child `HelpRequestMessage` entities ordered by `SequenceNumber`.
+- **Request Types & Lifecycle State Machine:**
+  - Introduced `HelpType` (`Physical`, `Digital`).
+  - Introduced `HelpRequestStatus` (`Pending`, `Active`, `AwaitingConfirmation`, `Completed`, `Cancelled`).
+  - Physical flow: reserved by teacher (`Pending`), started by teacher (`Active`), and resolved (`Completed`).
+  - Digital flow: reserved and answered by teacher (transitions directly to `Completed`); students can append follow-up messages to reopen completed requests back into `Pending` status.
+  - Teacher cancellation returns requests to `Pending` with front-of-queue priority; student cancellation closes the request as `Cancelled`.
+- **Queueing & Fair Ordering:**
+  - Queue ordered by `ReturnedToQueueAt DESC NULLS LAST`, then `QueuedAt ASC`, then `Id ASC`. Requests returned by teachers jump ahead of new waiting requests.
+  - Atomic teacher reservation via PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` (`TakeNextAsync`) preventing concurrent pickup conflicts.
+- **Display Numbering & Session Counters:**
+  - Added per-session and per-generation sequence counter table (`HelpRequestNumberCounter`) driven by PostgreSQL `BEFORE INSERT` trigger to assign sequential `RequestNumber` values formatted as `DisplayNumber` (`BF-001`, `BF-002`, etc.), resetting per session generation.
+- **Single Open Request Constraint:**
+  - Added PostgreSQL partial unique index `IX_HelpRequest_OneOpenPerStudent` restricting each student to at most one open request (`Pending`, `Active`, `AwaitingConfirmation`) per session generation.
+- **Concurrency Control:**
+  - Concurrency token tracked on `HelpRequest` via PostgreSQL `xmin` system column; modifying conversation messages updates the aggregate root's timestamp to detect concurrent updates.
+- **Student API Endpoints:**
+  - `POST /api/students/sessions/{sessionId}/requests`: Create a new help request tied to an active session generation (replaces legacy `/api/students/createhelprequest`).
+  - `GET /api/students/sessions/{sessionId}/queue`: Retrieve privacy-preserving queue status (position, waiting count, and estimated wait time without exposing other students' data).
+  - `GET /api/students/requests/{id}`: Fetch conversation details and messages.
+  - `POST /api/students/requests/{id}/messages`: Submit follow-up messages, reopening the request in the queue.
+  - `PATCH /api/students/requests/{id}/status`: Student cancellation endpoint (`action: Cancel`).
+- **Teacher API Endpoints:**
+  - `GET /api/teachers/sessions/{sessionId}/queue`: View session queue breakdown (waiting pending requests and active physical help).
+  - `POST /api/teachers/sessions/{sessionId}/queue/take-next`: Atomically reserve next available request in queue.
+  - `GET /api/teachers/requests/{id}`: Inspect request details and conversation.
+  - `POST /api/teachers/requests/{id}/messages`: Submit digital answers and complete the request.
+  - `PATCH /api/teachers/requests/{id}/status`: Execute status transitions (`Start`, `Complete`, or `Cancel` to return to queue).
+- **In-Process Module Contracts:**
+  - Added `GetHelpRequestSessionQuery` contract to `EirService.Contracts.Sessions` allowing `HelpRequests` module to verify session ownership, generation, and teacher identity via FastEndpoints command bus.
+  - `HelpRequestAccess` helper centralizes cross-module authorization checks combining `IsSessionParticipantQuery` and `GetHelpRequestSessionQuery`.
+- **Integration Events & Message Broker:**
+  - Added `HelpRequestUpdatedIntegrationEvent` published to `requests / request.updated` via transactional outbox on all status and queue lifecycle transitions.
+  - Added `HelpRequestAnsweredMessage` published to `requests / request.answered` via transactional outbox when digital answers are posted.
+  - Added `RabbitMqQueueInitializer` hosted service (`AddRabbitMqQueue`) to declare durable subscriber queues ahead of active consumers (`gna-request-updated` in `GnaService`, `mimir-request-answered` in `MimirService`).
+- **Serialization:** Configured `JsonStringEnumConverter` globally in FastEndpoints API serializer settings.

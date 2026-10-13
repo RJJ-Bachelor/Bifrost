@@ -1,7 +1,7 @@
 using Shared.Api.Authentication;
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
+using Shared.Infrastructure.Persistence.Migrations;
 
 namespace MimirService.Api;
 
@@ -25,7 +25,7 @@ public class Program
         {
             var dbContext = scope.ServiceProvider
                 .GetRequiredService<MimirRequestDbContext>();
-            dbContext.Database.Migrate();
+            dbContext.Database.MigrateAtStartup();
         }
 
         app.MapDefaultEndpoints();

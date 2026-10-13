@@ -1,0 +1,19 @@
+info:
+  name: CreateDigitalRequest
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "message": "Jeg har brug for et digitalt svar.",
+        "helpType": "Digital"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

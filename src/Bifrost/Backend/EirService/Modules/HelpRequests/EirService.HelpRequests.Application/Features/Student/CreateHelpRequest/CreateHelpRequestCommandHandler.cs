@@ -1,41 +1,27 @@
-using EirService.Contracts.Participants.IsSessionParticipant;
-using EirService.Contracts.Sessions.GetSessionGenerations;
+using EirService.Contracts.Exceptions;
+using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
+using EirService.HelpRequests.Domain.ValueObjects;
 using FastEndpoints;
-using EirService.Contracts.Exceptions;
-using Shared.Application.Messaging;
-using Shared.Application.Messaging.Contracts;
-using Shared.Application.Messaging.Outbox;
+using Shared.Application.Persistence;
 
 namespace EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 
 public sealed class CreateHelpRequestCommandHandler(
-    IHelpRequestRepository requestRepository)
-    : ICommandHandler<CreateHelpRequestCommand, Guid>
+    IHelpRequestRepository repository, HelpRequestAccess access,
+    IUnitOfWork<IHelpRequestRepository> unitOfWork, TimeProvider timeProvider)
+    : ICommandHandler<CreateHelpRequestCommand, HelpRequestResult>
 {
-    public async Task<Guid> ExecuteAsync(CreateHelpRequestCommand request, CancellationToken cancellationToken)
+    public async Task<HelpRequestResult> ExecuteAsync(CreateHelpRequestCommand command, CancellationToken cancellationToken)
     {
-        if (request.SessionId is { } sessionId)
-        {
-            if (!await new IsSessionParticipantQuery(sessionId, request.UserId).ExecuteAsync(cancellationToken))
-                throw new ResourceNotFoundException();
-            var generations = await new GetSessionGenerationsQuery([sessionId]).ExecuteAsync(cancellationToken);
-            if (!generations.TryGetValue(sessionId, out var currentGeneration)) throw new ResourceNotFoundException();
-            if (currentGeneration != request.Generation)
-                throw new OperationConflictException("The session has been cleared. Refresh before submitting a request.");
-        }
-
-        // Keep the generation supplied and validated above, even if a clear races this write.
-        var helpRequest = new HelpRequest(request.Id, request.UserId, request.Message, request.SessionId, request.Generation);
-        OutgoingMessage[] messages =
-        [
-            new(request.Id, new HelpRequestCreatedMessage(request.Message, request.SessionId, request.Generation),
-                MessageRoutes.Requests, MessageRoutes.HelpRequestCreated),
-            new(request.Id, new NotificationCreatedMessage(request.UserId, request.Message, request.SessionId, request.Generation),
-                MessageRoutes.Notifications, MessageRoutes.NotificationCreated)
-        ];
-        await requestRepository.AddAsync(helpRequest, messages, cancellationToken);
-        return helpRequest.Id;
+        var session = await access.ForSessionAsync(command.SessionId, command.StudentId, AuthorRole.Student, cancellationToken);
+        if (await repository.HasOpenAsync(session.Id, session.Generation, command.StudentId, cancellationToken))
+            throw new OperationConflictException("You already have an open request in this session.");
+        var request = HelpRequest.Create(session.Id, session.Generation, command.StudentId,
+            command.HelpType!.Value, new MessageText(command.Message), timeProvider.GetUtcNow());
+        await repository.AddAsync(request, cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
+        return request.ToResult();
     }
 }
