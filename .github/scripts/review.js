@@ -101,7 +101,21 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
       const errText = await response.text();
       // Retry on transient server/load errors (503 High Demand / Unavailable, 429 Rate Limit, 500+)
       if ((response.status === 503 || response.status === 429 || response.status >= 500) && attempt <= maxRetries) {
-        const delayMs = attempt * 3000;
+        let delayMs = attempt * 5000;
+
+        if (response.status === 429) {
+          const retryMatch = errText.match(/"retryDelay":\s*"(\d+)s"/);
+          if (retryMatch) {
+            const suggestedSeconds = parseInt(retryMatch[1], 10);
+            if (suggestedSeconds > 45) {
+              throw new Error(`Model ${model} quota too small or long wait (${suggestedSeconds}s): ${errText}`);
+            }
+            delayMs = (suggestedSeconds + 2) * 1000;
+          } else {
+            delayMs = 15000 * attempt;
+          }
+        }
+
         console.warn(`⏳ Model ${model} returned status ${response.status} (attempt ${attempt}/${maxRetries + 1}). Retrying in ${delayMs / 1000}s...`);
         await sleep(delayMs);
         continue;
@@ -615,6 +629,8 @@ async function updateContextFile(diff, prBranch) {
     console.log(`📚 PROJECT_CONTEXT.md is large (${nonEmptyLineCount} non-empty lines > ${CONTEXT_LINE_THRESHOLD}). Running consolidation mode.`);
   }
 
+  const today = new Date().toISOString().split("T")[0];
+
   const systemInstruction = needsConsolidation
     ? `
 You are a software architecture documentation assistant for the Bifrost project.
@@ -635,7 +651,7 @@ The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, r
 Rules:
 1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
-3. The new section MUST begin with a level-2 heading in the form: ## Update YYYY-MM-DD (PR #NNN)
+3. The new section MUST begin with a level-2 heading in the form: ## Update ${today} — <Short Topic>
 4. List ONLY the new or changed architectural facts. Keep it concise — typically 5 to 20 bullet points.
 5. Write 100% in English.
 6. Later sections override earlier sections when facts conflict. This is expected and intentional — do NOT try to resolve conflicts.
@@ -917,6 +933,23 @@ ${reviewDiff}
   const newCommitSha = await updateContextFile(diff, pr.head.ref);
   const targetCommitSha = newCommitSha || pr.head.sha;
 
+  // Wait for GitHub PR database to sync the newly pushed commit before submitting review (avoids 422)
+  if (newCommitSha) {
+    console.log(`Waiting for GitHub PR #${PR_NUMBER} to sync new commit (${newCommitSha.substring(0, 7)})...`);
+    for (let i = 0; i < 6; i++) {
+      await sleep(2000);
+      try {
+        const updatedPr = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`);
+        if (updatedPr.head?.sha === newCommitSha) {
+          console.log("✅ GitHub PR synced with new commit.");
+          break;
+        }
+      } catch {
+        // Ignore transient poll errors
+      }
+    }
+  }
+
   const allowedEvents = ["APPROVE", "REQUEST_CHANGES", "COMMENT"];
   const reviewEvent = allowedEvents.includes(aiResult.verdict) ? aiResult.verdict : "COMMENT";
 
@@ -932,27 +965,37 @@ ${reviewDiff}
       })
     });
   } catch (err) {
-    console.warn(`Submitting review failed (${err.message}). Falling back to top-level comment review...`);
+    console.warn(`Submitting review with inline comments failed (${err.message}). Retrying without inline comments...`);
 
-    // If inline comments were rejected by GitHub diff context or APPROVE was disallowed (e.g. 422),
-    // append all inline comments into summary body and submit as a top-level COMMENT review
     const fallbackSummary = validComments.length > 0
       ? `${finalSummary}\n\n### 📝 Inline kommentarer\n` + validComments.map((c) => `* **\`${c.path}:${c.line}\`**: ${c.body}`).join("\n")
       : finalSummary;
 
-    const fallbackBody = reviewEvent === "APPROVE"
-      ? `> **Status: ✅ Approved by AI Reviewer**\n\n${fallbackSummary}`
-      : fallbackSummary;
+    try {
+      // Retry keeping the actual reviewEvent (e.g. APPROVE) without inline comments or strict commit_id
+      await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: reviewEvent,
+          body: fallbackSummary
+        })
+      });
+    } catch (fallbackErr) {
+      console.warn(`Submitting '${reviewEvent}' event failed (${fallbackErr.message}). Falling back to 'COMMENT' event...`);
+      const fallbackBody = reviewEvent === "APPROVE"
+        ? `> **Status: ✅ Approved by AI Reviewer**\n\n${fallbackSummary}`
+        : fallbackSummary;
 
-    await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commit_id: targetCommitSha,
-        event: "COMMENT",
-        body: fallbackBody
-      })
-    });
+      await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "COMMENT",
+          body: fallbackBody
+        })
+      });
+    }
   }
 
   console.log(`Review submitted with verdict: ${reviewEvent}`);
