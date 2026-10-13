@@ -256,6 +256,14 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 5. **Opfølgning på historik:** Tjek om tidligere påpegede fejl er blevet udbedret.
 ${contextRule}
 
+## Forståelse af Commit-historik & Intention
+* Under 'Commit History' har du den kronologiske liste over commits på PR-branchen.
+* Kæd commits sammen med ændringerne i 'Git Diff' for at forstå udviklingsforløbet og intentionen bag koden:
+  - På feature-branches (f.eks. 'feature/*') antages alle commits implicit at være ny feature-funktionalitet ('feat'), medmindre andet fremgår. Udviklerne behøver derfor IKKE skrive 'feat:' på hver commit.
+  - Commits der indeholder 'fix' (f.eks. 'fix:', 'bugfix' eller fejlrettelser) indikerer målrettede rettelser af problemer eller bugs opstået undervejs i udviklingen.
+  - Commits der nævner refactor, rename eller cleanup forklarer strukturelle ændringer i diff'et.
+* **INGEN COMMIT-POLITI:** Du må ALDRIG kritisere eller afvise en PR pga. commit-beskedernes formatering eller manglende konventionelle præfikser. Historikken er udelukkende en hjælp til dig til at forstå udviklernes intention.
+
 ## Output Format (JSON)
 Du SKAL svare i dette JSON-skema:
 {
@@ -659,6 +667,23 @@ async function run() {
     ? previousComments.map((c) => `[File: ${c.path} Line: ${c.line}]: ${c.body}`).join("\n")
     : "";
 
+  let commitHistoryText = "";
+  try {
+    const commitsData = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/commits`);
+    if (Array.isArray(commitsData) && commitsData.length > 0) {
+      commitHistoryText = commitsData
+        .map((c) => {
+          const sha = c.sha ? c.sha.substring(0, 7) : "";
+          const msg = c.commit?.message ? c.commit.message.split("\n")[0].trim() : "";
+          return `* ${sha}: ${msg}`;
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+  } catch (err) {
+    console.warn(`Could not fetch PR commits (${err.message}). Continuing without commit history.`);
+  }
+
   let projectContext = "";
   if (fs.existsSync(CONTEXT_FILE_PATH)) {
     projectContext = fs.readFileSync(CONTEXT_FILE_PATH, "utf-8");
@@ -669,7 +694,11 @@ async function run() {
 
   const prompt = `
 PR Title: ${pr.title}
+PR Branch: ${pr.head.ref}
 PR Author: ${pr.user.login}
+
+Commit History (Chronological):
+${commitHistoryText || "No commit history available."}
 
 Project Context:
 ${projectContext || "No additional project context provided."}
