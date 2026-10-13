@@ -9,6 +9,7 @@ const REPO = process.env.GITHUB_REPOSITORY;
 const CONTEXT_FILE_PATH = path.join(process.cwd(), "docs", "PROJECT_CONTEXT.md");
 
 const GITHUB_API = "https://api.github.com";
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Model Pools
 const LIGHT_MODELS = [
@@ -68,7 +69,7 @@ function extractAndCleanJson(rawText) {
   return null;
 }
 
-async function requestGeminiModel(model, prompt, systemInstruction, expectJson = true) {
+async function requestGeminiModel(model, prompt, systemInstruction, expectJson = true, maxRetries = 2) {
   const generationConfig = {
     temperature: 0.2
   };
@@ -83,35 +84,46 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
 
   const url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(API_KEY);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      generationConfig
-    })
-  });
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        generationConfig
+      })
+    });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Model ${model} returned status ${response.status}: ${errText}`);
+    if (!response.ok) {
+      const errText = await response.text();
+      // Retry on transient server/load errors (503 High Demand / Unavailable, 429 Rate Limit, 500+)
+      if ((response.status === 503 || response.status === 429 || response.status >= 500) && attempt <= maxRetries) {
+        const delayMs = attempt * 3000;
+        console.warn(`⏳ Model ${model} returned status ${response.status} (attempt ${attempt}/${maxRetries + 1}). Retrying in ${delayMs / 1000}s...`);
+        await sleep(delayMs);
+        continue;
+      }
+      throw new Error(`Model ${model} returned status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
+    const rawText = answerPart?.text;
+
+    if (!expectJson) {
+      return rawText ? rawText.trim() : null;
+    }
+
+    const parsedJson = extractAndCleanJson(rawText);
+    if (!parsedJson && rawText) {
+      console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
+    }
+    return parsedJson;
   }
-
-  const data = await response.json();
-  const parts = data.candidates?.[0]?.content?.parts || [];
-  const answerPart = parts.find((p) => !p.thought) || parts[parts.length - 1];
-  const rawText = answerPart?.text;
-
-  if (!expectJson) {
-    return rawText ? rawText.trim() : null;
-  }
-
-  const parsedJson = extractAndCleanJson(rawText);
-  if (!parsedJson && rawText) {
-    console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
-  }
-  return parsedJson;
 }
 
 function loadRequestedFiles(requestedFiles, loadedFilesMap) {
@@ -213,7 +225,7 @@ Du SKAL starte dit JSON-svar med at evaluere PR'ens kompleksitet ("complexity_ev
 
 Hvis "scope_score" >= 6 eller "cross_layer_impact" er true, må du ALDRIG godkende selv. Du SKAL eskalere.`;
     verdictEnum = `"APPROVE" | "REQUEST_CHANGES" | "COMMENT" | "ESCALATE" | "NEED_CONTEXT"`;
-  } else if (mode === "HEAVY_INVESTIGATE") {
+  } else if (mode === "HEAVY_INVESTIGATE" || mode === "INVESTIGATE") {
     contextRule = `6. **Supplerende fil-efterspørgsel:**
 * Som senior tech lead ræsonnerer du i dybden. Hvis du har brug for at inspicere en afhængighed, et interface, en model eller en relateret service for at verificere ændringerne med fuld sikkerhed, kan du sætte "verdict": "NEED_CONTEXT", liste de præcise filstier fra 'Repository Files' i "requested_files" og forklare hvorfor i "context_reason".
 * Hvis du allerede har tilstrækkelig information i diff'et og den hidtidige kontekst, SKAL du levere det endelige review med "APPROVE", "REQUEST_CHANGES" eller "COMMENT".`;
@@ -255,6 +267,14 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 4. **Tests (Non-blocking):** Gør venligt opmærksom på manglende tests ved ændret kerneforretningslogik.
 5. **Opfølgning på historik:** Tjek om tidligere påpegede fejl er blevet udbedret.
 ${contextRule}
+
+## Forståelse af Commit-historik & Intention
+* Under 'Commit History' har du den kronologiske liste over commits på PR-branchen.
+* Kæd commits sammen med ændringerne i 'Git Diff' for at forstå udviklingsforløbet og intentionen bag koden:
+  - På feature-branches (f.eks. 'feature/*') antages alle commits implicit at være ny feature-funktionalitet ('feat'), medmindre andet fremgår. Udviklerne behøver derfor IKKE skrive 'feat:' på hver commit.
+  - Commits der indeholder 'fix' (f.eks. 'fix:', 'bugfix' eller fejlrettelser) indikerer målrettede rettelser af problemer eller bugs opstået undervejs i udviklingen.
+  - Commits der nævner refactor, rename eller cleanup forklarer strukturelle ændringer i diff'et.
+* **INGEN COMMIT-POLITI:** Du må ALDRIG kritisere eller afvise en PR pga. commit-beskedernes formatering eller manglende konventionelle præfikser. Historikken er udelukkende en hjælp til dig til at forstå udviklernes intention.
 
 ## Output Format (JSON)
 Du SKAL svare i dette JSON-skema:
@@ -398,6 +418,7 @@ async function performReview(basePrompt, diffText = "") {
         }
       } catch (err) {
         console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
+        await sleep(1500);
       }
     }
   }
@@ -444,27 +465,48 @@ async function performReview(basePrompt, diffText = "") {
       }
     } catch (err) {
       console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next heavy model...`);
+      await sleep(1500);
     }
   }
 
-  // Phase 3: Emergency fallback queue with forced review on light models (no escalation allowed)
-  console.log("All heavy models failed. Falling back to light models with forced review as emergency backup...");
-  const emergencyFilesText = formatLoadedFiles(loadedFiles);
-  const emergencyPrompt = emergencyFilesText
-    ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${emergencyFilesText}\n`
-    : basePrompt;
-
+  // Phase 3: Emergency fallback queue with light models (can still request context if needed)
+  console.log("All heavy models failed. Falling back to light models with file context investigation as emergency backup...");
   for (const model of LIGHT_MODELS) {
     try {
       console.log(`Attempting emergency review with light model: ${model}...`);
-      const fallbackInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
-      const result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+      let filesText = formatLoadedFiles(loadedFiles);
+      let emergencyPrompt = filesText
+        ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`
+        : basePrompt;
+
+      // Round 1: Light model can request context or finish review
+      const fallbackInstruction = buildSystemInstruction("INVESTIGATE", loadedFiles.size > 0);
+      let result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+
+      if (result && result.verdict === "NEED_CONTEXT") {
+        console.log(`⚡ Emergency light model ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        if (result.context_reason) {
+          console.log(`   Reason: ${result.context_reason}`);
+        }
+        const addedCount = loadRequestedFiles(result.requested_files, loadedFiles);
+        if (addedCount > 0) {
+          console.log(`Loaded ${addedCount} additional file(s) into context. Executing final evaluation round with ${model}...`);
+          filesText = formatLoadedFiles(loadedFiles);
+          emergencyPrompt = `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`;
+        }
+
+        // Round 2: Forced final review
+        const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
+        result = await requestGeminiModel(model, emergencyPrompt, finalInstruction, true);
+      }
+
       if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
         console.log(`✅ Review successfully completed by emergency light model: ${model}`);
         return result;
       }
     } catch (err) {
       console.warn(`Emergency fallback model ${model} failed (${err.message}). Trying next...`);
+      await sleep(1500);
     }
   }
 
@@ -547,15 +589,16 @@ function matchSnippetToLine(fileLinesMap, rawPath, snippet) {
   const normalizedSnippet = snippet.trim();
   if (!normalizedSnippet) return null;
 
-  const exactMatch = addedLines.find((item) => item.content === normalizedSnippet);
-  if (exactMatch) return exactMatch.line;
+  // Require a UNIQUE match — if the snippet is ambiguous, drop it rather than guess.
+  const exactMatches = addedLines.filter((item) => item.content === normalizedSnippet);
+  if (exactMatches.length === 1) return exactMatches[0].line;
 
-  // Prevent matching empty lines or matching against empty snippets
-  const partialMatch = addedLines.find(
+  // Partial matches are also required to be unique.
+  const partialMatches = addedLines.filter(
     (item) => item.content.length > 0 &&
       (item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content))
   );
-  return partialMatch ? partialMatch.line : null;
+  return partialMatches.length === 1 ? partialMatches[0].line : null;
 }
 
 async function updateContextFile(diff, prBranch) {
@@ -564,15 +607,38 @@ async function updateContextFile(diff, prBranch) {
     currentContext = fs.readFileSync(CONTEXT_FILE_PATH, "utf-8");
   }
 
-  const systemInstruction = `
+  const CONTEXT_LINE_THRESHOLD = 400;
+  const nonEmptyLineCount = currentContext.split("\n").filter((l) => l.trim().length > 0).length;
+  const needsConsolidation = nonEmptyLineCount > CONTEXT_LINE_THRESHOLD;
+
+  if (needsConsolidation) {
+    console.log(`📚 PROJECT_CONTEXT.md is large (${nonEmptyLineCount} non-empty lines > ${CONTEXT_LINE_THRESHOLD}). Running consolidation mode.`);
+  }
+
+  const systemInstruction = needsConsolidation
+    ? `
 You are a software architecture documentation assistant for the Bifrost project.
-Your task is to evaluate if this Pull Request introduces high-level architecture changes, new modules, domain models, APIs, external integrations, or structural patterns that belong in 'docs/PROJECT_CONTEXT.md'.
+The existing 'docs/PROJECT_CONTEXT.md' has grown large and is now in CONSOLIDATION mode.
 
 Rules:
 1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
-2. ONLY if significant new architectural concepts, domain models, entities, database tables, or modules are introduced: Output the COMPLETE updated Markdown file.
-3. Write 100% in English without markdown code blocks (\`\`\`markdown ... \`\`\`).
-4. Maintain high-level architectural value. Do NOT log commit histories or small implementation details.
+2. Otherwise, output the COMPLETE consolidated Markdown file.
+3. You MAY merge duplicate or overlapping sections, remove outdated entries, and reorder for clarity. The goal is a clean, accurate, high-level architecture document.
+4. You MUST NOT lose factual information: every architecture concept, module, endpoint, dependency rule, and integration that is still true must remain present — either in its original form or in a clearly equivalent consolidated form.
+5. Write 100% in English without markdown code blocks (\`\`\`markdown ... \`\`\`).
+6. Maintain high-level architectural value. Do NOT log commit histories or small implementation details.
+`
+    : `
+You are a software architecture documentation assistant for the Bifrost project.
+The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, reorder, or remove existing content — only append a new section at the very end.
+
+Rules:
+1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
+3. The new section MUST begin with a level-2 heading in the form: ## Update YYYY-MM-DD (PR #NNN)
+4. List ONLY the new or changed architectural facts. Keep it concise — typically 5 to 20 bullet points.
+5. Write 100% in English.
+6. Later sections override earlier sections when facts conflict. This is expected and intentional — do NOT try to resolve conflicts.
 `;
 
   const prompt = `
@@ -599,6 +665,7 @@ ${diff}
         }
       } catch (err) {
         console.warn(`Context evaluation with ${model} failed (${err.message}). Trying next...`);
+        await sleep(1500);
       }
     }
 
@@ -612,25 +679,72 @@ ${diff}
       return;
     }
 
-    const cleanedContext = response
+    const cleanedResponse = response
       .replace(/^```markdown\s*/i, "")
       .replace(/^```\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
 
-    if (cleanedContext && cleanedContext !== currentContext.trim()) {
+    if (!cleanedResponse) {
+      console.warn("Model returned empty context update. Skipping.");
+      return;
+    }
+
+    let newFileContent;
+    let commitMessage;
+    let logLabel;
+
+    if (needsConsolidation) {
+      const oldNonEmpty = currentContext.split("\n").filter((l) => l.trim().length > 0).length;
+      const newNonEmpty = cleanedResponse.split("\n").filter((l) => l.trim().length > 0).length;
+      const ratio = oldNonEmpty > 0 ? newNonEmpty / oldNonEmpty : 1;
+
+      if (ratio < 0.85) {
+        console.warn(`⚡ Consolidation shrank content by ${Math.round((1 - ratio) * 100)}% (${oldNonEmpty} -> ${newNonEmpty} non-empty lines). Skipping commit to avoid data loss.`);
+        return;
+      }
+      if (cleanedResponse === currentContext.trim()) {
+        console.log(`[${usedModel}] Consolidation produced no change. Skipping.`);
+        return;
+      }
+
+      newFileContent = cleanedResponse + "\n";
+      commitMessage = "docs: auto-consolidate PROJECT_CONTEXT.md [skip review]";
+      logLabel = "consolidated";
+    } else {
+      if (cleanedResponse === currentContext.trim()) {
+        console.log(`[${usedModel}] Append produced no change. Skipping.`);
+        return;
+      }
+
+      const separator = currentContext.trim().length > 0 ? "\n\n---\n\n" : "";
+      newFileContent = currentContext.trimEnd() + separator + cleanedResponse + "\n";
+      commitMessage = "docs: auto-append to PROJECT_CONTEXT.md [skip review]";
+      logLabel = "appended";
+    }
+
+    if (newFileContent && newFileContent !== currentContext) {
       execSync(`git fetch origin ${prBranch}`);
       execSync(`git checkout -B ${prBranch} FETCH_HEAD`);
 
+      const latestContext = fs.existsSync(CONTEXT_FILE_PATH)
+        ? fs.readFileSync(CONTEXT_FILE_PATH, "utf-8")
+        : "";
+
+      if (latestContext && latestContext !== currentContext) {
+        console.warn("PROJECT_CONTEXT.md changed on disk since evaluation. Aborting to avoid clobbering concurrent updates.");
+        return;
+      }
+
       fs.mkdirSync(path.dirname(CONTEXT_FILE_PATH), { recursive: true });
-      fs.writeFileSync(CONTEXT_FILE_PATH, cleanedContext + "\n", "utf-8");
+      fs.writeFileSync(CONTEXT_FILE_PATH, newFileContent, "utf-8");
 
       execSync("git config user.name 'github-actions[bot]'");
       execSync("git config user.email 'github-actions[bot]@users.noreply.github.com'");
       execSync("git add docs/PROJECT_CONTEXT.md");
-      execSync("git commit -m 'docs: auto-update PROJECT_CONTEXT.md [skip review]'");
+      execSync(`git commit -m '${commitMessage}'`);
       execSync(`git push origin ${prBranch}`);
-      console.log(`[${usedModel}] docs/PROJECT_CONTEXT.md updated and committed to ${prBranch}.`);
+      console.log(`[${usedModel}] docs/PROJECT_CONTEXT.md ${logLabel} and committed to ${prBranch}.`);
       return execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     }
   } catch (err) {
@@ -641,23 +755,86 @@ ${diff}
 
 async function run() {
   const pr = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`);
-  const diff = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`, {
-    headers: { "Accept": "application/vnd.github.v3.diff" }
-  });
 
-  // Ensure local repository is checked out to the PR branch commit so on-demand file reads match PR state
+  // Ensure local repository is checked out to the PR branch commit so on-demand file reads and local diff match PR state
+  let checkedOut = false;
   try {
     console.log(`Checking out PR branch ${pr.head.ref} (${pr.head.sha})...`);
-    execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    try {
+      execSync(`git fetch origin ${pr.base.ref}`, { stdio: "ignore" });
+    } catch {
+      // Ignore if base branch is already up-to-date
+    }
+    try {
+      execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    } catch {
+      // Ignore if head branch is already up-to-date
+    }
     execSync(`git checkout ${pr.head.sha}`, { stdio: "ignore" });
+    checkedOut = true;
   } catch (err) {
     console.warn(`Could not checkout PR branch locally (${err.message}). Reading disk files will use current branch.`);
+  }
+
+  let diff = "";
+  try {
+    diff = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`, {
+      headers: { "Accept": "application/vnd.github.v3.diff" }
+    });
+  } catch (err) {
+    if (err.message.includes("406") || err.message.includes("maximum number of files")) {
+      console.warn("⚡ GitHub API diff limit exceeded (406). Falling back to local git diff...");
+      try {
+        diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...${pr.head.sha}`, {
+          encoding: "utf-8",
+          maxBuffer: 30 * 1024 * 1024
+        });
+      } catch (gitErr) {
+        if (gitErr.message.includes("maxBuffer")) {
+          throw new Error("Local git diff exceeded maxBuffer (30 MB). Cannot compute PR diff.");
+        }
+        if (!checkedOut) {
+          throw new Error("Local git diff fallback unavailable: PR branch was not checked out successfully.");
+        }
+        console.warn(`Triple-dot git diff failed (${gitErr.message}). Trying fallback git diff against HEAD...`);
+        try {
+          diff = execSync(`git diff -M30% -l0 origin/${pr.base.ref}...HEAD`, {
+            encoding: "utf-8",
+            maxBuffer: 30 * 1024 * 1024
+          });
+        } catch (headErr) {
+          if (headErr.message.includes("maxBuffer")) {
+            throw new Error("Local git diff exceeded maxBuffer (30 MB). Cannot compute PR diff.");
+          }
+          throw headErr;
+        }
+      }
+    } else {
+      throw err;
+    }
   }
 
   const previousComments = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/comments`);
   const historicalFeedback = Array.isArray(previousComments)
     ? previousComments.map((c) => `[File: ${c.path} Line: ${c.line}]: ${c.body}`).join("\n")
     : "";
+
+  let commitHistoryText = "";
+  try {
+    const commitsData = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/commits`);
+    if (Array.isArray(commitsData) && commitsData.length > 0) {
+      commitHistoryText = commitsData
+        .map((c) => {
+          const sha = c.sha ? c.sha.substring(0, 7) : "";
+          const msg = c.commit?.message ? c.commit.message.split("\n")[0].trim() : "";
+          return `* ${sha}: ${msg}`;
+        })
+        .filter(Boolean)
+        .join("\n");
+    }
+  } catch (err) {
+    console.warn(`Could not fetch PR commits (${err.message}). Continuing without commit history.`);
+  }
 
   let projectContext = "";
   if (fs.existsSync(CONTEXT_FILE_PATH)) {
@@ -669,10 +846,16 @@ async function run() {
 
   const prompt = `
 PR Title: ${pr.title}
+PR Branch: ${pr.head.ref}
 PR Author: ${pr.user.login}
 
-Project Context:
+Commit History (Chronological):
+${commitHistoryText || "No commit history available."}
+
+Project Context (docs/PROJECT_CONTEXT.md):
 ${projectContext || "No additional project context provided."}
+
+Note on Project Context format: The document is append-only. Later sections (nearer the bottom) override earlier sections when facts conflict. When reading it, treat the bottom-most statement about a given topic as the current truth.
 
 Historical Review Feedback:
 ${historicalFeedback || "No previous review comments."}
@@ -734,7 +917,8 @@ ${reviewDiff}
   const newCommitSha = await updateContextFile(diff, pr.head.ref);
   const targetCommitSha = newCommitSha || pr.head.sha;
 
-  let reviewEvent = aiResult.verdict || "COMMENT";
+  const allowedEvents = ["APPROVE", "REQUEST_CHANGES", "COMMENT"];
+  const reviewEvent = allowedEvents.includes(aiResult.verdict) ? aiResult.verdict : "COMMENT";
 
   try {
     await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {

@@ -37,7 +37,7 @@ Vi benytter **Conventional Commits** for at gøre historikken letlæselig for b�
 * `docs:` Ændringer i dokumentation eller README.
 * `chore:` Vedligeholdelse af build-scripts, dependencies eller config-filer.
 
-Bruges GitHub Copilot til at oprette commit-beskeder plejer den selv at foreslå Conventional Commit-præfik
+> **Bemærk for feature-branches:** På en feature-branch (`feature/*`) antages commits som udgangspunkt at være ny feature-kode. Du behøver derfor ikke skrive `feat:` på hver enkelt commit, men brug `fix:` hvis et commit retter en fejl undervejs. Vores AI-reviewer bruger commit-historikken til at forstå udviklingsforløbet og intentionen bag kodeændringerne (og agerer ikke form-politi).
 
 ### Automatisk Jira-præfiks
 Hvis dit branch-navn indeholder et Jira-nummer (f.eks. `feature/BF-012-tilføj-auth`), tilføjer vores Git-hook automatisk sagsnummeret foran din commit-besked:
@@ -107,5 +107,32 @@ git pf    # Pusher opdateringen til GitHub
 5. Når PR'en er godkendt og alle CI checks er grønne, foretages et standard **Merge Commit** ind i `dev`.
 
 Når `feature/A` senere merges ind i `dev`, kører du bare `git sync` som normalt på `feature/B`. Git finder selv ud af, at A's commits nu er en del af `dev`, og rydder automatisk op.
+
+---
+
+## 7. Vedligeholdelse af `docs/PROJECT_CONTEXT.md`
+
+`docs/PROJECT_CONTEXT.md` er AI-reviewerens arkitekturkontekst og opdateres automatisk af review-botten, når en PR introducerer reelle arkitekturændringer.
+
+### Automatisk adfærd
+
+* **Append-only som standard:** Botten tilføjer kun nye sektioner nederst i filen. Eksisterende indhold røres ikke, så små fejl i en model kan ikke ødelægge dokumentet.
+* **Nederst gælder:** Ved konflikter mellem sektioner er det altid den nederste, nyeste sektion der er gældende. Det er noteret i prompten til AI-revieweren, så den læser filen korrekt.
+* **Konsolidering ved 400 linjer:** Når filen overstiger 400 ikke-tomme linjer, skifter botten til konsolideringsmode og fletter de akkumulerede append-sektioner ind i en ren struktur. En guardrail blokerer commit'en, hvis indholdet krymper mere end 15 %.
+
+### Manuel oprydning (anbefalet ind imellem)
+
+Den automatiske konsolidering holder filen i skak, men menneskelig oprydning giver bedre resultater. Når filen begynder at føles rodet:
+
+1. Åbn `docs/PROJECT_CONTEXT.md` lokalt.
+2. Bed en AI (eller gør det selv) om at flette overlappende sektioner, fjerne forældede fakta og bevare alle gældende arkitekturkomponenter.
+3. Erstat filen med den konsoliderede version.
+4. Commit og push manuelt, fx:
+   ```bash
+   git commit -m "docs: manual consolidation of PROJECT_CONTEXT.md"
+   ```
+5. Næste auto-append lægger sig oven på den nye, rene version.
+
+Manuel oprydning er ikke et krav — men det giver et bedre dokument end automatisk konsolidering alene, og det er den nemmeste måde at holde filen læsbar for både mennesker og AI.
 
 ---
