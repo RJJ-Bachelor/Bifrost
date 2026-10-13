@@ -684,17 +684,48 @@ ${diff}
 
 async function run() {
   const pr = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`);
-  const diff = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`, {
-    headers: { "Accept": "application/vnd.github.v3.diff" }
-  });
 
-  // Ensure local repository is checked out to the PR branch commit so on-demand file reads match PR state
+  // Ensure local repository is checked out to the PR branch commit so on-demand file reads and local diff match PR state
   try {
     console.log(`Checking out PR branch ${pr.head.ref} (${pr.head.sha})...`);
-    execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    try {
+      execSync(`git fetch origin ${pr.base.ref}`, { stdio: "ignore" });
+    } catch {
+      // Ignore if base branch is already up-to-date
+    }
+    try {
+      execSync(`git fetch origin ${pr.head.ref}`, { stdio: "ignore" });
+    } catch {
+      // Ignore if head branch is already up-to-date
+    }
     execSync(`git checkout ${pr.head.sha}`, { stdio: "ignore" });
   } catch (err) {
     console.warn(`Could not checkout PR branch locally (${err.message}). Reading disk files will use current branch.`);
+  }
+
+  let diff = "";
+  try {
+    diff = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}`, {
+      headers: { "Accept": "application/vnd.github.v3.diff" }
+    });
+  } catch (err) {
+    if (err.message.includes("406") || err.message.toLowerCase().includes("exceeded")) {
+      console.warn("⚡ GitHub API diff limit exceeded (406). Falling back to local git diff...");
+      try {
+        diff = execSync(`git diff origin/${pr.base.ref}...${pr.head.sha}`, {
+          encoding: "utf-8",
+          maxBuffer: 30 * 1024 * 1024
+        });
+      } catch (gitErr) {
+        console.warn(`Triple-dot git diff failed (${gitErr.message}). Trying fallback git diff...`);
+        diff = execSync(`git diff origin/${pr.base.ref}...HEAD`, {
+          encoding: "utf-8",
+          maxBuffer: 30 * 1024 * 1024
+        });
+      }
+    } else {
+      throw err;
+    }
   }
 
   const previousComments = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/comments`);
