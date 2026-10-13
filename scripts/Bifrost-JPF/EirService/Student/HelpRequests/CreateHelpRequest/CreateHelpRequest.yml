@@ -4,16 +4,14 @@ info:
   seq: 1
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/students/createhelprequest'
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
   auth: null
   body:
     type: json
     data: |-
       {
-        "id": "{{$guid}}",
         "message": "Hjælp fra student",
-        "sessionId": "{{sessionId}}",
-        "generation": {{sessionGeneration}}
+        "helpType": "Physical"
       }
 settings:
   encodeUrl: true

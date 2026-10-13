@@ -9,4 +9,15 @@ import { HeimdallService } from './heimdall.service';
 })
 export class AppComponent {
   readonly api = inject(HeimdallService);
+  copyNotice = '';
+
+  async copySessionLink() {
+    if (!this.api.sessionLink) return;
+    try {
+      await navigator.clipboard.writeText(this.api.sessionLink);
+      this.copyNotice = 'Sessionslinket er kopieret.';
+    } catch {
+      this.copyNotice = 'Markér og kopiér linket i feltet.';
+    }
+  }
 }

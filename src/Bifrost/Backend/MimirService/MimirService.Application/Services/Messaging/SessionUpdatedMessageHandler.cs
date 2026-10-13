@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 
-namespace MimirService.Application.Features.Internal.SessionUpdated;
+namespace MimirService.Application.Services.Messaging;
 
 public sealed class SessionUpdatedMessageHandler(ILogger<SessionUpdatedMessageHandler> logger) : ISessionUpdatedMessageHandler
 {

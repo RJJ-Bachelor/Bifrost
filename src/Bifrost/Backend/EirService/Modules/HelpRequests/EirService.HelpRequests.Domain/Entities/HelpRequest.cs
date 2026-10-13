@@ -1,30 +1,161 @@
+using EirService.HelpRequests.Domain.DomainEvents;
+using EirService.HelpRequests.Domain.ValueObjects;
 using Shared.Domain.Primitives;
+
 namespace EirService.HelpRequests.Domain.Entities;
 
 public sealed class HelpRequest : AggregateRoot<Guid>
 {
-    private HelpRequest()
+    private readonly List<HelpRequestMessage> messages = [];
+    private HelpRequest() { }
+
+    public Guid SessionId { get; private set; }
+    public int Generation { get; private set; }
+    public int RequestNumber { get; private set; }
+    public string DisplayNumber => $"BF-{RequestNumber:D3}";
+    public string StudentId { get; private set; } = null!;
+    public HelpType HelpType { get; private set; }
+    public HelpRequestStatus Status { get; private set; }
+    public string? AssignedTeacherId { get; private set; }
+    public DateTimeOffset CreatedAt { get; private set; }
+    public DateTimeOffset QueuedAt { get; private set; }
+    public DateTimeOffset? ReturnedToQueueAt { get; private set; }
+    public DateTimeOffset? StartedAt { get; private set; }
+    public DateTimeOffset? ClosedAt { get; private set; }
+    public Guid? FaqAnswerId { get; private set; }
+    public IReadOnlyCollection<HelpRequestMessage> Messages => messages.AsReadOnly();
+    public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or HelpRequestStatus.AwaitingConfirmation;
+
+    public static HelpRequest Create(Guid sessionId, int generation, string studentId,
+        HelpType helpType, MessageText question, DateTimeOffset now)
     {
+        if (sessionId == Guid.Empty || generation < 1) throw new ArgumentException("A session and positive generation are required.");
+        ArgumentException.ThrowIfNullOrWhiteSpace(studentId);
+        if (!Enum.IsDefined(helpType)) throw new ArgumentException("Unknown help type.", nameof(helpType));
+        var request = new HelpRequest
+        {
+            Id = Guid.NewGuid(), SessionId = sessionId, Generation = generation, StudentId = studentId,
+            HelpType = helpType, Status = HelpRequestStatus.Pending,
+            CreatedAt = now.ToUniversalTime(), QueuedAt = now.ToUniversalTime()
+        };
+        request.AddMessage(studentId, AuthorRole.Student, question, now);
+        request.Changed("Created", now);
+        return request;
     }
 
-    public HelpRequest(Guid id, string userId, string message, Guid? sessionId = null, int? generation = null)
+    public void Reserve(string teacherId, DateTimeOffset now)
     {
-        if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
-        Id = id;
-        UserId = userId;
-        if ((sessionId is null) != (generation is null) || sessionId == Guid.Empty || generation <= 0)
-            throw new ArgumentException("Session id and a positive generation must be supplied together.");
-        Message = message;
-        SessionId = sessionId;
-        Generation = generation;
+        ArgumentException.ThrowIfNullOrWhiteSpace(teacherId);
+        Require(Status == HelpRequestStatus.Pending && AssignedTeacherId is null, "The request is already reserved or no longer waiting.");
+        AssignedTeacherId = teacherId;
+        Changed("Reserved", now);
     }
 
+    public void Start(string teacherId, DateTimeOffset now)
+    {
+        RequireTeacher(teacherId);
+        Require(HelpType == HelpType.Physical && Status == HelpRequestStatus.Pending, "Only waiting physical help can be started.");
+        Status = HelpRequestStatus.Active;
+        StartedAt = now.ToUniversalTime();
+        Changed("Started", now);
+    }
 
-    // Legacy rows have no recoverable owner; new requests always have a user id.
-    public string? UserId { get; private set; }
+    public void Complete(string teacherId, DateTimeOffset now)
+    {
+        RequireTeacher(teacherId);
+        Require(HelpType == HelpType.Physical && Status == HelpRequestStatus.Active, "Only active physical help can be completed. Digital help requires an answer.");
+        Close(HelpRequestStatus.Completed, now);
+        Changed("Completed", now);
+    }
 
-    public Guid? SessionId { get; private set; }
-    public int? Generation { get; private set; }
+    public void Answer(string teacherId, MessageText text, DateTimeOffset now)
+    {
+        RequireTeacher(teacherId);
+        Require(HelpType == HelpType.Digital && Status == HelpRequestStatus.Pending, "Only waiting digital help can receive an answer.");
+        AddMessage(teacherId, AuthorRole.Teacher, text, now);
+        StartedAt = now.ToUniversalTime();
+        Close(HelpRequestStatus.Completed, now);
+        Changed("Answered", now);
+    }
 
-    public string Message { get; private set; } = null!;
+    public void AddStudentMessage(string studentId, MessageText text, DateTimeOffset now)
+    {
+        Require(StudentId == studentId, "The request belongs to another student.");
+        Require(Status is HelpRequestStatus.Pending or HelpRequestStatus.Completed, "A message cannot be added while help is active, paused or cancelled.");
+        Require(Status == HelpRequestStatus.Completed || AssignedTeacherId is null, "The request has already been reserved.");
+        AddMessage(studentId, AuthorRole.Student, text, now);
+        ResetForQueue();
+        QueuedAt = now.ToUniversalTime();
+        ReturnedToQueueAt = null;
+        Changed("StudentMessageAdded", now);
+    }
+
+    public void Cancel(string actorId, AuthorRole role, DateTimeOffset now)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(actorId);
+        Require(IsOpen, "The request is already closed.");
+        if (role == AuthorRole.Student)
+        {
+            Require(actorId == StudentId && Status != HelpRequestStatus.Active, "Students can only cancel before help starts.");
+            Close(HelpRequestStatus.Cancelled, now);
+            Changed("Cancelled", now);
+        }
+        else
+        {
+            Require(role == AuthorRole.Teacher && (AssignedTeacherId is null || AssignedTeacherId == actorId), "The request is assigned to another teacher.");
+            ResetForQueue();
+            ReturnedToQueueAt = now.ToUniversalTime();
+            Changed("ReturnedToQueue", now);
+        }
+    }
+
+    // Prepared transitions; FAQ suggestions and KnowledgeBase integration are not enabled yet.
+    public void AcceptFaq(string studentId, DateTimeOffset now)
+    {
+        RequireFaqConfirmation(studentId);
+        Close(HelpRequestStatus.Completed, now);
+        Changed("FaqAccepted", now);
+    }
+
+    public void RejectFaq(string studentId, DateTimeOffset now)
+    {
+        RequireFaqConfirmation(studentId);
+        Status = HelpRequestStatus.Pending;
+        FaqAnswerId = null;
+        AssignedTeacherId = null;
+        Changed("FaqRejected", now); // QueuedAt is deliberately preserved.
+    }
+
+    private void RequireFaqConfirmation(string studentId) => Require(
+        StudentId == studentId && Status == HelpRequestStatus.AwaitingConfirmation && FaqAnswerId is not null,
+        "There is no FAQ answer awaiting this student's confirmation.");
+
+    private void RequireTeacher(string teacherId) => Require(
+        !string.IsNullOrWhiteSpace(teacherId) && AssignedTeacherId == teacherId, "Take the request before helping the student.");
+
+    private void AddMessage(string authorId, AuthorRole role, MessageText text, DateTimeOffset now) =>
+        messages.Add(new HelpRequestMessage(Id, authorId, role, text, now, messages.Count + 1));
+
+    private void Close(HelpRequestStatus status, DateTimeOffset now)
+    {
+        Status = status;
+        ClosedAt = now.ToUniversalTime();
+    }
+
+    private void ResetForQueue()
+    {
+        Status = HelpRequestStatus.Pending;
+        AssignedTeacherId = null;
+        StartedAt = null;
+        ClosedAt = null;
+        FaqAnswerId = null;
+    }
+
+    private void Changed(string change, DateTimeOffset now) =>
+        RaiseDomainEvent(new HelpRequestChangedDomainEvent(this, change, now.ToUniversalTime()));
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition) throw new HelpRequestRuleException(message);
+    }
 }

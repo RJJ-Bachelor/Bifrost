@@ -1,0 +1,18 @@
+info:
+  name: AddStudentMessage
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/requests/{{helpRequestId}}/messages'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "text": "Jeg har et opfølgende spørgsmål."
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

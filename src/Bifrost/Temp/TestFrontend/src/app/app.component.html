@@ -5,9 +5,10 @@
 <main>
   <nav aria-label="Hovedmenu">
     <a routerLink="/overview" routerLinkActive="active">Oversigt</a>
-    <a routerLink="/teachers" routerLinkActive="active">Lærer</a>
-    <a routerLink="/students" routerLinkActive="active">Studerende</a>
-    <a routerLink="/requests" routerLinkActive="active">Hjælpeanmodninger</a>
+    <a routerLink="/teachers" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Lærer: sessioner</a>
+    <a routerLink="/teachers/requests" routerLinkActive="active">Lærer: hjælp</a>
+    <a routerLink="/students" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Studerende: sessioner</a>
+    <a routerLink="/students/requests" routerLinkActive="active">Studerende: hjælp</a>
   </nav>
 
   <section class="card selection">
@@ -29,9 +30,18 @@
           (ngModelChange)="api.saveSession()" [disabled]="api.busy">
       </label>
     </div>
-    <p class="hint">ID og generation bruges til at hente, rydde og sende hjælp i den valgte session. Valget gemmes mellem faner og genindlæsninger.</p>
+    <p class="hint">Sessionens ID bruges til at hente og sende hjælp. Generation bruges til rydning. Valget gemmes mellem faner og genindlæsninger.</p>
     <p *ngIf="api.session.id && !api.hasSessionId" class="error">Session-ID skal være en GUID, fx 12345678-1234-1234-1234-123456789abc.</p>
     <p *ngIf="!api.hasGeneration" class="error">Generation skal være et heltal større end 0.</p>
+    <div *ngIf="api.sessionLink" class="divider">
+      <label for="session-link">Sessionslink til de andre elever</label>
+      <div class="input-action">
+        <input id="session-link" #sessionLinkInput [value]="api.sessionLink" readonly (focus)="sessionLinkInput.select()">
+        <button class="secondary" (click)="copySessionLink()" [disabled]="api.busy">Kopiér link</button>
+      </div>
+      <p class="hint">Åbn linket i en separat browserprofil eller browser, og tryk Tilmeld som studerende. Hver profil får sin egen elevcookie. Almindelige faner er samme elev.</p>
+      <p *ngIf="copyNotice" role="status">{{ copyNotice }}</p>
+    </div>
   </section>
 
   <router-outlet />

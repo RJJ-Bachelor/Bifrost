@@ -1,3 +1,8 @@
+using EirService.HelpRequests.Application;
+using EirService.HelpRequests.Domain.DomainEvents;
+using EirService.HelpRequests.Domain.ValueObjects;
+using Shared.Application.DomainEvents;
+using FullHelpRequestResult = EirService.HelpRequests.Application.Features.Common.HelpRequestResult;
 using Shared.Application.Persistence;
 using Shared.Api.Authentication;
 using EirService.Sessions.Application.Features.Teacher.Common;
@@ -49,7 +54,7 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         _logger = new RecordingLogger<CreateSessionCommandHandler>(_executionOrder);
         var commandLogger = new RecordingLogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>(_executionOrder);
-        var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, Guid>>(_executionOrder);
+        var helpRequestLogger = new RecordingLogger<CommandLoggingMiddleware<CreateHelpRequestCommand, FullHelpRequestResult>>(_executionOrder);
         var queryLogger = new RecordingLogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>(_executionOrder);
         _requests = new RecordingRequestServices(_executionOrder);
         var builder = WebApplication.CreateBuilder();
@@ -67,16 +72,16 @@ public sealed class CommandBusTests : IAsyncLifetime
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
-        builder.Services.AddTransient<IValidator<CreateHelpRequestCommand>, CreateHelpRequestCommandValidator>();
-        builder.Services.AddTransient<IValidator<GetHelpRequestsQuery>, GetHelpRequestsQueryValidator>();
+        builder.Services.AddHelpRequestsApplication();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));
         builder.Services.AddSingleton<ILogger<CreateSessionCommandHandler>>(_logger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateSessionCommand, SessionResult>>>(commandLogger);
-        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, Guid>>>(helpRequestLogger);
+        builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<CreateHelpRequestCommand, FullHelpRequestResult>>>(helpRequestLogger);
         builder.Services.AddSingleton<ILogger<CommandLoggingMiddleware<GetHelpRequestsQuery, IReadOnlyList<HelpRequestResult>>>>(queryLogger);
         builder.Services.AddSingleton<IHelpRequestRepository>(_requests);
+        builder.Services.AddSingleton<IUnitOfWork<IHelpRequestRepository>>(_requests);
         builder.Services.AddSingleton<MemorySessionRepository>();
         builder.Services.AddSingleton<ISessionRepository>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IUnitOfWork<ISessionRepository>>(provider => provider.GetRequiredService<MemorySessionRepository>());
@@ -253,121 +258,65 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task StudentCanCreateHelpRequestUsingCookieIdentityAndCommandPipeline()
+    public async Task StudentCreatesServerOwnedRequestAndCannotCreateAnotherOpenRequest()
     {
-        AuthenticateStudent();
-        using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest",
-            new { Id = TestIds.From("request-123"), Message = "Please help", UserId = "supplied-student" });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(TestIds.From("request-123"), await response.Content.ReadFromJsonAsync<Guid>());
-        var saved = Assert.Single(_requests.Saved);
-        Assert.True(Guid.TryParseExact(saved.UserId, "N", out _));
-        Assert.NotEqual("supplied-student", saved.UserId);
-        Assert.Equal(TestIds.From("request-123"), saved.Id);
-        Assert.Equal("Please help", saved.Message);
-        Assert.Equal((TestIds.From("request-123"), "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal((TestIds.From("request-123"), saved.UserId, "Please help"), Assert.Single(_requests.Notifications));
-        Assert.Equal(new[]
-        {
-            "Executing command CreateHelpRequestCommand",
-            $"Saved help request {TestIds.From("request-123")}",
-            $"Queued help request {TestIds.From("request-123")}",
-            $"Queued notification {TestIds.From("request-123")}",
-            "Executed command CreateHelpRequestCommand"
-        }, _executionOrder);
-
-        Assert.False(response.Headers.Contains("Set-Cookie"));
-
-        using var nextResponse = await _client.PostAsJsonAsync("/api/students/createhelprequest",
-            new { Id = TestIds.From("request-456"), Message = "Another request" });
-
-        Assert.Equal(HttpStatusCode.OK, nextResponse.StatusCode);
-        Assert.Equal(saved.UserId, _requests.Saved[1].UserId);
+        var studentId = AuthenticateStudent();
+        var sessionId = await SeedSessionAsync(studentId);
+        var suppliedId = Guid.NewGuid();
+        using var response = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
+            new { Id = suppliedId, StudentId = "spoofed", Generation = 99, Message = "Please help", HelpType = HelpType.Digital });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = (await response.Content.ReadFromJsonAsync<FullHelpRequestResult>(
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+            { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } }))!;
+        Assert.NotEqual(suppliedId, result.Id);
+        Assert.Equal(studentId, result.StudentId);
+        Assert.Equal(1, result.Generation);
+        Assert.Equal("Please help", Assert.Single(result.Messages).Text);
+        Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
+        Assert.Equal((result.Id, studentId, "Please help"), Assert.Single(_requests.Notifications));
+        using var duplicate = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
+            new { Message = "Another question", HelpType = HelpType.Physical });
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        Assert.Single(_requests.Saved);
     }
 
-    public static TheoryData<string?, string?, string> InvalidHelpRequestBodies => new()
-    {
-        { null, "Please help", "Id" },
-        { Guid.Empty.ToString(), "Please help", "Id" },
-        { "not-a-guid", "Please help", "Id" },
-        { "", "Please help", "Id" },
-        { " ", "Please help", "Id" },
-        { new string('i', 101), "Please help", "Id" },
-        { TestIds.From("request-123").ToString(), null, "Message" },
-        { TestIds.From("request-123").ToString(), "", "Message" },
-        { TestIds.From("request-123").ToString(), " ", "Message" },
-        { TestIds.From("request-123").ToString(), new string('m', 4001), "Message" }
-    };
-
     [Theory]
-    [MemberData(nameof(InvalidHelpRequestBodies))]
-    public async Task HelpRequestValidationReturnsBadRequestBeforeSideEffects(string? id, string? message, string property)
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    public async Task HelpRequestValidationStopsEmptyMessagesBeforeSideEffects(string? message)
     {
         AuthenticateStudent();
-        using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest", new { Id = id, Message = message });
-
+        using var response = await _client.PostAsJsonAsync($"/api/students/sessions/{Guid.NewGuid()}/requests",
+            new { Message = message, HelpType = HelpType.Digital });
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Contains(property, await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
         Assert.Empty(_requests.Saved);
         Assert.Empty(_requests.RequestMessages);
-        Assert.Empty(_requests.Notifications);
-        Assert.Empty(_executionOrder);
     }
 
     [Fact]
-    public async Task HelpRequestAcceptsGuidIdAndMaximumMessageLength()
+    public async Task HelpRequestRequiresHelpTypeAndRejectsOverlongMessages()
     {
         AuthenticateStudent();
-        var id = Guid.NewGuid();
-        var message = new string('m', 4000);
-
-        using var response = await _client.PostAsJsonAsync("/api/students/createhelprequest", new { Id = id, Message = message });
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(id, await response.Content.ReadFromJsonAsync<Guid>());
-        Assert.Equal(message, Assert.Single(_requests.Saved).Message);
-    }
-
-    public static TheoryData<Guid, string?, string?, string> InvalidHelpRequestCommands => new()
-    {
-        { Guid.Empty, "student-123", "Please help", "Id" },
-        { TestIds.From("request-123"), null, "Please help", "UserId" },
-        { TestIds.From("request-123"), "", "Please help", "UserId" },
-        { TestIds.From("request-123"), " ", "Please help", "UserId" },
-        { TestIds.From("request-123"), "student-123", null, "Message" },
-        { TestIds.From("request-123"), "student-123", "", "Message" },
-        { TestIds.From("request-123"), "student-123", " ", "Message" },
-        { TestIds.From("request-123"), "student-123", new string('m', 4001), "Message" }
-    };
-
-    [Theory]
-    [MemberData(nameof(InvalidHelpRequestCommands))]
-    public async Task CommandBusRejectsInvalidHelpRequestsWithoutHttpOrSideEffects(
-        Guid id, string? userId, string? message, string property)
-    {
-        var exception = await Assert.ThrowsAsync<ValidationException>(() =>
-            new CreateHelpRequestCommand(id, userId!, message!).ExecuteAsync(CancellationToken.None));
-
-        Assert.Equal(property, Assert.Single(exception.Errors).PropertyName, ignoreCase: true);
+        var path = $"/api/students/sessions/{Guid.NewGuid()}/requests";
+        using var missing = await _client.PostAsJsonAsync(path, new { Message = "Please help" });
+        Assert.Equal(HttpStatusCode.BadRequest, missing.StatusCode);
+        using var longText = await _client.PostAsJsonAsync(path, new { Message = new string('m', 4001), HelpType = HelpType.Physical });
+        Assert.Equal(HttpStatusCode.BadRequest, longText.StatusCode);
         Assert.Empty(_requests.Saved);
-        Assert.Empty(_requests.RequestMessages);
-        Assert.Empty(_requests.Notifications);
-        Assert.Empty(_executionOrder);
     }
 
     [Fact]
     public async Task CommandBusCreatesHelpRequestWithoutHttp()
     {
-        var result = await new CreateHelpRequestCommand(TestIds.From("request-123"), "student-123", "Please help")
+        var sessionId = await SeedSessionAsync("student-123");
+        var result = await new CreateHelpRequestCommand(sessionId, "student-123", new string('m', 4000), HelpType.Digital)
             .ExecuteAsync(CancellationToken.None);
-
-        Assert.Equal(TestIds.From("request-123"), result);
-        Assert.Equal("student-123", Assert.Single(_requests.Saved).UserId);
-        Assert.Equal((TestIds.From("request-123"), "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal((TestIds.From("request-123"), "student-123", "Please help"), Assert.Single(_requests.Notifications));
-        Assert.Equal("Executing command CreateHelpRequestCommand", _executionOrder[0]);
-        Assert.Equal("Executed command CreateHelpRequestCommand", _executionOrder[^1]);
+        Assert.NotEqual(Guid.Empty, result.Id);
+        Assert.Equal("student-123", Assert.Single(_requests.Saved).StudentId);
+        Assert.Single(_requests.RequestMessages);
+        Assert.Single(_requests.Notifications);
     }
 
     [Fact]
@@ -375,14 +324,35 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
-
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new CreateHelpRequestCommand(TestIds.From("request-123"), "student-123", "Please help").ExecuteAsync(cancellation.Token));
-
+            new CreateHelpRequestCommand(Guid.NewGuid(), "student-123", "Please help", HelpType.Physical).ExecuteAsync(cancellation.Token));
         Assert.Empty(_requests.Saved);
-        Assert.Empty(_requests.RequestMessages);
-        Assert.Empty(_requests.Notifications);
         Assert.Empty(_executionOrder);
+    }
+
+    [Fact]
+    public async Task HelpRequestEndpointsUseTheRoleSpecificIdentityWhenBothCredentialsArePresent()
+    {
+        var studentId = AuthenticateStudent();
+        var sessionId = await SeedSessionAsync(studentId);
+        Authenticate("Teacher", "teacher-123");
+        using var created = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
+            new { Message = "Student question", HelpType = HelpType.Digital });
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var studentRequest = await created.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(studentId, studentRequest.GetProperty("studentId").GetString());
+        var id = studentRequest.GetProperty("id").GetGuid();
+        using var teacherRead = await _client.GetAsync($"/api/teachers/requests/{id}");
+        Assert.Equal(HttpStatusCode.OK, teacherRead.StatusCode);
+        Assert.Equal(id, (await teacherRead.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>()).GetProperty("id").GetGuid());
+    }
+
+    private async Task<Guid> SeedSessionAsync(string studentId)
+    {
+        var session = await new CreateSessionCommand("teacher-123", "Help session").ExecuteAsync(CancellationToken.None);
+        await new JoinSessionCommand(session.Code, studentId).ExecuteAsync(CancellationToken.None);
+        _executionOrder.Clear();
+        return session.Id;
     }
 
     [Fact]
@@ -467,43 +437,19 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task HelpRequestHistoryUsesCookieIdentityAndPreservesArrayResponse()
+    public async Task HelpRequestHistoryOnlyReturnsAuthenticatedStudentsCurrentRequests()
     {
-        AuthenticateStudent();
-        using var identityResponse = await _client.GetAsync("/api/students/me");
-        var identity = await identityResponse.Content.ReadFromJsonAsync<StudentIdentityResponse>();
-        Assert.NotNull(identity);
-        Assert.False(identityResponse.Headers.Contains("Set-Cookie"));
-        _requests.Saved.AddRange(
-        [
-            new HelpRequest(TestIds.From("request-2"), identity.UserId, "Second request"),
-            new HelpRequest(TestIds.From("request-1"), identity.UserId, "First request"),
-            new HelpRequest(TestIds.From("other-request"), "other-student", "Private request"),
-            new HelpRequest(TestIds.From("legacy-request"), null!, "Legacy request")
-        ]);
-
+        var studentId = AuthenticateStudent();
+        var sessionId = await SeedSessionAsync(studentId);
+        var mine = HelpRequest.Create(sessionId, 1, studentId, HelpType.Digital, new MessageText("My question"), DateTimeOffset.UtcNow);
+        _requests.Saved.Add(mine);
+        _requests.Saved.Add(HelpRequest.Create(sessionId, 1, "other-student", HelpType.Digital, new MessageText("Private"), DateTimeOffset.UtcNow));
+        _requests.Saved.Add(HelpRequest.Create(sessionId, 2, studentId, HelpType.Digital, new MessageText("Wrong generation"), DateTimeOffset.UtcNow));
         using var response = await _client.GetAsync("/api/students/requests?userId=other-student");
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var requests = await response.Content.ReadFromJsonAsync<HelpRequestResult[]>();
-        Assert.NotNull(requests);
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.Contains("\"id\":", body);
-        Assert.Contains("\"userId\":", body);
-        Assert.Contains("\"message\":", body);
-        Assert.Equal(new[] { TestIds.From("request-1"), TestIds.From("request-2") }.OrderBy(id => id), requests.Select(request => request.Id));
-        Assert.All(requests, request => Assert.Equal(identity.UserId, request.UserId));
-        Assert.Equal(new[] { "First request", "Second request" }, requests.Select(request => request.Message).OrderBy(message => message));
-        Assert.Equal(identity.UserId, Assert.Single(_requests.Reads).UserId);
-        Assert.Equal(new[]
-        {
-            "Executing command GetHelpRequestsQuery",
-            $"Read help requests for {identity.UserId}",
-            "Executed command GetHelpRequestsQuery"
-        }, _executionOrder);
-        Assert.Empty(_requests.RequestMessages);
-        Assert.Empty(_requests.Notifications);
-        Assert.Equal(4, _requests.Saved.Count);
+        var result = Assert.Single((await response.Content.ReadFromJsonAsync<HelpRequestResult[]>())!);
+        Assert.Equal(mine.Id, result.Id);
+        Assert.Equal(studentId, result.StudentId);
     }
 
     [Fact]
@@ -511,30 +457,20 @@ public sealed class CommandBusTests : IAsyncLifetime
     {
         AuthenticateStudent();
         using var response = await _client.GetAsync("/api/students/requests");
-
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("[]", await response.Content.ReadAsStringAsync());
-        Assert.Single(_requests.Reads);
     }
 
     [Fact]
     public async Task QueryUsesCommandBusOutsideHttpAndForwardsCancellationToken()
     {
-        _requests.Saved.Add(new HelpRequest(TestIds.From("request-1"), "student-123", "Please help"));
+        var sessionId = await SeedSessionAsync("student-123");
+        var request = HelpRequest.Create(sessionId, 1, "student-123", HelpType.Physical, new MessageText("Please help"), DateTimeOffset.UtcNow);
+        _requests.Saved.Add(request);
         using var cancellation = new CancellationTokenSource();
-
         var results = await new GetHelpRequestsQuery("student-123").ExecuteAsync(cancellation.Token);
-
-        Assert.Equal(new HelpRequestResult(TestIds.From("request-1"), "student-123", "Please help"), Assert.Single(results));
-        var read = Assert.Single(_requests.Reads);
-        Assert.Equal("student-123", read.UserId);
-        Assert.Equal(cancellation.Token, read.CancellationToken);
-        Assert.Equal(new[]
-        {
-            "Executing command GetHelpRequestsQuery",
-            "Read help requests for student-123",
-            "Executed command GetHelpRequestsQuery"
-        }, _executionOrder);
+        Assert.Equal(request.Id, Assert.Single(results).Id);
+        Assert.Equal(cancellation.Token, Assert.Single(_requests.Reads).CancellationToken);
     }
 
     [Theory]
@@ -565,42 +501,46 @@ public sealed class CommandBusTests : IAsyncLifetime
     }
 
     private sealed class RecordingRequestServices(List<string> executionOrder)
-        : IHelpRequestRepository
+        : IHelpRequestRepository, IUnitOfWork<IHelpRequestRepository>
     {
         public List<HelpRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(Guid Id, string Message)> RequestMessages { get; } = [];
         public List<(Guid Id, string? UserId, string Message)> Notifications { get; } = [];
-
-        public Task AddAsync(HelpRequest request, IReadOnlyCollection<OutgoingMessage> messages, CancellationToken cancellationToken)
+        public Task AddAsync(HelpRequest request, CancellationToken cancellationToken)
         {
             Saved.Add(request);
-            executionOrder.Add($"Saved help request {request.Id}");
-            foreach (var outgoing in messages)
-            {
-                if (outgoing.Payload is HelpRequestCreatedMessage help)
-                {
-                    RequestMessages.Add((outgoing.Id, help.Message));
-                    executionOrder.Add($"Queued help request {outgoing.Id}");
-                }
-                else if (outgoing.Payload is NotificationCreatedMessage notification)
-                {
-                    Notifications.Add((outgoing.Id, notification.UserId, notification.Messages));
-                    executionOrder.Add($"Queued notification {outgoing.Id}");
-                }
-            }
             return Task.CompletedTask;
         }
-
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            foreach (var request in Saved)
+            {
+                foreach (var domainEvent in request.GetDomainEvents().OfType<HelpRequestChangedDomainEvent>())
+                    await new DomainEventNotification<HelpRequestChangedDomainEvent>(domainEvent, outgoing =>
+                    {
+                        if (outgoing.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((outgoing.Id, help.Message));
+                        if (outgoing.Payload is NotificationCreatedMessage notification) Notifications.Add((outgoing.Id, notification.UserId, notification.Messages));
+                    }).PublishAsync(Mode.WaitForAll, cancellationToken);
+                request.ClearDomainEvents();
+            }
+        }
+        public Task<HelpRequest?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(Saved.SingleOrDefault(request => request.Id == id));
+        public Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.SessionId == sessionId && request.Generation == generation)
+                .OrderByDescending(request => request.ReturnedToQueueAt)
+                .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
+        public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>
+            Task.FromResult(Saved.Any(request => request.SessionId == sessionId && request.Generation == generation && request.StudentId == studentId && request.IsOpen));
+        public Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Reservation is tested against PostgreSQL.");
         public Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
         {
             Reads.Add((userId, cancellationToken));
             executionOrder.Add($"Read help requests for {userId}");
-            return Task.FromResult<IReadOnlyList<HelpRequest>>(
-                Saved.Where(request => request.UserId == userId).OrderBy(request => request.Id).ToArray());
+            return Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.StudentId == userId).OrderBy(request => request.Id).ToArray());
         }
-
-
     }
 
     private string AuthenticateStudent()

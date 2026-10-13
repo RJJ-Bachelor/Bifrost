@@ -1,15 +1,23 @@
 @HeimdallGateway_HostAddress = http://localhost:6004
+@sessionId = REPLACE_WITH_CREATED_SESSION_ID
+@sessionCode = REPLACE_WITH_CREATED_SESSION_CODE
 
 ### Start OIDC login (open this request in a browser)
 GET {{HeimdallGateway_HostAddress}}/account/login
 
-### Create a help request. The student cookie is created and reused by Eir.
-POST {{HeimdallGateway_HostAddress}}/api/students/createhelprequest
+### Join the selected session. Heimdall issues and reuses the student cookie.
+POST {{HeimdallGateway_HostAddress}}/api/students/sessions/join
+Content-Type: application/json
+
+{"code":"{{sessionCode}}"}
+
+### Create a help request as the student, including during teacher login.
+POST {{HeimdallGateway_HostAddress}}/api/students/sessions/{{sessionId}}/requests
 Content-Type: application/json
 
 {
-  "id": "request-1",
-  "message": "Create a help request as an anonymous student"
+  "message": "Create a help request as a student",
+  "helpType": "Physical"
 }
 
 ### Create a session without login. Expected: 401 Unauthorized.

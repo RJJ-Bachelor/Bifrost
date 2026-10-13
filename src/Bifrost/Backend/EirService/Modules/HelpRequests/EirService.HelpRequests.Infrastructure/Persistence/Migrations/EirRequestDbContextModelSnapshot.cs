@@ -28,28 +28,130 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
-                    b.Property<int?>("Generation")
+                    b.Property<string>("AssignedTeacherId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("FaqAnswerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Generation")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Message")
+                    b.Property<string>("HelpType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("QueuedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RequestNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTimeOffset?>("ReturnedToQueueAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("SessionId", "Generation", "RequestNumber")
+                        .IsUnique();
+
+                    b.HasIndex("SessionId", "Generation", "StudentId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_HelpRequest_OneOpenPerStudent")
+                        .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingConfirmation')");
+
+                    b.HasIndex("SessionId", "Generation", "ReturnedToQueueAt", "QueuedAt", "Id")
+                        .IsDescending(false, false, true, false, false)
+                        .HasFilter("\"Status\" = 'Pending'");
+
+                    b.ToTable("HelpRequest", "helprequests");
+                });
+
+            modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.HelpRequestMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AuthorRole")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HelpRequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
 
-                    b.Property<Guid?>("SessionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("UserId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("HelpRequestId", "SequenceNumber")
+                        .IsUnique();
 
-                    b.HasIndex("SessionId", "Generation", "UserId");
+                    b.ToTable("HelpRequestMessage", "helprequests");
+                });
 
-                    b.ToTable("HelpRequest", "helprequests");
+            modelBuilder.Entity("HelpRequestNumberCounter", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer");
+
+                    b.HasKey("SessionId", "Generation");
+
+                    b.ToTable("HelpRequestNumberCounter", "helprequests");
                 });
 
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
@@ -101,6 +203,20 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                     b.HasIndex("PublishedAtUtc", "CreatedAtUtc");
 
                     b.ToTable("outbox", "helprequests");
+                });
+
+            modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.HelpRequestMessage", b =>
+                {
+                    b.HasOne("EirService.HelpRequests.Domain.Entities.HelpRequest", null)
+                        .WithMany("Messages")
+                        .HasForeignKey("HelpRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.HelpRequest", b =>
+                {
+                    b.Navigation("Messages");
                 });
 #pragma warning restore 612, 618
         }

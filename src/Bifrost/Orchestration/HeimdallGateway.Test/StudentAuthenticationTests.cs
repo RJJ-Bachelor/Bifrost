@@ -53,6 +53,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             });
         builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddHeimdallAuthentication(builder.Configuration, builder.Environment);
+        ConfigureStudentProtection(builder.Services);
         ConfigureTeacherValidation(builder.Services);
         builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
             options.Configuration = new OpenIdConnectConfiguration
@@ -209,7 +210,8 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         client.DefaultRequestHeaders.Add("Cookie", StudentCookie(first));
         using var response = await client.GetAsync("/api/teachers/me");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.False(response.Headers.Contains("Set-Cookie"));
+        Assert.DoesNotContain(response.Headers.TryGetValues("Set-Cookie", out var cookies) ? cookies : [],
+            cookie => cookie.StartsWith(StudentCookieHandler.CookieName + "="));
     }
 
     [Theory]
@@ -255,6 +257,51 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         Assert.False(response.Headers.Contains("Set-Cookie"));
     }
 
+    [Fact]
+    public async Task StudentRoutesUseStudentCookieWhileTeacherIsLoggedIn()
+    {
+        using var first = await client.GetAsync("/api/students/me");
+        var identity = (await first.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        client.DefaultRequestHeaders.Add("Cookie", StudentCookie(first));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TeacherToken());
+        using var queue = await client.GetAsync("/api/students/sessions/11111111-1111-1111-1111-111111111111/queue");
+        Assert.Equal(HttpStatusCode.OK, queue.StatusCode);
+        var actor = (await queue.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal(identity.UserId, actor.UserId);
+        Assert.Equal(new[] { "Student" }, actor.Roles);
+    }
+
+    [Fact]
+    public async Task TeacherRoutesUseTeacherJwtWhenStudentCookieAlsoExists()
+    {
+        using var first = await client.GetAsync("/api/students/me");
+        client.DefaultRequestHeaders.Add("Cookie", StudentCookie(first));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TeacherToken());
+        using var request = await client.GetAsync("/api/teachers/requests/11111111-1111-1111-1111-111111111111");
+        Assert.Equal(HttpStatusCode.OK, request.StatusCode);
+        var actor = (await request.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal("teacher|opaque-id", actor.UserId);
+        Assert.Equal(new[] { "Teacher" }, actor.Roles);
+    }
+
+    [Theory]
+    [InlineData("Bifrost", HttpStatusCode.OK)]
+    [InlineData("Other", HttpStatusCode.Forbidden)]
+    public async Task TeacherAccessRequiresScopeEvenWithStudentRole(string scope, HttpStatusCode expected)
+    {
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", TeacherToken(scope, includeStudentRole: true));
+        using var response = await client.GetAsync("/api/teachers/sessions/11111111-1111-1111-1111-111111111111/queue");
+        Assert.Equal(expected, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task OldSharedHelpRequestRoutesAreNotPublished()
+    {
+        using var response = await client.GetAsync("/api/requests/11111111-1111-1111-1111-111111111111");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
     private async Task<WebApplication> StartServiceAsync(string name)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
@@ -262,6 +309,8 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Configuration["Authentication:StudentCookie:KeyRingPath"] = keyRingPath;
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
+        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        ConfigureStudentProtection(builder.Services);
         ConfigureTeacherValidation(builder.Services);
         var app = builder.Build();
         app.UseAuthentication();
@@ -278,6 +327,12 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         return app;
     }
 
+    // Test keys are isolated and do not depend on the Windows user's DPAPI profile.
+    private void ConfigureStudentProtection(IServiceCollection services) =>
+        services.PostConfigure<StudentCookieOptions>(StudentCookieHandler.SchemeName, options =>
+            options.DataProtectionProvider = DataProtectionProvider.Create(new DirectoryInfo(keyRingPath),
+                protection => protection.SetApplicationName("Bifrost.StudentIdentity")));
+
     private void ConfigureTeacherValidation(IServiceCollection services) =>
         services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
         {
@@ -286,12 +341,14 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             options.TokenValidationParameters.IssuerSigningKey = teacherKey;
         });
 
-    private string TeacherToken(string scope = "Bifrost") => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
+    private string TeacherToken(string scope = "Bifrost", bool includeStudentRole = false) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
         issuer: "https://test-identity", audience: "Bifrost",
-        claims: [new Claim("sub", "teacher|opaque-id"), new Claim("role", "Teacher"), new Claim("scope", scope)],
+        claims: new[] { new Claim("sub", "teacher|opaque-id"), new Claim("role", "Teacher"), new Claim("scope", scope) }
+            .Concat(includeStudentRole ? [new Claim("role", "Student")] : []),
         expires: DateTime.UtcNow.AddMinutes(10), signingCredentials: new SigningCredentials(teacherKey, SecurityAlgorithms.HmacSha256)));
 
-    private static string StudentCookie(HttpResponseMessage response) => Assert.Single(response.Headers.GetValues("Set-Cookie")).Split(';')[0];
+    private static string StudentCookie(HttpResponseMessage response) => Assert.Single(response.Headers.GetValues("Set-Cookie"),
+        value => value.StartsWith(StudentCookieHandler.CookieName + "=") && value.Contains("max-age=31536000")).Split(';')[0];
 
     public async Task DisposeAsync()
     {

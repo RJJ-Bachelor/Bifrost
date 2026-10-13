@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: "{{gatewayUrl}}/api/teachers/sessions/b37fb60f-41d6-4f25-9333-cab973adaeff/clear"
+  url: "{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/clear"
   body:
     type: json
     data: |-

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using MimirService.Application.Features.Internal.SessionUpdated;
 using EirSessionUpdatedMessageHandler = EirService.HelpRequests.Application.Features.Internal.SessionUpdated.SessionUpdatedMessageHandler;
 using System.Text.Json;
 using EirService.HelpRequests.Domain.Entities;
@@ -157,10 +156,10 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await db.Database.MigrateAsync();
         await db.Database.MigrateAsync();
 
-        var request = Assert.Single(await db.Requests.AsNoTracking().ToArrayAsync());
+        var request = Assert.Single(await db.Requests.AsNoTracking().Include(request => request.Messages).ToArrayAsync());
         Assert.Equal(TestIds.From("legacy"), request.Id);
-        Assert.Equal("Keep this request", request.Message);
-        Assert.Equal("student", request.UserId);
+        Assert.Equal("Keep this request", request.Messages.First().Text.Value);
+        Assert.Equal("student", request.StudentId);
         Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), request.SessionId);
         Assert.Equal(3, request.Generation);
         var pending = Assert.Single(await db.Outbox.AsNoTracking().ToArrayAsync());
@@ -302,13 +301,13 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             using var activity = new Activity("incoming-request").Start();
             traceId = activity.TraceId;
-            var request = new HelpRequest(TestIds.From("generic"), "student", "Help");
+            var request = TestHelpRequests.Create(TestIds.From("generic"), "student", "Help");
             OutgoingMessage[] messages =
             [
                 new(TestIds.From("failed"), new HelpRequestCreatedMessage("Help"), "requests", "fail"),
                 new(TestIds.From("custom"), new { Value = "Any payload" }, "custom-exchange", "custom")
             ];
-            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(request, messages, CancellationToken.None);
+            await TestHelpRequests.SaveWithOutboxAsync(db, request, messages);
         }
         bus.FailRoutingKey = "fail";
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -355,7 +354,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
             OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest(TestIds.From("stable-id"), "student", "Help"), messages, CancellationToken.None);
+            await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("stable-id"), "student", "Help"), messages);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -366,6 +365,77 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         Assert.Equal(new[] { TestIds.From("stable-id"), TestIds.From("stable-id") }, bus.Messages.Select(message => message.Id));
         await using var verification = services.CreateAsyncScope();
         Assert.NotNull((await verification.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.SingleAsync()).PublishedAtUtc);
+    }
+
+    [OutboxBrokerFact]
+    public async Task PreparedHelpRequestQueuesAllowOutboxRetryAndKeepEventsForFutureConsumers()
+    {
+        await using var eir = BuildServices("eir", realBroker: true);
+        await using var gna = BuildServices("gna", realBroker: true);
+        await using var mimir = BuildServices("mimir", realBroker: true);
+        var requestId = Guid.NewGuid();
+        var sessionId = Guid.NewGuid();
+        var updated = new HelpRequestUpdatedIntegrationEvent(Guid.NewGuid(), requestId, sessionId, 2,
+            "student", "Answered", "Completed", "Digital", "teacher", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        var answered = new HelpRequestAnsweredMessage(requestId, sessionId, 2, "Question", "Answer");
+        await using (var scope = eir.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+            await db.Database.MigrateAtStartupAsync();
+            db.Outbox.AddRange(
+                OutboxMessage.Create(new(updated.EventId, updated, MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated), DateTimeOffset.UtcNow),
+                OutboxMessage.Create(new(Guid.NewGuid(), answered, MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered), DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(eir);
+        var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+        try
+        {
+            // Reproduce the missing-route error; pending events must not be discarded.
+            await dispatcher.PublishPendingAsync(CancellationToken.None);
+            await using (var scope = eir.CreateAsyncScope())
+                Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>()
+                    .Outbox.CountAsync(message => message.PublishedAtUtc == null));
+
+            foreach (var services in new[] { gna, mimir })
+            {
+                var initializer = services.GetServices<IHostedService>()
+                    .Single(service => service.GetType().Name == "RabbitMqQueueInitializer");
+                await initializer.StartAsync(CancellationToken.None);
+                await initializer.StartAsync(CancellationToken.None); // Safe on every service startup.
+                await initializer.StopAsync(CancellationToken.None);
+            }
+            await dispatcher.PublishPendingAsync(CancellationToken.None);
+            await using (var scope = eir.CreateAsyncScope())
+                Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>()
+                    .Outbox.CountAsync(message => message.PublishedAtUtc != null));
+
+            foreach (var queueName in new[] { "gna-request-updated", "mimir-request-answered" })
+            {
+                var queue = await channel.QueueDeclarePassiveAsync(queueName);
+                Assert.Equal(1u, queue.MessageCount);
+                Assert.Equal(0u, queue.ConsumerCount);
+            }
+            var storedUpdate = await channel.BasicGetAsync("gna-request-updated", autoAck: false);
+            var storedAnswer = await channel.BasicGetAsync("mimir-request-answered", autoAck: false);
+            Assert.NotNull(storedUpdate);
+            Assert.NotNull(storedAnswer);
+            var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+            Assert.Equal(updated, JsonSerializer.Deserialize<MessageEnvelope<HelpRequestUpdatedIntegrationEvent>>(storedUpdate.Body.Span, options)!.Payload);
+            Assert.Equal(answered, JsonSerializer.Deserialize<MessageEnvelope<HelpRequestAnsweredMessage>>(storedAnswer.Body.Span, options)!.Payload);
+            Assert.Equal(DeliveryModes.Persistent, storedUpdate.BasicProperties.DeliveryMode);
+            Assert.Equal(DeliveryModes.Persistent, storedAnswer.BasicProperties.DeliveryMode);
+            await channel.BasicNackAsync(storedUpdate.DeliveryTag, multiple: false, requeue: true);
+            await channel.BasicNackAsync(storedAnswer.DeliveryTag, multiple: false, requeue: true);
+        }
+        finally
+        {
+            // These tests require an isolated broker; only the two queues created here are removed.
+            await channel.QueueDeleteAsync("gna-request-updated");
+            await channel.QueueDeleteAsync("mimir-request-answered");
+        }
     }
 
     [OutboxBrokerFact]
@@ -388,7 +458,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 new(TestIds.From("request"), new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated),
                 new(clearedEvent.EventId, clearedEvent, exchange, MessageRoutes.SessionUpdated)
             ];
-            await scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().AddAsync(new HelpRequest(TestIds.From("request"), "student", "Help"), messages, CancellationToken.None);
+            await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("request"), "student", "Help"), messages);
         }
         // Publisher confirmations alone do not reject messages without a bound queue. Mandatory publishing must keep them pending.
         await dispatcher.PublishPendingAsync(CancellationToken.None);

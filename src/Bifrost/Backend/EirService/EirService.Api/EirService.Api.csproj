@@ -16,9 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\Shared.Api\Shared.Api.csproj" />
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\Modules\Insights\EirService.Insights.Application\EirService.Insights.Application.csproj" />
-    <ProjectReference Include="..\Modules\Insights\EirService.Insights.Infrastructure\EirService.Insights.Infrastructure.csproj" />
-    <ProjectReference Include="..\Modules\KnowledgeBase\EirService.KnowledgeBase.Application\EirService.KnowledgeBase.Application.csproj" />
     <ProjectReference Include="..\Modules\Participants\EirService.Participants.Application\EirService.Participants.Application.csproj" />
     <ProjectReference Include="..\Modules\HelpRequests\EirService.HelpRequests.Application\EirService.HelpRequests.Application.csproj" />
     <ProjectReference Include="..\Modules\HelpRequests\EirService.HelpRequests.Infrastructure\EirService.HelpRequests.Infrastructure.csproj" />

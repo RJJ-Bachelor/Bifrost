@@ -1,4 +1,5 @@
 using EirService.HelpRequests.Application.Repositories;
+using Shared.Application.Persistence;
 using EirService.HelpRequests.Infrastructure.Messaging;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.HelpRequests.Infrastructure.Repositories;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.AddOutbox<EirRequestDbContext>();
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
+        services.AddScoped<IUnitOfWork<IHelpRequestRepository>, HelpRequestUnitOfWork>();
         services.AddHostedService<GeneralizedMessageSubscriber>();
         services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
         services.AddHostedService<SessionUpdatedMessageSubscriber>();

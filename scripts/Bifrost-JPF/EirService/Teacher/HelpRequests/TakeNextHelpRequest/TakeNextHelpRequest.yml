@@ -1,0 +1,12 @@
+info:
+  name: TakeNextHelpRequest
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/queue/take-next'
+  auth: null
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

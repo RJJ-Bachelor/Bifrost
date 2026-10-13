@@ -4,7 +4,10 @@ import { TestPageComponent } from './test-page.component';
 
 const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'overview' },
-  ...['overview', 'students', 'requests', 'teachers'].map(page => ({ path: page, component: TestPageComponent, data: { page } })),
+  { path: 'students/requests', component: TestPageComponent, data: { page: 'studentRequests' } },
+  { path: 'teachers/requests', component: TestPageComponent, data: { page: 'teacherRequests' } },
+  ...['overview', 'students', 'teachers'].map(page => ({ path: page, component: TestPageComponent, data: { page } })),
+  { path: 'requests', pathMatch: 'full', redirectTo: 'students/requests' },
   { path: '**', redirectTo: 'overview' }
 ];
 

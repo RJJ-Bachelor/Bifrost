@@ -1,0 +1,18 @@
+info:
+  name: CancelHelpRequest
+  type: http
+  seq: 1
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/students/requests/{{helpRequestId}}/status'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "action": "Cancel"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

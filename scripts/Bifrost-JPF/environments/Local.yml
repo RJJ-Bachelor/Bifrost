@@ -15,3 +15,5 @@ variables:
     value: ''
   - name: sessionGeneration
     value: '1'
+  - name: helpRequestId
+    value: ''

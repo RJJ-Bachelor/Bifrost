@@ -6,6 +6,7 @@ using GnaService.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 
 namespace GnaService.Infrastructure;
@@ -27,6 +28,7 @@ public static class DependencyInjection
         services.AddDbContext<GnaNotificationDbContext>(options =>
             options.UseNpgsql(connectionString));
         services.AddRabbitMqMessageBus(configuration);
+        services.AddRabbitMqQueue("gna-request-updated", MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated);
         services.AddScoped<INotificationMessageHandler, NotificationMessageHandler>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddHostedService<NotificationMessageSubscriber>();

@@ -1,0 +1,18 @@
+info:
+  name: AnswerHelpRequest
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/requests/{{helpRequestId}}/messages'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "text": "Her er svaret på dit spørgsmål."
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
