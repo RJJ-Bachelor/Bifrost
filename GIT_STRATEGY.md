@@ -37,7 +37,7 @@ Vi benytter **Conventional Commits** for at gøre historikken letlæselig for b�
 * `docs:` Ændringer i dokumentation eller README.
 * `chore:` Vedligeholdelse af build-scripts, dependencies eller config-filer.
 
-Bruges GitHub Copilot til at oprette commit-beskeder plejer den selv at foreslå Conventional Commit-præfik
+> **Bemærk for feature-branches:** På en feature-branch (`feature/*`) antages commits som udgangspunkt at være ny feature-kode. Du behøver derfor ikke skrive `feat:` på hver enkelt commit, men brug `fix:` hvis et commit retter en fejl undervejs. Vores AI-reviewer bruger commit-historikken til at forstå udviklingsforløbet og intentionen bag kodeændringerne (og agerer ikke form-politi).
 
 ### Automatisk Jira-præfiks
 Hvis dit branch-navn indeholder et Jira-nummer (f.eks. `feature/BF-012-tilføj-auth`), tilføjer vores Git-hook automatisk sagsnummeret foran din commit-besked:
