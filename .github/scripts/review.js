@@ -589,15 +589,16 @@ function matchSnippetToLine(fileLinesMap, rawPath, snippet) {
   const normalizedSnippet = snippet.trim();
   if (!normalizedSnippet) return null;
 
-  const exactMatch = addedLines.find((item) => item.content === normalizedSnippet);
-  if (exactMatch) return exactMatch.line;
+  // Require a UNIQUE match — if the snippet is ambiguous, drop it rather than guess.
+  const exactMatches = addedLines.filter((item) => item.content === normalizedSnippet);
+  if (exactMatches.length === 1) return exactMatches[0].line;
 
-  // Prevent matching empty lines or matching against empty snippets
-  const partialMatch = addedLines.find(
+  // Partial matches are also required to be unique.
+  const partialMatches = addedLines.filter(
     (item) => item.content.length > 0 &&
       (item.content.includes(normalizedSnippet) || normalizedSnippet.includes(item.content))
   );
-  return partialMatch ? partialMatch.line : null;
+  return partialMatches.length === 1 ? partialMatches[0].line : null;
 }
 
 async function updateContextFile(diff, prBranch) {
@@ -916,7 +917,8 @@ ${reviewDiff}
   const newCommitSha = await updateContextFile(diff, pr.head.ref);
   const targetCommitSha = newCommitSha || pr.head.sha;
 
-  let reviewEvent = aiResult.verdict || "COMMENT";
+  const allowedEvents = ["APPROVE", "REQUEST_CHANGES", "COMMENT"];
+  const reviewEvent = allowedEvents.includes(aiResult.verdict) ? aiResult.verdict : "COMMENT";
 
   try {
     await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/reviews`, {
