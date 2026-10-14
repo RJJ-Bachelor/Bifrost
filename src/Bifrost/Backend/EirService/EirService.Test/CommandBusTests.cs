@@ -274,7 +274,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Equal(1, result.Generation);
         Assert.Equal("Please help", Assert.Single(result.Messages).Text);
         Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal((result.Id, studentId, "Please help"), Assert.Single(_requests.Notifications));
+        var notification = Assert.Single(_requests.Notifications);
+        Assert.Equal("teacher-123", notification.UserId);
+        Assert.Equal("Køen er startet. Der er en ny hjælpeanmodning.", notification.Message);
+        Assert.NotEqual(result.Id, notification.Id);
         using var duplicate = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
             new { Message = "Another question", HelpType = HelpType.Physical });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
@@ -316,7 +319,9 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal("student-123", Assert.Single(_requests.Saved).StudentId);
         Assert.Single(_requests.RequestMessages);
-        Assert.Single(_requests.Notifications);
+        var notification = Assert.Single(_requests.Notifications);
+        Assert.Equal("teacher-123", notification.UserId);
+        Assert.Equal("Køen er startet. Der er en ny hjælpeanmodning.", notification.Message);
     }
 
     [Fact]

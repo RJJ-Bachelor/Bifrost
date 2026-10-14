@@ -2,18 +2,21 @@ info:
   name: CreateHelpRequest
   type: http
   seq: 1
+
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
-  auth: null
+  url: "{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests"
   body:
     type: json
     data: |-
       {
-        "message": "Hjælp fra student",
+        "message": "Jeg har brug for et fysisk svar.",
         "helpType": "Physical"
       }
+
 settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+  maxRedirects: 5
+  forwardAuthorizationHeader: true

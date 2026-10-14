@@ -788,6 +788,113 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
     }
 
     [PostgresFact]
+    public async Task OnlyAnEmptyWaitingQueueNotifiesItsSessionOwner()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
+        var first = Assert.Single(await ReadNotificationsAsync());
+        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.", session.Id, 1), first.Message);
+        Assert.NotEqual(firstId, first.Id);
+
+        using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, take.StatusCode);
+        using var otherStudent = await OtherStudentAsync(session.Code);
+        var secondId = await SubmitAsync(otherStudent, session.Id, HelpType.Physical);
+        Assert.Single(await ReadNotificationsAsync()); // A reserved Pending request still occupies the queue.
+
+        using var cancelFirst = await student.PatchAsJsonAsync($"/api/students/requests/{firstId}/status", new { Action = "Cancel" });
+        using var cancelSecond = await otherStudent.PatchAsJsonAsync($"/api/students/requests/{secondId}/status", new { Action = "Cancel" });
+        Assert.Equal(HttpStatusCode.OK, cancelFirst.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, cancelSecond.StatusCode);
+        await SubmitAsync(student, session.Id, HelpType.Physical);
+        Assert.Equal(2, (await ReadNotificationsAsync()).Length);
+
+        using var cleared = await ClearAsync(session.Id, 1);
+        cleared.EnsureSuccessStatusCode();
+        await SubmitAsync(student, session.Id, HelpType.Digital);
+        var notifications = await ReadNotificationsAsync();
+        Assert.Equal(3, notifications.Length);
+        Assert.All(notifications, notification => Assert.Equal("provider|opaque-teacher", notification.Message.UserId));
+        Assert.Single(notifications, notification => notification.Message.Generation == 2);
+    }
+
+    [PostgresFact]
+    public async Task ConcurrentStudentsEnteringAnEmptyQueueNotifyTheTeacherOnce()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var otherStudent = await OtherStudentAsync(session.Code);
+        var ids = await Task.WhenAll(
+            SubmitAsync(student, session.Id, HelpType.Digital),
+            SubmitAsync(otherStudent, session.Id, HelpType.Physical));
+        Assert.Equal(2, ids.Distinct().Count());
+        var notification = Assert.Single(await ReadNotificationsAsync());
+        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.", session.Id, 1), notification.Message);
+    }
+
+    [PostgresFact]
+    public async Task FollowUpNotifiesOwnerOnlyWhenItIsTheFirstWaitingRequest()
+    {
+        const string owner = "provider|opaque-teacher";
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        var id = await SubmitAsync(student, session.Id, HelpType.Digital);
+        using var firstFollowUp = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "More details" });
+        Assert.Equal(HttpStatusCode.OK, firstFollowUp.StatusCode);
+        Assert.Equal(2, (await ReadNotificationsAsync()).Count(item => item.Message.UserId == owner));
+
+        using var other = await OtherStudentAsync(session.Code);
+        var otherId = await SubmitAsync(other, session.Id, HelpType.Physical);
+        using var behindOther = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Another detail" });
+        Assert.Equal(HttpStatusCode.OK, behindOther.StatusCode);
+        Assert.Equal(2, (await ReadNotificationsAsync()).Count(item => item.Message.UserId == owner));
+
+        using var cancelOther = await other.PatchAsJsonAsync($"/api/students/requests/{otherId}/status", new { Action = "Cancel" });
+        Assert.Equal(HttpStatusCode.OK, cancelOther.StatusCode);
+        using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, take.StatusCode);
+        using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Answer" });
+        Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        using var reopened = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Follow-up after answer" });
+        Assert.Equal(HttpStatusCode.OK, reopened.StatusCode);
+        var notifications = (await ReadNotificationsAsync()).Where(item => item.Message.UserId == owner).ToArray();
+        Assert.Equal(3, notifications.Length);
+        var followUps = notifications.Where(item => item.Message.Messages == "Køen er opdateret. Der er en opfølgende besked.").ToArray();
+        Assert.Equal(2, followUps.Length);
+        Assert.Equal(2, followUps.Select(item => item.Id).Distinct().Count());
+        Assert.All(followUps, item => Assert.Equal(session.Id, item.Message.SessionId));
+    }
+
+    [PostgresFact]
+    public async Task ConcurrentFollowUpsIntoAnEmptyQueueNotifyOwnerOnce()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var other = await OtherStudentAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
+        var secondId = await SubmitAsync(other, session.Id, HelpType.Digital);
+        for (var index = 0; index < 2; index++)
+        {
+            using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+            Assert.Equal(HttpStatusCode.OK, take.StatusCode);
+            var id = (await take.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+            using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Answer" });
+            Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        }
+        var responses = await Task.WhenAll(
+            student.PostAsJsonAsync($"/api/students/requests/{firstId}/messages", new { Text = "First follow-up" }),
+            other.PostAsJsonAsync($"/api/students/requests/{secondId}/messages", new { Text = "Second follow-up" }));
+        foreach (var response in responses)
+        {
+            using (response) Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+        var notification = Assert.Single(await ReadNotificationsAsync(),
+            item => item.Message.Messages == "Køen er opdateret. Der er en opfølgende besked.");
+        Assert.Equal("provider|opaque-teacher", notification.Message.UserId);
+    }
+
+    [PostgresFact]
     public async Task PhysicalHelpLeavesQueueOnStartAndCompletesThroughStatusEndpoint()
     {
         var session = await CreateAsync();
@@ -795,10 +902,17 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var id = await SubmitAsync(student, session.Id, HelpType.Physical);
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         Assert.Equal(HttpStatusCode.OK, take.StatusCode);
+        Assert.Single(await ReadNotificationsAsync()); // Taking the request does not notify the student yet.
         using var badAnswer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Digital answer" });
         Assert.Equal(HttpStatusCode.Conflict, badAnswer.StatusCode);
         using var start = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{id}/status", new { Action = "Start" });
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+        var started = await start.Content.ReadFromJsonAsync<JsonElement>();
+        var studentId = started.GetProperty("studentId").GetString();
+        var displayNumber = started.GetProperty("displayNumber").GetString();
+        var turn = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
+        Assert.Equal($"Det er din tur til fysisk hjælp. {displayNumber}.", turn.Message.Messages);
+        Assert.Equal(session.Id, turn.Message.SessionId);
         var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
         Assert.Equal(0, queue.GetProperty("waitingCount").GetInt32());
         Assert.Single(queue.GetProperty("activeRequests").EnumerateArray());
@@ -807,6 +921,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         clock.Now = clock.Now.AddMinutes(4);
         using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{id}/status", new { Action = "Complete" });
         Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+        Assert.Equal(2, (await ReadNotificationsAsync()).Length);
         clock.Now = clock.Now.AddMinutes(1);
         using var followUp = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Follow-up" });
         Assert.Equal(HttpStatusCode.OK, followUp.StatusCode);
@@ -826,6 +941,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, take.StatusCode);
         using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Answer" });
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+        var studentId = (await answer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("studentId").GetString();
+        var answered = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
+        Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.", session.Id, 1), answered.Message);
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
         Assert.Equal("Completed", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
@@ -839,6 +957,15 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(new[] { 1, 2, 3 }, saved.Messages.OrderBy(message => message.SequenceNumber).Select(message => message.SequenceNumber));
         Assert.Contains(await db.Outbox.ToArrayAsync(), message => message.RoutingKey == MessageRoutes.HelpRequestAnswered);
         Assert.Empty(bus.Messages);
+
+        using var takeAgain = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, takeAgain.StatusCode);
+        using var answerAgain = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Another answer" });
+        Assert.Equal(HttpStatusCode.OK, answerAgain.StatusCode);
+        var replies = (await ReadNotificationsAsync()).Where(notification => notification.Message.UserId == studentId).ToArray();
+        Assert.Equal(2, replies.Length);
+        Assert.Equal(2, replies.Select(notification => notification.Id).Distinct().Count());
+        Assert.All(replies, notification => Assert.Equal("Der er kommet svar på din hjælpeanmodning.", notification.Message.Messages));
     }
 
     [PostgresFact]
@@ -1057,6 +1184,15 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         using var join = await client.PostAsJsonAsync("/api/students/sessions/join", new { Code = code });
         Assert.Equal(HttpStatusCode.OK, join.StatusCode);
         return client;
+    }
+
+    private async Task<(Guid Id, NotificationCreatedMessage Message)[]> ReadNotificationsAsync()
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var messages = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.AsNoTracking()
+            .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync();
+        return messages.Select(message => (message.MessageId, JsonSerializer.Deserialize<NotificationCreatedMessage>(
+            message.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!)).ToArray();
     }
 
     private static async Task<Guid> SubmitAsync(HttpClient client, Guid sessionId, HelpType helpType)

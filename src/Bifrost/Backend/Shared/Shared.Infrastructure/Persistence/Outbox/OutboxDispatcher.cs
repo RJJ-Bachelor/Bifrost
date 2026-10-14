@@ -11,11 +11,11 @@ namespace Shared.Infrastructure.Persistence.Outbox;
 
 public sealed class OutboxDispatcher<TDbContext>(
     IServiceScopeFactory scopeFactory, IMessageBus messageBus, TimeProvider timeProvider,
-    ILogger<OutboxDispatcher<TDbContext>> logger) : BackgroundService where TDbContext : DbContext
+    ILogger<OutboxDispatcher<TDbContext>> logger, TimeSpan pollingInterval = default) : BackgroundService where TDbContext : DbContext
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5), timeProvider);
+        using var timer = new PeriodicTimer(pollingInterval == default ? TimeSpan.FromSeconds(5) : pollingInterval, timeProvider);
         do
         {
             try { await PublishPendingAsync(stoppingToken); }

@@ -4,7 +4,7 @@ namespace GnaService.Application.Repositories;
 
 public interface INotificationRepository
 {
-    Task AddAsync(
+    Task<bool> TryAddAsync(
         Notification notification,
         CancellationToken cancellationToken);
 }

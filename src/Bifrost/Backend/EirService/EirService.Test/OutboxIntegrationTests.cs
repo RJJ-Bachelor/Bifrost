@@ -8,7 +8,6 @@ using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.HelpRequests.Application.Repositories;
-using GnaService.Application.Services.Messaging;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -34,9 +33,11 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
+using MimirService.Application.Services.Llm;
 
 namespace EirService.Test;
 
+[Collection("FastEndpoints")]
 public sealed class OutboxIntegrationTests : IAsyncLifetime
 {
     private string? adminConnectionString;
@@ -85,6 +86,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             services.RemoveAll<IMessageBus>();
             services.AddSingleton<IMessageBus>(bus);
+            services.RemoveAll<ILlmClient>();
+            services.AddSingleton<ILlmClient, StubLlmClient>();
         }
         return services.BuildServiceProvider();
     }
@@ -92,6 +95,12 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private static OutgoingMessage Reply(Guid id, Guid? sessionId = null, int? generation = null) =>
         new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+
+    private sealed class StubLlmClient : ILlmClient
+    {
+        public Task<string> GenerateAsync(string systemInstruction, string prompt, CancellationToken cancellationToken) =>
+            Task.FromResult("Generalized answer");
+    }
 
     [PostgresFact]
     public async Task EirStartupMigrationsCreateEachHistoryTableBeforeReadingAndCanRunAgain()
@@ -267,22 +276,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         Assert.False(db.Database.HasPendingModelChanges());
     }
 
-    [PostgresFact]
-    public async Task GnaIgnoresNotificationRedelivery()
-    {
-        await using var services = BuildServices("gna");
-        await using (var scope = services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
-            await db.Database.MigrateAsync();
-            var handler = scope.ServiceProvider.GetRequiredService<INotificationMessageHandler>();
-            var message = new MessageEnvelope<NotificationCreatedMessage>(TestIds.From("notification-1"), new("student-1", "Help needed"));
-            await handler.HandleAsync(message, CancellationToken.None);
-            await handler.HandleAsync(message, CancellationToken.None);
-        }
-        await using var verification = services.CreateAsyncScope();
-        Assert.Single(await verification.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Notifications.ToArrayAsync());
-    }
+    // Notification redelivery and its atomic delivery-outbox are covered in GnaService.Test.NotificationPersistenceTests.
 
     [PostgresFact]
     public async Task GenericMessagesRetainTraceAndFailedMessageDoesNotBlockOthers()
@@ -393,6 +387,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using var channel = await connection.CreateChannelAsync();
         try
         {
+            // Reset these destinations on the isolated test broker before testing missing routes.
+            await channel.QueueDeleteAsync("gna-request-updated");
+            await channel.QueueDeleteAsync("mimir-request-answered");
             // Reproduce the missing-route error; pending events must not be discarded.
             await dispatcher.PublishPendingAsync(CancellationToken.None);
             await using (var scope = eir.CreateAsyncScope())

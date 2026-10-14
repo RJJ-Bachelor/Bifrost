@@ -2,6 +2,10 @@ using Shared.Api.Authentication;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
 using Shared.Infrastructure.Persistence.Migrations;
+using FastEndpoints;
+using GnaService.Api.Hubs;
+using GnaService.Application.Services.Messaging;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace GnaService.Api;
 
@@ -15,11 +19,15 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
+        builder.Services.AddNotificationRealtime();
+        builder.Services.AddMessaging(typeof(NotificationMessageHandler).Assembly);
 
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
 
         var app = builder.Build();
+        app.Services.UseMessaging();
+        app.UseForwardedHeaders(new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedProto });
 
         using (var scope = app.Services.CreateScope())
         {
@@ -36,10 +44,9 @@ public class Program
             app.MapOpenApi();
         }
 
-        app.UseHttpsRedirection();
-
         app.UseAuthentication();
         app.UseAuthorization();
+        app.MapNotificationHubs();
 
         var summaries = new[]
         {

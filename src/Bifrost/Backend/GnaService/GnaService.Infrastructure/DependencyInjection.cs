@@ -8,6 +8,11 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
+using GnaService.Application.Notifications;
+using GnaService.Infrastructure.Notifications;
+using GnaService.Infrastructure.Push;
+using Shared.Application.Persistence;
+using Shared.Infrastructure.Persistence.Outbox;
 
 namespace GnaService.Infrastructure;
 
@@ -31,7 +36,14 @@ public static class DependencyInjection
         services.AddRabbitMqQueue("gna-request-updated", MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated);
         services.AddScoped<INotificationMessageHandler, NotificationMessageHandler>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IUnitOfWork<INotificationRepository>, NotificationUnitOfWork>();
+        services.AddOutbox<GnaNotificationDbContext>(TimeSpan.FromMilliseconds(500));
+        services.AddSingleton<IConnectionRegistry, ConnectionRegistry>();
+        services.AddScoped<NotificationDispatcher>();
+        services.AddScoped<IPushNotificationSender, PushNotificationSender>();
+        services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
         services.AddHostedService<NotificationMessageSubscriber>();
+        services.AddHostedService<NotificationDeliverySubscriber>();
 
         return services;
     }

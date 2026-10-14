@@ -30,7 +30,8 @@ public static class GatewayAuthenticationExtensions
             .AddPolicyScheme("TeacherAuthentication", null, options =>
             {
                 options.ForwardDefaultSelector = context =>
-                    context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                    context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) ||
+                    NotificationHubAuthentication.HasQueryToken(context.Request)
                         ? JwtBearerDefaults.AuthenticationScheme
                         : CookieAuthenticationDefaults.AuthenticationScheme;
             })
@@ -49,6 +50,7 @@ public static class GatewayAuthenticationExtensions
                 options.RequireHttpsMetadata = !environment.IsDevelopment();
                 options.Audience = "Bifrost";
                 options.MapInboundClaims = false;
+                options.Events.OnMessageReceived = NotificationHubAuthentication.ReadQueryToken;
                 options.TokenValidationParameters.NameClaimType = "name";
                 options.TokenValidationParameters.RoleClaimType = "role";
             })
@@ -119,6 +121,15 @@ public static class GatewayAuthenticationExtensions
             // Services validate the forwarded student cookie or VarService JWT themselves.
             context.Request.Headers.Remove("X-Bifrost-User-Id");
             context.Request.Headers.Remove("X-Bifrost-Roles");
+
+            if (NotificationHubAuthentication.HasQueryToken(context.Request) &&
+                context.User.Identity?.IsAuthenticated == true &&
+                !context.Request.Headers.Authorization.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Request.Headers.Authorization = $"Bearer {context.Request.Query["access_token"]}";
+                context.Request.QueryString = QueryString.Create(context.Request.Query
+                    .Where(parameter => parameter.Key != "access_token"));
+            }
 
             if (context.Request.Path.StartsWithSegments("/api/teachers") &&
                 context.User.Identity?.IsAuthenticated == true &&
