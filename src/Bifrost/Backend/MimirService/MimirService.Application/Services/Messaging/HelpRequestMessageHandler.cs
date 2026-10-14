@@ -30,7 +30,7 @@ public sealed class HelpRequestMessageHandler(
         try
         {
             llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
-            logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
+            logger.LogInformation("Mimir generated LLM response for help request {MessageId}.", message.Id);
         }
         catch (LlmUnavailableException exception)
         {
@@ -43,6 +43,7 @@ public sealed class HelpRequestMessageHandler(
             new GeneralizedCreatedMessage(llmResponse, payload.SessionId, payload.Generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         if (await requestRepository.TryAddAsync(request, reply, cancellationToken))
-            logger.LogInformation("Mimir received help request {MessageId} with payload: {Payload}", message.Id, message.Payload.Message);
+            logger.LogInformation("Mimir stored help request {MessageId} for session {SessionId} generation {Generation}.",
+                message.Id, payload.SessionId, payload.Generation);
     }
 }

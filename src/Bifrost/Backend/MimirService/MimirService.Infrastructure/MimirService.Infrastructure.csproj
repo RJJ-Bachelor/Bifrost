@@ -16,6 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="MimirService.Test" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MimirService.Application\MimirService.Application.csproj" />
     <ProjectReference Include="..\MimirService.Domain\MimirService.Domain.csproj" />
     <ProjectReference Include="..\..\Shared\Shared.Infrastructure\Shared.Infrastructure.csproj" />
