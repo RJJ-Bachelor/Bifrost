@@ -89,7 +89,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         return services.BuildServiceProvider();
     }
 
-    private static OutgoingMessage Reply(Guid id, Guid? sessionId = null, int? generation = null) =>
+    private static OutgoingMessage Reply(Guid id, Guid sessionId, int generation) =>
         new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
 
@@ -234,7 +234,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
             var repository = scope.ServiceProvider.GetRequiredService<IMimirHelpRequestRepository>();
-            var reply = Reply(TestIds.From("rollback")) with { RoutingKey = new string('x', 256) };
+            var sessionId = Guid.NewGuid();
+            var reply = Reply(TestIds.From("rollback"), sessionId, 1) with { RoutingKey = new string('x', 256) };
             await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), "Help"), reply, CancellationToken.None));
         }
         await using var verification = services.CreateAsyncScope();
@@ -304,7 +305,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var request = TestHelpRequests.Create(TestIds.From("generic"), "student", "Help");
             OutgoingMessage[] messages =
             [
-                new(TestIds.From("failed"), new HelpRequestCreatedMessage("Help"), "requests", "fail"),
+                new(TestIds.From("failed"), new HelpRequestCreatedMessage("Help", request.SessionId, request.Generation), "requests", "fail"),
                 new(TestIds.From("custom"), new { Value = "Any payload" }, "custom-exchange", "custom")
             ];
             await TestHelpRequests.SaveWithOutboxAsync(db, request, messages);
@@ -353,8 +354,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
-            OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("stable-id"), "student", "Help"), messages);
+            var request = TestHelpRequests.Create(TestIds.From("stable-id"), "student", "Help");
+            OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage("Help", request.SessionId, request.Generation), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
+            await TestHelpRequests.SaveWithOutboxAsync(db, request, messages);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);

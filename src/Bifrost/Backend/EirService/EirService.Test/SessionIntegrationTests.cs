@@ -434,7 +434,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             var request = TestHelpRequests.Create(TestIds.From("rollback-request"), "student", "Help");
-            OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Messages.First().Text.Value), "requests", new string('x', 256))];
+            OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Messages.First().Text.Value, request.SessionId, request.Generation), "requests", new string('x', 256))];
             await Assert.ThrowsAsync<DbUpdateException>(() => TestHelpRequests.SaveWithOutboxAsync(db, request, messages));
         }
         await using var verification = app.Services.CreateAsyncScope();
