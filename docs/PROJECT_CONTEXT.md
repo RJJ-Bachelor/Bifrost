@@ -202,3 +202,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
    - Unit tests required for all services and business logic; skip tests for pure shell components.
    - Cookie-based auth only — no tokens in `localStorage` or `sessionStorage`.
    - English codebase rule applies to TypeScript as well.
+
+---
+
+## Update 2026-10-14
+
+- The Angular frontend (`glitnir-frontend`) is fully implemented, replacing legacy prototypes and integrating into .NET Aspire orchestration via `.esproj` and `AddJavaScriptApp`.
+- The frontend architecture enforces a strict feature-based layout (`core/`, `shared/`, `features/`) where features remain isolated and communicate exclusively through public APIs.
+- Role-based client-side routing and access control are enforced using Angular `CanMatchFn` guards (`studentGuard` and `teacherGuard`) that handle redirection and lazy-loaded feature boundaries.
+- Frontend state management and backend communication rely on Angular signals, service singletons, and HTTP clients configured with credentials (`withCredentials: true`) to support cookie-based authentication.
+- Review guidelines and project context were updated to replace frontend placeholders with explicit architectural and testing rules, including mandatory unit testing for business logic and prohibition of legacy Angular patterns.
