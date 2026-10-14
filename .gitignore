@@ -90,6 +90,13 @@ StyleCopReport.xml
 *.meta
 *.obj
 *.iobj
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# MSBuild artifacts with literal backslash in folder name (Linux-specific)
+obj\\*
 *.pch
 *.pdb
 *.ipdb
