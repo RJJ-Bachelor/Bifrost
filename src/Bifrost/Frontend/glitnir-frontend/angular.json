@@ -73,7 +73,7 @@
           },
           "defaultConfiguration": "development",
           "options": {
-            "port": 7003,
+            "port": 7002,
             "proxyConfig": "proxy.conf.json"
           }
         },
