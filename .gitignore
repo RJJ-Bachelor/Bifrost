@@ -97,6 +97,9 @@ StyleCopReport.xml
 
 # MSBuild artifacts with literal backslash in folder name (Linux-specific)
 obj\\*
+
+# Duende IdentityServer signing keys (auto-generated, must never be committed)
+src/Bifrost/Orchestration/VarService/keys/
 *.pch
 *.pdb
 *.ipdb
