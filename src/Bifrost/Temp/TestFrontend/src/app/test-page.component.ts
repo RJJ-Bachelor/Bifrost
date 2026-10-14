@@ -3,10 +3,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute } from '@angular/router';
-import { Observable, finalize, timeout } from 'rxjs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { Observable, Subscription, catchError, debounceTime, finalize, forkJoin, interval, merge, of, throwError, timeout } from 'rxjs';
+import { NotificationService } from './notification.service';
 import {
-  ApiResponse, ClearSessionResult, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
+  ClearSessionResult, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
   HelpType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
@@ -14,373 +15,259 @@ import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-he
 
 @Component({
   selector: 'app-test-page',
-  imports: [CommonModule, FormsModule, StudentHelpRequestsComponent, TeacherHelpRequestsComponent],
+  imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent],
   templateUrl: './test-page.component.html'
 })
 export class TestPageComponent {
   readonly api = inject(HeimdallService);
+  private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly page = inject(ActivatedRoute).snapshot.data['page'] as string;
-  readonly titles: Record<string, string> = {
-    overview: 'EirService', students: 'Studerende: sessioner', teachers: 'Lærer: sessioner',
-    studentRequests: 'Hjælpeanmodninger: studerende', teacherRequests: 'Hjælpeanmodninger: lærer'
-  };
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+  readonly role = this.route.snapshot.data['role'] as 'students' | 'teachers';
+  readonly isTeacher = this.role === 'teachers';
+  sessionId = '';
   identity: Identity | null = null;
-  studentSessions: SessionSummary[] | null = null;
-  teacherSessions: TeacherSession[] | null = null;
-  requests: HelpRequestSummary[] | null = null;
+  sessions: (SessionSummary | TeacherSession)[] = [];
+  session: SessionSummary | TeacherSession | null = null;
+  requests: HelpRequestSummary[] = [];
   studentQueue: StudentQueue | null = null;
   teacherQueue: TeacherQueue | null = null;
   conversation: HelpRequest | null = null;
-  replyText = '';
-  requestScope = 'Mine hjælpeanmodninger';
-  sessionTitle = 'Testsession';
+  joinCode = this.route.snapshot.queryParamMap.get('code') ?? '';
+  sessionTitle = '';
+  showCreateSession = false;
   helpType: HelpType = 'Physical';
-  message = 'Jeg har brug for hjælp';
-  endpoint = '';
-  requestBody: unknown;
-  result: unknown;
-  status: number | null = null;
+  message = '';
+  replyText = '';
+  selectedRequestId = '';
+  loading = true;
+  busy = false;
+  refreshing = false;
+  loginRequired = false;
+  sessionUnavailable = false;
   error = '';
+  refreshError = '';
   notice = '';
+  private refreshSubscription?: Subscription;
+  private refreshQueued = false;
+  private destroyed = false;
 
-  get busy() { return this.api.busy; }
-
-  get isTeacher() { return this.page === 'teachers' || this.page === 'teacherRequests'; }
-
-  get hasStudentSession() {
-    return this.studentSessions?.some(session => session.id === this.api.session.id.trim()) ?? false;
+  get sessionCode() { return this.session && 'code' in this.session ? this.session.code : ''; }
+  get waitingRequests() { return this.teacherQueue?.requests ?? []; }
+  get activeRequests() { return this.teacherQueue?.activeRequests ?? []; }
+  get hasOpenRequest() {
+    return this.requests.some(request => ['Pending', 'Active', 'AwaitingConfirmation'].includes(request.status));
   }
-
-  get hasTeacherSession() {
-    return this.teacherSessions?.some(session => session.id === this.api.session.id.trim()) ?? false;
-  }
-
-  get currentRequest() {
-    return this.conversation?.id === this.api.requestId.trim() ? this.conversation : null;
-  }
-
-  get canAct() {
-    const request = this.currentRequest;
-    return !!request && request.sessionId === this.api.session.id.trim() && request.generation === this.api.session.generation;
-  }
-
-  get isAssignedTeacher() {
-    return !!this.identity && this.currentRequest?.assignedTeacherId === this.identity.userId;
-  }
-
+  get canAct() { return !!this.conversation && this.conversation.generation === this.session?.currentGeneration; }
+  get isAssignedTeacher() { return !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canStart() {
-    return this.canAct && this.isAssignedTeacher && this.currentRequest?.helpType === 'Physical'
-      && this.currentRequest.status === 'Pending';
+    return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Pending';
   }
-
   get canComplete() {
-    return this.canAct && this.isAssignedTeacher && this.currentRequest?.helpType === 'Physical'
-      && this.currentRequest.status === 'Active';
+    return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Active';
   }
-
   get canSendMessage() {
-    const request = this.currentRequest;
+    const request = this.conversation;
     if (!this.canAct || !request) return false;
     return this.isTeacher
       ? this.isAssignedTeacher && request.helpType === 'Digital' && request.status === 'Pending'
       : request.status === 'Completed' || request.status === 'Pending' && request.assignedTeacherId === null;
   }
-
   get canCancel() {
-    const request = this.currentRequest;
-    if (!this.canAct || !request || request.status === 'Completed' || request.status === 'Cancelled') return false;
-    return this.isTeacher
-      ? request.assignedTeacherId === null || this.isAssignedTeacher
-      : request.status !== 'Active';
+    const request = this.conversation;
+    if (!this.canAct || !request || ['Completed', 'Cancelled'].includes(request.status)) return false;
+    return this.isTeacher ? request.assignedTeacherId === null || this.isAssignedTeacher : request.status !== 'Active';
   }
 
   constructor() {
-    this.api.useRequestRole(this.isTeacher ? 'teachers' : 'students');
-    this.load();
-  }
-
-  load() {
-    switch (this.page) {
-      case 'students': this.loadIdentity('students'); break;
-      case 'teachers': this.loadIdentity('teachers'); break;
-      case 'studentRequests': this.loadIdentity('students', () => this.loadStudentSessions(true)); break;
-      case 'teacherRequests': this.loadIdentity('teachers', () => this.loadTeacherSessions(true)); break;
-      default: this.loadAlive(); break;
-    }
-  }
-
-  loadAlive() {
-    const path = 'monitoring/alive';
-    this.execute('GET', path, this.api.get<string>(path));
-  }
-
-  loadIdentity(role: 'students' | 'teachers', onLoaded?: () => void) {
-    const path = role + '/me';
-    this.execute('GET', path, this.api.get<Identity>(path), identity => {
-      this.identity = identity;
-      onLoaded?.();
+    this.destroyRef.onDestroy(() => {
+      this.destroyed = true;
+      this.stopRefresh();
+    });
+    merge(this.notifications.received, this.notifications.reconnected).pipe(
+      debounceTime(150), takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.refresh());
+    // Not every queue change produces a notification.
+    interval(10000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (!document.hidden && !this.refreshing) this.refresh();
+    });
+    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+      this.stopRefresh();
+      this.sessionId = params.get('sessionId') ?? '';
+      this.session = null;
+      this.conversation = null;
+      this.replyText = '';
+      this.selectedRequestId = this.readSelectedRequest();
+      this.loading = true;
+      this.loadIdentity();
     });
   }
 
-  loadStudentSessions(forHelpPage = false) {
-    const path = 'students/sessions';
-    this.execute('GET', path, this.api.get<SessionSummary[]>(path), sessions => {
-      this.studentSessions = sessions;
-      if (forHelpPage) {
-        const selected = sessions.find(session => session.id === this.api.session.id.trim()) ?? sessions[0];
-        if (selected) this.chooseSession(selected);
-      }
+  loadIdentity() {
+    this.api.get<Identity>(this.role + '/me').pipe(timeout(30000), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: identity => {
+        this.identity = identity;
+        this.loginRequired = false;
+        this.error = '';
+        void this.notifications.connect(this.role);
+        this.refresh();
+      },
+      error: failure => { this.loading = false; this.handleError(failure); }
+    });
+  }
+
+  refresh() {
+    if (this.destroyed || !this.identity) return;
+    if (this.busy || this.refreshing) { this.refreshQueued = true; return; }
+    this.refreshQueued = false;
+    this.refreshing = true;
+    const base = this.role + '/sessions/' + this.sessionId;
+    const selectedId = this.selectedRequestId;
+    const optional = <T>(read: Observable<T>) => read.pipe(catchError((failure: unknown) =>
+      failure instanceof HttpErrorResponse && failure.status === 404 ? of(null) : throwError(() => failure)));
+    this.refreshSubscription = forkJoin({
+      sessions: this.api.get<(SessionSummary | TeacherSession)[]>(this.role + '/sessions'),
+      session: this.sessionId ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
+      queue: this.sessionId ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
+      requests: this.sessionId && !this.isTeacher
+        ? optional(this.api.get<HelpRequestSummary[]>('students/requests?sessionId=' + this.sessionId)) : of(null),
+      conversation: this.sessionId && selectedId
+        ? optional(this.api.get<HelpRequest>(this.role + '/requests/' + selectedId)) : of(null)
+    }).pipe(timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => {
+      this.refreshing = false;
+      this.loading = false;
+      if (this.refreshQueued && !this.destroyed) this.refresh();
+    })).subscribe({
+      next: data => {
+        this.refreshError = '';
+        this.sessions = data.sessions;
+        this.session = data.session;
+        this.sessionUnavailable = !!this.sessionId && !data.session;
+        this.requests = data.requests ?? [];
+        this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
+        this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
+        this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
+      },
+      error: failure => this.handleError(failure, true)
     });
   }
 
   joinSession() {
-    const code = this.api.session.code.trim().toUpperCase();
-    if (!code) return;
-    const path = 'students/sessions/join';
-    const body = { code };
-    this.execute('POST', path, this.api.post<SessionSummary>(path, body), session => {
-      this.api.selectSession(session, code);
-      if (this.studentSessions !== null) {
-        this.studentSessions = [session, ...this.studentSessions.filter(item => item.id !== session.id)];
-      }
-      this.notice = `Du er tilmeldt "${session.title}" som studerende.`;
-      if (this.page === 'studentRequests') this.chooseSession(session, code);
-    }, body);
-  }
-
-  loadStudentSession() {
-    if (!this.api.hasSessionId) return;
-    const path = 'students/sessions/' + this.api.session.id.trim();
-    this.execute('GET', path, this.api.get<SessionSummary>(path), session => this.chooseSession(session));
-  }
-
-  loadTeacherSessions(forHelpPage = false) {
-    const path = 'teachers/sessions';
-    this.execute('GET', path, this.api.get<TeacherSession[]>(path), sessions => {
-      this.teacherSessions = sessions;
-      if (forHelpPage) {
-        const selected = sessions.find(session => session.id === this.api.session.id.trim()) ?? sessions[0];
-        if (selected) this.chooseSession(selected, selected.code);
-      }
+    const code = this.joinCode.trim().toUpperCase();
+    if (!/^[A-Z2-9]{8}$/.test(code)) return;
+    this.execute(this.api.post<SessionSummary>('students/sessions/join', { code }), session => {
+      this.joinCode = '';
+      this.notice = 'Du er tilmeldt ' + session.title + '.';
     });
   }
 
   createSession() {
-    const title = this.sessionTitle.trim();
-    if (!title) return;
-    const path = 'teachers/sessions';
-    const body = { title };
-    this.execute('POST', path, this.api.post<TeacherSession>(path, body), session => {
-      this.api.selectSession(session, session.code);
-      if (this.teacherSessions !== null) {
-        this.teacherSessions = [session, ...this.teacherSessions.filter(item => item.id !== session.id)];
-      }
-      this.notice = `Sessionen "${session.title}" er oprettet. Gå til Studerende og tilmeld med koden ${session.code}.`;
-    }, body);
-  }
-
-  loadTeacherSession() {
-    if (!this.api.hasSessionId) return;
-    const path = 'teachers/sessions/' + this.api.session.id.trim();
-    this.execute('GET', path, this.api.get<TeacherSession>(path), session => this.chooseSession(session, session.code));
-  }
-
-  clearSession() {
-    if (!this.api.hasSessionId || !this.api.hasGeneration) return;
-    const path = 'teachers/sessions/' + this.api.session.id.trim() + '/clear';
-    const body = { expectedGeneration: this.api.session.generation };
-    this.execute('POST', path, this.api.post<ClearSessionResult>(path, body), cleared => {
-      this.updateGeneration(cleared.currentGeneration);
-      this.api.selectRequest('');
-      this.conversation = null;
-      this.teacherQueue = null;
-      if (this.teacherSessions !== null) {
-        this.teacherSessions = this.teacherSessions.map(session => session.id === cleared.sessionId
-          ? { ...session, currentGeneration: cleared.currentGeneration, lastClearedAtUtc: cleared.lastClearedAtUtc }
-          : session);
-      }
-      this.notice = `Sessionen er ryddet. Den valgte generation er nu ${cleared.currentGeneration}.`;
-    }, body);
-  }
-
-  chooseSession(session: SessionSummary, code?: string) {
-    this.api.selectSession(session, code);
-    this.requests = null;
-    this.studentQueue = null;
-    this.teacherQueue = null;
-    this.conversation = null;
-    this.replyText = '';
-    this.notice = `"${session.title}" er valgt. Sessionens ID og generation bruges i de næste kald.`;
-    if (this.page === 'studentRequests') this.loadRequests(true);
-    if (this.page === 'teacherRequests') this.loadQueue();
-  }
-
-  loadRequests(forSession = false) {
-    if (forSession && !this.api.hasSessionId) return;
-    const path = 'students/requests' + (forSession ? '?sessionId=' + this.api.session.id.trim() : '');
-    this.execute('GET', path, this.api.get<HelpRequestSummary[]>(path), requests => {
-      this.requests = requests;
-      this.requestScope = forSession ? 'Mine hjælpeanmodninger i den valgte session' : 'Mine hjælpeanmodninger';
+    if (!this.sessionTitle.trim()) return;
+    this.execute(this.api.post<TeacherSession>('teachers/sessions', { title: this.sessionTitle.trim() }), session => {
+      void this.router.navigate(['/teachers/sessions', session.id]);
     });
   }
 
   createHelpRequest() {
-    if (!this.message.trim() || !this.hasStudentSession) return;
-    const path = `students/sessions/${this.api.session.id.trim()}/requests`;
-    const body = { message: this.message.trim(), helpType: this.helpType };
-    this.execute('POST', path, this.api.post<HelpRequest>(path, body), request => {
-      this.updateGeneration(request.generation);
-      this.studentQueue = null;
-      this.showHelpRequest(request);
-      this.notice = `Hjælpeanmodning ${request.displayNumber} er oprettet. Hent din køplacering nedenfor.`;
-    }, body);
-  }
-
-  loadQueue() {
-    if (!this.api.hasSessionId) return;
-    const role = this.isTeacher ? 'teachers' : 'students';
-    const path = `${role}/sessions/${this.api.session.id.trim()}/queue`;
-    if (this.isTeacher) {
-      this.execute('GET', path, this.api.get<TeacherQueue>(path), queue => {
-        this.teacherQueue = queue;
-        this.updateGeneration(queue.generation);
-      });
-    } else {
-      this.execute('GET', path, this.api.get<StudentQueue>(path), queue => {
-        this.studentQueue = queue;
-        this.updateGeneration(queue.generation);
-      });
-    }
-  }
-
-  takeNext() {
-    if (!this.hasTeacherSession || !this.isTeacher) return;
-    const path = `teachers/sessions/${this.api.session.id.trim()}/queue/take-next`;
-    this.execute('POST', path, this.api.post<HelpRequest | null>(path, null), request => {
-      if (!request) {
-        this.notice = 'Der er ingen ledige anmodninger at reservere. Allerede reserverede anmodninger kan stadig være i køen.';
-        return;
-      }
-      this.updateGeneration(request.generation);
-      this.showHelpRequest(request);
-      this.notice = `Anmodning ${request.displayNumber} er reserveret til dig. Start fysisk hjælp, eller send et digitalt svar.`;
+    if (!this.session || this.hasOpenRequest || !this.message.trim()) return;
+    this.execute(this.api.post<HelpRequest>('students/sessions/' + this.sessionId + '/requests',
+      { message: this.message.trim(), helpType: this.helpType }), request => {
+      this.selectRequest(request.id);
+      this.message = '';
+      this.notice = request.displayNumber + ' er oprettet.';
     });
   }
 
-  loadHelpRequest(id = this.api.requestId) {
-    this.api.selectRequest(id.trim());
-    if (!this.api.hasRequestId) return;
+  takeNext() {
+    this.execute(this.api.post<HelpRequest | null>('teachers/sessions/' + this.sessionId + '/queue/take-next', null), request => {
+      if (request) { this.selectRequest(request.id); this.replyText = ''; }
+      else this.notice = 'Der er ingen ledige hjælpeanmodninger i køen.';
+    });
+  }
+
+  openRequest(id: string) {
+    this.stopRefresh();
+    this.selectRequest(id);
     this.conversation = null;
-    const role = this.isTeacher ? 'teachers' : 'students';
-    const path = `${role}/requests/${this.api.requestId}`;
-    this.execute('GET', path, this.api.get<HelpRequest>(path), request => this.showHelpRequest(request));
+    this.replyText = '';
+    this.refresh();
   }
 
   sendMessage() {
     if (!this.canSendMessage || !this.replyText.trim()) return;
-    const role = this.isTeacher ? 'teachers' : 'students';
-    const path = `${role}/requests/${this.api.requestId.trim()}/messages`;
-    const body = { text: this.replyText.trim() };
-    this.execute('POST', path, this.api.post<HelpRequest>(path, body), request => {
-      this.studentQueue = null;
-      this.showHelpRequest(request);
+    this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/messages',
+      { text: this.replyText.trim() }), () => {
       this.replyText = '';
-      this.notice = this.isTeacher
-        ? 'Dit digitale svar er gemt, og anmodningen er afsluttet.'
-        : 'Din besked er gemt. Anmodningen venter nu bagest i køen.';
-    }, body);
+      this.notice = this.isTeacher ? 'Dit svar er sendt, og hjælpen er afsluttet.' : 'Din besked er sendt. Anmodningen er tilbage i køen.';
+    });
   }
 
   changeStatus(action: HelpRequestAction) {
-    if (action === 'Start' && !this.canStart || action === 'Complete' && !this.canComplete
-      || action === 'Cancel' && !this.canCancel) return;
-    const role = this.isTeacher ? 'teachers' : 'students';
-    const path = `${role}/requests/${this.api.requestId.trim()}/status`;
-    const body = { action };
-    this.execute('PATCH', path, this.api.patch<HelpRequest>(path, body), request => {
-      this.studentQueue = null;
-      this.showHelpRequest(request);
-      this.notice = action === 'Start' ? 'Fysisk hjælp er startet. Anmodningen er nu aktiv.'
-        : action === 'Complete' ? 'Hjælpen er afsluttet.'
-        : this.isTeacher ? `Anmodning ${request.displayNumber} venter nu forrest i køen og kan tages igen.`
-        : 'Anmodningen er annulleret. Eleven kan oprette en ny, hvis der stadig er brug for hjælp.';
-    }, body);
-  }
-
-  private updateGeneration(generation: number) {
-    const sessionId = this.api.session.id.trim();
-    this.api.session.generation = generation;
-    this.api.saveSession();
-    this.studentSessions = this.studentSessions?.map(session => session.id === sessionId
-      ? { ...session, currentGeneration: generation } : session) ?? null;
-    this.teacherSessions = this.teacherSessions?.map(session => session.id === sessionId
-      ? { ...session, currentGeneration: generation } : session) ?? null;
-    this.requests = this.requests?.filter(request => request.sessionId !== sessionId || request.generation === generation) ?? null;
-  }
-
-  private showHelpRequest(request: HelpRequest) {
-    if (this.conversation?.id !== request.id) this.replyText = '';
-    this.api.selectRequest(request.id);
-    this.conversation = request;
-    if (!this.isTeacher) {
-      if (this.requests !== null && (this.requests.some(item => item.id === request.id)
-        || request.sessionId === this.api.session.id.trim() && request.generation === this.api.session.generation)) {
-        const summary: HelpRequestSummary = {
-          id: request.id, studentId: request.studentId, message: request.messages[0]?.text ?? '',
-          requestNumber: request.requestNumber, displayNumber: request.displayNumber,
-          sessionId: request.sessionId, generation: request.generation, status: request.status, helpType: request.helpType
-        };
-        this.requests = [summary, ...this.requests.filter(item => item.id !== request.id)];
-      }
-    }
-    if (this.teacherQueue?.sessionId === request.sessionId && this.teacherQueue.generation === request.generation) {
-      const requests = this.teacherQueue.requests.filter(item => item.id !== request.id);
-      const activeRequests = this.teacherQueue.activeRequests.filter(item => item.id !== request.id);
-      if (request.status === 'Pending') requests.push(request);
-      if (request.status === 'Active') activeRequests.push(request);
-      requests.sort((left, right) => (right.returnedToQueueAt ?? '').localeCompare(left.returnedToQueueAt ?? '')
-        || left.queuedAt.localeCompare(right.queuedAt) || left.id.localeCompare(right.id));
-      this.teacherQueue = { ...this.teacherQueue, requests, activeRequests, waitingCount: requests.length };
-    }
-  }
-
-  private execute<T>(method: 'GET' | 'POST' | 'PATCH', path: string, request: Observable<ApiResponse<T>>,
-    onSuccess?: (body: T) => void, body?: unknown) {
-    if (this.busy) return;
-    this.endpoint = `${method} /api/${path}`;
-    this.requestBody = body;
-    this.result = undefined;
-    this.status = null;
-    this.error = '';
-    this.notice = '';
-    this.api.busy = true;
-    let successfulResponse: ApiResponse<T> | undefined;
-    request.pipe(timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => {
-      this.api.busy = false;
-      if (successfulResponse) onSuccess?.(successfulResponse.body);
-    })).subscribe({
-      next: response => {
-        this.status = response.status;
-        this.result = response.body;
-        successfulResponse = response;
-      },
-      error: (failure: unknown) => {
-        if (!(failure instanceof HttpErrorResponse)) {
-          this.error = 'Kaldet tog mere end 30 sekunder eller blev afbrudt. Kontrollér at services kører.';
-          return;
-        }
-        this.status = failure.status;
-        this.result = this.api.decodeBody(failure.error);
-        this.error = failure.status === 401
-          ? path.startsWith('teachers/') ? 'Log ind som lærer, og prøv igen.' : 'Hent elevidentiteten på fanen Studerende, og prøv igen.'
-          : failure.status === 403 ? 'Adgang afvist. Kontrollér kontoens rolle og rettigheder.'
-          : failure.status === 404 ? 'Sessionen eller anmodningen findes ikke, eller du har ikke adgang til den. Studerende skal først tilmelde sig sessionen.'
-          : failure.status === 409 ? 'Handlingen er i konflikt med anmodningens eller sessionens tilstand. Se API-svaret og hent de aktuelle oplysninger.'
-          : failure.status === 0 || failure.status >= 502 && failure.status <= 504
-            ? 'Kan ikke kontakte Heimdall eller EirService. Kontrollér at services kører.'
-            : `Kaldet fejlede (HTTP ${failure.status}). Se API-svaret nedenfor.`;
-      }
+    if (action === 'Start' && !this.canStart || action === 'Complete' && !this.canComplete || action === 'Cancel' && !this.canCancel) return;
+    this.execute(this.api.patch<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/status', { action }), () => {
+      this.notice = action === 'Start' ? 'Fysisk hjælp er startet.' : action === 'Complete' ? 'Hjælpen er afsluttet.'
+        : this.isTeacher ? 'Anmodningen er sendt forrest i køen.' : 'Din anmodning er annulleret.';
     });
+  }
+
+  clearSession() {
+    if (!this.session || !window.confirm('Ryd sessionens kø og hjælpeanmodninger? De studerende forbliver tilmeldt.')) return;
+    this.execute(this.api.post<ClearSessionResult>('teachers/sessions/' + this.sessionId + '/clear',
+      { expectedGeneration: this.session.currentGeneration }), () => {
+      this.selectRequest('');
+      this.conversation = null;
+      this.notice = 'Sessionen er ryddet.';
+    });
+  }
+
+  async copySessionLink() {
+    const link = new URL('/students', window.location.origin);
+    link.searchParams.set('code', this.sessionCode);
+    try { await navigator.clipboard.writeText(link.toString()); this.notice = 'Tilmeldingslinket er kopieret.'; }
+    catch { this.notice = 'Del sessionskoden: ' + this.sessionCode; }
+  }
+
+  statusLabel(status: string) {
+    return ({ Pending: 'Venter', Active: 'I gang', AwaitingConfirmation: 'Afventer dig', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
+  }
+
+  private execute<T>(request: Observable<T>, success: (body: T) => void) {
+    if (this.busy) return;
+    this.stopRefresh();
+    this.busy = true;
+    this.error = '';
+    this.refreshError = '';
+    this.notice = '';
+    request.pipe(timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => { this.busy = false; })).subscribe({
+      next: body => { this.busy = false; success(body); this.refresh(); },
+      error: failure => { this.handleError(failure); this.busy = false; this.refresh(); }
+    });
+  }
+
+  private stopRefresh() { this.refreshQueued = false; this.refreshSubscription?.unsubscribe(); this.refreshing = false; }
+  private selectRequest(id: string) {
+    this.selectedRequestId = id;
+    try { sessionStorage.setItem(this.selectionKey, id); } catch { /* Selection also works without storage. */ }
+  }
+  private get selectionKey() { return 'bifrost-' + this.role + '-' + this.sessionId + '-request'; }
+  private readSelectedRequest() {
+    try { return sessionStorage.getItem(this.selectionKey) ?? ''; } catch { return ''; }
+  }
+  private handleError(failure: unknown, background = false) {
+    const status = failure instanceof HttpErrorResponse ? failure.status : 0;
+    if (status === 401) {
+      this.identity = null;
+      this.loginRequired = this.isTeacher;
+      void this.notifications.stop(this.role);
+    }
+    const message = status === 401 ? this.isTeacher ? '' : 'Din studenteridentitet kunne ikke hentes. Prøv at genindlæse siden.'
+      : status === 403 ? 'Du har ikke adgang til denne handling.'
+      : status === 404 ? 'Sessionen eller anmodningen findes ikke, eller du har ikke adgang.'
+      : status === 409 ? 'Anmodningen eller sessionen er ændret. Oplysningerne opdateres; prøv igen.'
+      : status === 400 ? 'Kontrollér de oplysninger, du har indtastet.'
+      : 'Kunne ikke hente data. Kontrollér forbindelsen, og prøv igen.';
+    if (background) this.refreshError = message;
+    else this.error = message;
   }
 }
