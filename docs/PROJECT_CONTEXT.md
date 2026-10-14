@@ -19,7 +19,7 @@ Key capabilities:
 - **Gateway & Reverse Proxy:** YARP (Yet Another Reverse Proxy) in `HeimdallGateway` managing edge routing, token extraction, and student cookie issuance.
 - **Identity & Authentication:**
   - **Teachers:** Duende IdentityServer (in `VarService`) with ASP.NET Core Identity for OAuth 2.0 / OpenID Connect authorization code flow with PKCE and JWT Bearer tokens.
-  - **Students:** ASP.NET Core Data Protection encrypted cookie authentication (`bifrost-student`) issuing anonymous student identifiers.
+  - **Students:** ASP.NET Core Data Protection encrypted cookie authentication (`bifrost-anonymous-user`) issuing anonymous student identifiers.
 - **Databases & Persistence:**
   - PostgreSQL 16+ via Entity Framework Core 10 (`10.0.12`) and Npgsql.
   - Isolated database per service (`eir`, `gna`, `mimir`, `var`).
@@ -29,8 +29,11 @@ Key capabilities:
   - Custom abstraction `IMessageBus` (`RabbitMqMessageBus`) with W3C distributed trace context propagation via OpenTelemetry `ActivitySource`.
   - Transactional Outbox Pattern (`OutboxDispatcher`, `OutboxMessage`, `OutgoingMessage`) for reliable at-least-once message dispatching.
   - Unit of Work pattern (`IUnitOfWork`, `IUnitOfWork<TContext>`) guaranteeing atomic persistence of aggregate changes and outbox messages.
-- **Frontend (Status: Pending Rewrite):**
-  - Current frontend projects (`GlitnirFrontend`, `TestFrontend`) are legacy/temporary prototypes and are currently excluded from architectural requirements while being redesigned. Frontend architecture will be defined in a future milestone.
+- **Frontend:**
+  - Angular 22 (`glitnir-frontend`), standalone components, signals, zoneless, Vitest.
+  - Feature-based structure (`core/`, `features/`, `shared/`) with role-split routing (`/` for students, `/teacher/*` for teachers).
+  - Cookie-based OAuth via HeimdallGateway (`bifrost-teacher`) and anonymous student identity cookies (`bifrost-anonymous-user`).
+  - Integrated into Aspire orchestration via `.esproj` and `AddJavaScriptApp` in AppHost.
 - **CI/CD:** GitHub Actions (automated builds, tests, and automated AI Pull Request code reviewer bot).
 
 ---
@@ -58,6 +61,23 @@ Every service and module strictly adheres to Clean Architecture:
    - All RabbitMQ message subscribers must handle redeliveries gracefully without duplicating state or causing fatal errors.
 5. **Language Rule:**
    - All code, symbols, class/method/variable names, log messages, exception messages, and code comments must be written **100% in English**.
+
+### 3.3 Frontend Architecture
+
+The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feature-based architecture:
+
+- **`core/`** — global singletons (auth, layout, guards). No feature knowledge.
+- **`shared/`** — reusable UI-only components with no domain knowledge.
+- **`features/`** — business domains (`session`, `faq`, `student`, `teacher`, `not-found`), each isolated with its own services, components and models.
+
+**Rules:**
+
+- Features are isolated. Cross-feature imports happen only via public APIs.
+- One feature never imports from another feature's internals.
+- `core/` services and stores are exposed via `@Service()` (Angular v22 shorthand).
+- Models use `.model.ts` suffix (Angular official exception to the "no type suffixes" rule).
+- Role-based access is enforced with `CanMatchFn` guards (`studentGuard`, `teacherGuard`) that short-circuit lazy loading.
+- Topbar layout is included per page (not global in `app.html`) and supports content projection through named slots.
 
 ---
 
@@ -176,13 +196,9 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 4. **FastEndpoints Pattern:** HTTP endpoints must follow the REPR pattern and validate inputs using FluentValidation classes rather than inline controller logic.
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
 6. **English in Codebase:** All code, identifiers, comments, and log messages must be in English.
-7. **Frontend Exemption:** Ignore legacy frontend projects until the new frontend architecture is implemented.
-
----
-
-## Update 2026-10-14
-
-- The legacy frontend prototype has been replaced by the new Angular application (`glitnir-frontend`), fully integrated into .NET Aspire orchestration.
-- Frontend routing implements role-based guards (`studentGuard`, `teacherGuard`) that authenticate user sessions against backend identity endpoints (`/api/students/me`, `/api/teachers/me`).
-- State management utilizes Angular reactive signals and centralized stores (`AuthStore`) to track user authentication and role context.
-- The UI architecture supports dynamic view-switching between student and teacher perspectives based on authenticated user roles.
+7. **Frontend Architecture & Testing:**
+   - Feature isolation: no cross-feature imports of internal code.
+   - No legacy Angular patterns (`NgModule`, constructor injection, `*ngIf`, Karma).
+   - Unit tests required for all services and business logic; skip tests for pure shell components.
+   - Cookie-based auth only — no tokens in `localStorage` or `sessionStorage`.
+   - English codebase rule applies to TypeScript as well.
