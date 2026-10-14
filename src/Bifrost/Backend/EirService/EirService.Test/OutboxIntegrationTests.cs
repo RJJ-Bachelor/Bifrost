@@ -236,7 +236,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var repository = scope.ServiceProvider.GetRequiredService<IMimirHelpRequestRepository>();
             var sessionId = Guid.NewGuid();
             var reply = Reply(TestIds.From("rollback"), sessionId, 1) with { RoutingKey = new string('x', 256) };
-            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), "Help"), reply, CancellationToken.None));
+            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), sessionId, 1, "Help"), reply, CancellationToken.None));
         }
         await using var verification = services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();

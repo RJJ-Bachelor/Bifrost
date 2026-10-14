@@ -18,12 +18,13 @@ public sealed class HelpRequestMessageHandler(
 
     public async Task HandleAsync(MessageEnvelope<HelpRequestCreatedMessage> message, CancellationToken cancellationToken)
     {
-        var llmResponse = await llmClient.GenerateAsync(SystemInstruction, message.Payload.Message, cancellationToken);
+        var payload = message.Payload;
+        var llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
         logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
 
-        var request = HelpRequest.Create(message.Id, message.Payload.Message);
+        var request = HelpRequest.Create(message.Id, payload.SessionId, payload.Generation, payload.Message);
         var reply = new OutgoingMessage(message.Id,
-            new GeneralizedCreatedMessage(llmResponse, message.Payload.SessionId, message.Payload.Generation),
+            new GeneralizedCreatedMessage(llmResponse, payload.SessionId, payload.Generation),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         if (await requestRepository.TryAddAsync(request, reply, cancellationToken))
             logger.LogInformation("Mimir received help request {MessageId} with payload: {Payload}", message.Id, message.Payload.Message);
