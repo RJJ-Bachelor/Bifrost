@@ -1,8 +1,12 @@
 import { inject } from '@angular/core';
-import { CanActivateFn } from '@angular/router';
+import { CanMatchFn } from '@angular/router';
 import { AuthStore } from '../services/auth-store';
 
-export const studentGuard: CanActivateFn = async () => {
+export const studentGuard: CanMatchFn = async (_route, segments) => {
+  if (segments[0]?.path === 'teacher') {
+    return false;
+  }
+
   const store = inject(AuthStore);
 
   if (!store.isAuthenticated()) {

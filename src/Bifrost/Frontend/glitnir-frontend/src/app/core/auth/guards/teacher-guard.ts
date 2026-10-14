@@ -1,8 +1,8 @@
 import { inject } from '@angular/core';
-import { CanActivateFn } from '@angular/router';
+import { CanMatchFn } from '@angular/router';
 import { AuthStore } from '../services/auth-store';
 
-export const teacherGuard: CanActivateFn = async () => {
+export const teacherGuard: CanMatchFn = async () => {
   const store = inject(AuthStore);
   const returnUrl = window.location.pathname + window.location.search;
 
