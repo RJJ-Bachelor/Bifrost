@@ -16,12 +16,17 @@ public sealed class CreateHelpRequestCommandHandler(
     public async Task<HelpRequestResult> ExecuteAsync(CreateHelpRequestCommand command, CancellationToken cancellationToken)
     {
         var session = await access.ForSessionAsync(command.SessionId, command.StudentId, AuthorRole.Student, cancellationToken);
+        
         if (await repository.HasOpenAsync(session.Id, session.Generation, command.StudentId, cancellationToken))
             throw new OperationConflictException("You already have an open request in this session.");
+        
         var request = HelpRequest.Create(session.Id, session.Generation, command.StudentId,
             command.HelpType!.Value, new MessageText(command.Message), timeProvider.GetUtcNow());
+        
         await repository.AddAsync(request, cancellationToken);
+        
         await unitOfWork.SaveChangesAsync(cancellationToken);
+        
         return request.ToResult();
     }
 }

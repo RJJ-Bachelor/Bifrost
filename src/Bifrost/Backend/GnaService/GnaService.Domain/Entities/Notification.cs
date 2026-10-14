@@ -1,5 +1,6 @@
 using Shared.Domain.Primitives;
 using GnaService.Domain.ValueObjects;
+using GnaService.Domain.DomainEvents;
 
 namespace GnaService.Domain.Entities;
 
@@ -12,12 +13,12 @@ public sealed class Notification : AggregateRoot<Guid>
     private Notification(
         Guid id,
         UserId userId,
-        NotificationMessages messages)
+        NotificationMessages messages, DateTimeOffset now)
     {
         Id = id;
         UserId = userId;
         Messages = messages;
-        CreatedAt = DateTimeOffset.UtcNow;
+        CreatedAt = now.ToUniversalTime();
     }
 
 
@@ -30,13 +31,15 @@ public sealed class Notification : AggregateRoot<Guid>
     public static Notification Create(
         Guid id,
         string userId,
-        string messages)
+        string messages, DateTimeOffset? now = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
 
-        return new Notification(
+        var notification = new Notification(
             id,
             UserId.Create(userId),
-            NotificationMessages.Create(messages));
+            NotificationMessages.Create(messages), now ?? DateTimeOffset.UtcNow);
+        notification.RaiseDomainEvent(new NotificationCreatedDomainEvent(notification));
+        return notification;
     }
 }

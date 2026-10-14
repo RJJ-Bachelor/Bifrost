@@ -31,7 +31,7 @@ public static class DependencyInjection
         services.AddDbContext<EirRequestDbContext>(options =>
             options.UseNpgsql(connectionString, postgres => postgres.MigrationsHistoryTable("__HelpRequestsMigrationsHistory")));
         services.AddRabbitMqMessageBus(configuration);
-        services.AddOutbox<EirRequestDbContext>();
+        services.AddOutbox<EirRequestDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddScoped<IGeneralizedMessageHandler, GeneralizedMessageHandler>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddScoped<IUnitOfWork<IHelpRequestRepository>, HelpRequestUnitOfWork>();
