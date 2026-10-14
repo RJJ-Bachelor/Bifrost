@@ -44,6 +44,21 @@ public sealed class HelpRequestMessageHandlerTests
         Assert.Empty(repository.Added);
     }
 
+    [Fact]
+    public async Task UnavailableLlmForwardsTheOriginalMessage()
+    {
+        var repository = new FakeRepository();
+        var handler = new HelpRequestMessageHandler(NullLogger<HelpRequestMessageHandler>.Instance, repository, new UnavailableLlmClient());
+        var message = Message();
+
+        await handler.HandleAsync(message, CancellationToken.None);
+
+        var (request, reply) = Assert.Single(repository.Added);
+        Assert.Equal(message.Id, request.Id);
+        var payload = Assert.IsType<GeneralizedCreatedMessage>(reply.Payload);
+        Assert.Equal(message.Payload.Message, payload.Message);
+    }
+
     private static MessageEnvelope<HelpRequestCreatedMessage> Message() =>
         new(Guid.NewGuid(), new HelpRequestCreatedMessage("Help me", Guid.NewGuid(), 1));
 
@@ -56,6 +71,12 @@ public sealed class HelpRequestMessageHandlerTests
             Calls++;
             return Task.FromResult("Generalized answer");
         }
+    }
+
+    private sealed class UnavailableLlmClient : ILlmClient
+    {
+        public Task<string> GenerateAsync(string systemInstruction, string prompt, CancellationToken cancellationToken) =>
+            throw new LlmUnavailableException("All configured LLM models failed.");
     }
 
     private sealed class FakeRepository : IHelpRequestRepository

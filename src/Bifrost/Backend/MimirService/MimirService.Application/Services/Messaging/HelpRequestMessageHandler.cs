@@ -26,8 +26,17 @@ public sealed class HelpRequestMessageHandler(
         }
 
         var payload = message.Payload;
-        var llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
-        logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
+        string llmResponse;
+        try
+        {
+            llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
+            logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
+        }
+        catch (LlmUnavailableException exception)
+        {
+            logger.LogWarning(exception, "Mimir forwarded help request {MessageId} unchanged because no LLM model responded.", message.Id);
+            llmResponse = payload.Message;
+        }
 
         var request = HelpRequest.Create(message.Id, payload.SessionId, payload.Generation, payload.Message);
         var reply = new OutgoingMessage(message.Id,

@@ -43,7 +43,7 @@ internal sealed class GeminiLlmClient(
             }
         }
 
-        throw new InvalidOperationException("All configured LLM models failed.");
+        throw new LlmUnavailableException("All configured LLM models failed.");
     }
 
     private async Task<string?> RequestModelAsync(
