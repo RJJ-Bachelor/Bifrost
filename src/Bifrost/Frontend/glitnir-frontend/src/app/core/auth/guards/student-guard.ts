@@ -9,7 +9,7 @@ export const studentGuard: CanMatchFn = async (_route, segments) => {
 
   const store = inject(AuthStore);
 
-  if (!store.isAuthenticated()) {
+  if (!store.isStudent()) {
     await store.loadIdentity('student');
   }
 
