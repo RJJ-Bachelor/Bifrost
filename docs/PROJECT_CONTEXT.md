@@ -178,3 +178,11 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 6. **English in Codebase:** All code, identifiers, comments, and log messages must be in English.
 7. **Frontend Exemption:** Ignore legacy frontend projects until the new frontend architecture is implemented.
 
+---
+
+## Update 2026-10-14
+
+- The legacy frontend prototype has been replaced by the new Angular application (`glitnir-frontend`), fully integrated into .NET Aspire orchestration.
+- Frontend routing implements role-based guards (`studentGuard`, `teacherGuard`) that authenticate user sessions against backend identity endpoints (`/api/students/me`, `/api/teachers/me`).
+- State management utilizes Angular reactive signals and centralized stores (`AuthStore`) to track user authentication and role context.
+- The UI architecture supports dynamic view-switching between student and teacher perspectives based on authenticated user roles.
