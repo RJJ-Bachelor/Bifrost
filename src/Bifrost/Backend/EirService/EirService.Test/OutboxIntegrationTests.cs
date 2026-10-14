@@ -19,6 +19,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using IMimirHelpRequestRepository = MimirService.Application.Repositories.IHelpRequestRepository;
+using MimirService.Application.Services.Llm;
 using MimirService.Application.Services.Messaging;
 using MimirHelpRequest = MimirService.Domain.Entities.HelpRequest;
 using MimirService.Infrastructure;
@@ -78,7 +79,11 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 services.AddHelpRequestsInfrastructure(configuration);
                 services.ConfigureDbContext<EirRequestDbContext>(options => options.AddInterceptors(interceptor));
                 break;
-            case "mimir": services.AddMimirInfrastructure(configuration); break;
+            case "mimir":
+                services.AddMimirInfrastructure(configuration);
+                services.RemoveAll<ILlmClient>();
+                services.AddSingleton<ILlmClient, FakeLlmClient>();
+                break;
             case "gna": services.AddGnaInfrastructure(configuration); break;
         }
         if (!realBroker)
