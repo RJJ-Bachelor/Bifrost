@@ -1,7 +1,8 @@
 import { Component } from '@angular/core';
+import { Topbar } from '../../../../core/layout/topbar/topbar';
 
 @Component({
-  imports: [],
+  imports: [Topbar],
   selector: 'app-dashboard',
   styleUrl: './dashboard.scss',
   templateUrl: './dashboard.html',

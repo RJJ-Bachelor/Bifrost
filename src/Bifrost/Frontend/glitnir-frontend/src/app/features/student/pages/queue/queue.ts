@@ -1,7 +1,8 @@
 import { Component } from '@angular/core';
+import { Topbar } from '../../../../core/layout/topbar/topbar';
 
 @Component({
-  imports: [],
+  imports: [Topbar],
   selector: 'app-queue',
   styleUrl: './queue.scss',
   templateUrl: './queue.html',
