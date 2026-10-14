@@ -53,7 +53,7 @@
     <Project Path="Backend/Shared/Shared.Test/Shared.Test.csproj" Id="350d4778-c3dd-4f03-b324-457d7c2d540e" />
   </Folder>
   <Folder Name="/Frontend/">
-    <Project Path="Frontend/GlitnirFrontend/GlitnirFrontend.esproj">
+    <Project Path="Frontend/glitnir-frontend/glitnir-frontend.esproj">
       <Build />
       <Deploy />
     </Project>

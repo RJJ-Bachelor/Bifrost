@@ -1,0 +1,24 @@
+<header class="topbar" [class.topbar--teacher]="authStore.isTeacher()">
+  <a
+    class="topbar__brand"
+    [routerLink]="homeLink()"
+    (mouseenter)="onBrandEnter()"
+    (mouseleave)="onBrandLeave()"
+  >
+    <img class="topbar__logo" src="bifrost-logo.svg" alt="" />
+    <span class="topbar__name">Bifrost</span>
+  </a>
+  <div class="topbar__left">
+    @if (switcherRevealed()) {
+      <div (mouseenter)="onSwitcherEnter()" (mouseleave)="onSwitcherLeave()">
+        <app-view-switcher />
+      </div>
+    }
+  </div>
+  <div class="topbar__center">
+    <ng-content select="[topbar-center]" />
+  </div>
+  <div class="topbar__right">
+    <ng-content select="[topbar-right]" />
+  </div>
+</header>

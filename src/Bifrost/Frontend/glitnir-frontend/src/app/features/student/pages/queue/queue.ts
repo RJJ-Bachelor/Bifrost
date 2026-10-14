@@ -1,0 +1,10 @@
+import { Component } from '@angular/core';
+import { Topbar } from '../../../../core/layout/topbar/topbar';
+
+@Component({
+  imports: [Topbar],
+  selector: 'app-queue',
+  styleUrl: './queue.scss',
+  templateUrl: './queue.html',
+})
+export class Queue {}
