@@ -1,54 +1,22 @@
-<p>Vælg en session, tag den næste ledige anmodning i køen, og hjælp eleven i samtalen nedenfor.</p>
-<div class="actions">
-  <button (click)="view.api.login('/teachers/requests')" [disabled]="view.busy">Log ind som lærer</button>
-  <button class="secondary" (click)="view.load()" [disabled]="view.busy">Hent læreridentitet</button>
-</div>
-<p *ngIf="view.identity"><strong>Lærer:</strong> {{ view.identity.name || view.identity.userId }}</p>
-
-<h3>Mine sessioner</h3>
-<button class="secondary" (click)="view.loadTeacherSessions(true)" [disabled]="view.busy">Hent mine sessions</button>
-<div *ngIf="view.teacherSessions !== null" class="table-wrap">
-  <p *ngIf="view.teacherSessions.length === 0">Du har ingen sessioner. <a routerLink="/teachers">Opret en session</a> først.</p>
-  <table *ngIf="view.teacherSessions.length > 0">
-    <thead><tr><th>Session</th><th>Kode</th><th>Generation</th><th>Hjælp</th></tr></thead>
-    <tbody><tr *ngFor="let session of view.teacherSessions" [class.selected]="session.id === view.api.session.id">
-      <td>{{ session.title }}<small>{{ session.id }}</small></td><td>{{ session.code }}</td><td>{{ session.currentGeneration }}</td>
-      <td><button class="secondary" (click)="view.chooseSession(session, session.code)" [disabled]="view.busy">Vælg session</button></td>
-    </tr></tbody>
-  </table>
-</div>
-
-<div class="divider">
-  <h3>Hjælpekø i valgt session</h3>
-  <div class="actions">
-    <button (click)="view.takeNext()" [disabled]="view.busy || !view.hasTeacherSession">Tag næste</button>
-    <button class="secondary" (click)="view.loadQueue()" [disabled]="view.busy || !view.hasTeacherSession">Hent lærerkø</button>
+<section class="card">
+  <div class="section-heading"><div><p class="eyebrow">HJÆLPEKØ</p><h2>Ventende <span class="count">{{ view.waitingRequests.length }}</span></h2></div><button (click)="view.takeNext()" [disabled]="view.busy || view.waitingRequests.length === 0">Tag næste →</button></div>
+  <p class="hint">Tag næste anmodning for at starte fysisk hjælp eller sende et digitalt svar.</p>
+  <div *ngIf="view.waitingRequests.length === 0" class="empty-state compact"><span class="empty-symbol" aria-hidden="true">✓</span><h3>Køen er tom</h3><p>Nye spørgsmål vises her automatisk.</p></div>
+  <div class="queue-list">
+    <button *ngFor="let request of view.waitingRequests; let position = index" class="queue-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
+      <span class="queue-position">{{ position + 1 }}</span>
+      <span class="queue-item-content"><span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status">{{ request.helpType === 'Physical' ? 'Fysisk' : 'Digital' }}</span></span><span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">{{ request.assignedTeacherId ? 'Reserveret' : 'Venter på hjælp' }}</span></span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </button>
   </div>
-  <p class="hint">Tag næste reserverer én ledig anmodning og åbner den nedenfor. Start og afslut fysisk hjælp, eller skriv et digitalt svar.</p>
-  <ng-container *ngIf="view.teacherQueue as queue">
-    <div *ngIf="queue.sessionId === view.api.session.id && queue.generation === view.api.session.generation">
-      <p><strong>Ventende:</strong> {{ queue.waitingCount }} · <strong>Aktive:</strong> {{ queue.activeRequests.length }} · Generation {{ queue.generation }}</p>
-      <h3>Ventende anmodninger</h3>
-      <p *ngIf="queue.requests.length === 0">Ingen ventende anmodninger.</p>
-      <ng-container *ngTemplateOutlet="queueTable; context: { $implicit: queue.requests, waiting: true }"></ng-container>
-      <h3>Aktiv fysisk hjælp</h3>
-      <p *ngIf="queue.activeRequests.length === 0">Ingen aktiv hjælp.</p>
-      <ng-container *ngTemplateOutlet="queueTable; context: { $implicit: queue.activeRequests, waiting: false }"></ng-container>
-    </div>
-  </ng-container>
-  <ng-template #queueTable let-items let-waiting="waiting">
-    <div class="table-wrap" *ngIf="items.length > 0">
-      <table>
-        <thead><tr><th *ngIf="waiting">Placering</th><th>Nummer</th><th>Spørgsmål og elev</th><th>Hjælpeform</th><th>Status</th><th>Underviser</th><th>Samtale</th></tr></thead>
-        <tbody><tr *ngFor="let request of items; let index = index" [class.selected]="request.id === view.api.requestId">
-          <td *ngIf="waiting">{{ index + 1 }}</td>
-          <td><strong>{{ request.displayNumber }}</strong></td>
-          <td class="message">{{ request.messages[0]?.text }}<small>Elev: {{ request.studentId }}</small><small>{{ request.id }}</small></td>
-          <td>{{ request.helpType }}</td><td>{{ request.status }}</td><td>{{ request.assignedTeacherId || 'Ikke reserveret' }}</td>
-          <td><button class="secondary" (click)="view.loadHelpRequest(request.id)" [disabled]="view.busy">Åbn samtale</button></td>
-        </tr></tbody>
-      </table>
-    </div>
-  </ng-template>
-  <p class="hint">Tryk Hent lærerkø for at se nye anmodninger og ændringer fra eleverne.</p>
-</div>
+</section>
+<section class="card">
+  <div class="section-heading"><div><p class="eyebrow">FYSISK HJÆLP</p><h2>I gang <span class="count">{{ view.activeRequests.length }}</span></h2></div></div>
+  <p *ngIf="view.activeRequests.length === 0" class="hint">Ingen aktiv fysisk hjælp lige nu.</p>
+  <div class="request-list">
+    <button *ngFor="let request of view.activeRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
+      <span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status" data-status="Active">I gang</span></span>
+      <span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">Åbn for at afslutte eller sende forrest i køen →</span>
+    </button>
+  </div>
+</section>

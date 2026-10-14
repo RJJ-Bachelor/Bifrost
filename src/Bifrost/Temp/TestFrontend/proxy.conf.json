@@ -2,6 +2,7 @@
   "/api/**": {
     "target": "http://localhost:6004",
     "secure": false,
+    "ws": true,
     "changeOrigin": true
   }
 }
