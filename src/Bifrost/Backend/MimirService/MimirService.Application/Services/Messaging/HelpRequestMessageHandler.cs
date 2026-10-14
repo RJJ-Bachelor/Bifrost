@@ -18,6 +18,13 @@ public sealed class HelpRequestMessageHandler(
 
     public async Task HandleAsync(MessageEnvelope<HelpRequestCreatedMessage> message, CancellationToken cancellationToken)
     {
+        // A redelivery must not cost another LLM call
+        if (await requestRepository.ExistsAsync(message.Id, cancellationToken))
+        {
+            logger.LogInformation("Mimir ignored redelivered help request {MessageId}.", message.Id);
+            return;
+        }
+
         var payload = message.Payload;
         var llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
         logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
