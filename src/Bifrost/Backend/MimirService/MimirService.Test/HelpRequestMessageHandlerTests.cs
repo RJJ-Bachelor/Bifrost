@@ -23,18 +23,19 @@ public sealed class HelpRequestMessageHandlerTests
 
         Assert.Equal(1, llm.Calls);
         var (request, reply) = Assert.Single(repository.Added);
-        Assert.Equal(message.Id, request.Id);
+        Assert.Equal(message.Payload.HelpRequestId, request.Id);
         Assert.Equal(message.Payload.SessionId, request.SessionId);
         Assert.Equal(message.Payload.Generation, request.Generation);
         var payload = Assert.IsType<GeneralizedCreatedMessage>(reply.Payload);
         Assert.Equal("Generalized answer", payload.Message);
+        Assert.Equal(message.Payload.HelpRequestId, payload.HelpRequestId);
     }
 
     [Fact]
     public async Task RedeliveredRequestSkipsTheLlmCall()
     {
         var message = Message();
-        var repository = new FakeRepository { ExistingIds = { message.Id } };
+        var repository = new FakeRepository { ExistingIds = { message.Payload.HelpRequestId } };
         var llm = new CountingLlmClient();
         var handler = new HelpRequestMessageHandler(NullLogger<HelpRequestMessageHandler>.Instance, repository, llm);
 
@@ -54,7 +55,7 @@ public sealed class HelpRequestMessageHandlerTests
         await handler.HandleAsync(message, CancellationToken.None);
 
         var (request, reply) = Assert.Single(repository.Added);
-        Assert.Equal(message.Id, request.Id);
+        Assert.Equal(message.Payload.HelpRequestId, request.Id);
         var payload = Assert.IsType<GeneralizedCreatedMessage>(reply.Payload);
         Assert.Equal(message.Payload.Message, payload.Message);
     }

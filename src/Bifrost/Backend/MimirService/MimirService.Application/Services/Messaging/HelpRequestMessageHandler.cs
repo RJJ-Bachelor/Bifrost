@@ -18,32 +18,32 @@ public sealed class HelpRequestMessageHandler(
 
     public async Task HandleAsync(MessageEnvelope<HelpRequestCreatedMessage> message, CancellationToken cancellationToken)
     {
+        var payload = message.Payload;
         // A redelivery must not cost another LLM call
-        if (await requestRepository.ExistsAsync(message.Id, cancellationToken))
+        if (await requestRepository.ExistsAsync(payload.HelpRequestId, cancellationToken))
         {
-            logger.LogInformation("Mimir ignored redelivered help request {MessageId}.", message.Id);
+            logger.LogInformation("Mimir ignored redelivered help request {HelpRequestId}.", payload.HelpRequestId);
             return;
         }
 
-        var payload = message.Payload;
         string llmResponse;
         try
         {
             llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
-            logger.LogInformation("Mimir generated LLM response for help request {MessageId}.", message.Id);
+            logger.LogInformation("Mimir generated LLM response for help request {HelpRequestId}.", payload.HelpRequestId);
         }
         catch (LlmUnavailableException exception)
         {
-            logger.LogWarning(exception, "Mimir forwarded help request {MessageId} unchanged because no LLM model responded.", message.Id);
+            logger.LogWarning(exception, "Mimir forwarded help request {HelpRequestId} unchanged because no LLM model responded.", payload.HelpRequestId);
             llmResponse = payload.Message;
         }
 
-        var request = HelpRequest.Create(message.Id, payload.SessionId, payload.Generation, payload.Message);
+        var request = HelpRequest.Create(payload.HelpRequestId, payload.SessionId, payload.Generation, payload.Message);
         var reply = new OutgoingMessage(message.Id,
             new GeneralizedCreatedMessage(payload.HelpRequestId, payload.SessionId, payload.Generation, llmResponse),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         if (await requestRepository.TryAddAsync(request, reply, cancellationToken))
-            logger.LogInformation("Mimir stored help request {MessageId} for session {SessionId} generation {Generation}.",
-                message.Id, payload.SessionId, payload.Generation);
+            logger.LogInformation("Mimir stored help request {HelpRequestId} for session {SessionId} generation {Generation}.",
+                payload.HelpRequestId, payload.SessionId, payload.Generation);
     }
 }
