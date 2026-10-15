@@ -22,7 +22,9 @@ public sealed class Session : AggregateRoot<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdByTeacherId);
         ArgumentNullException.ThrowIfNull(code);
+
         var trimmedTitle = title.Trim();
+        
         if (trimmedTitle.Length > 200)
             throw new ArgumentException("A session title cannot exceed 200 characters.", nameof(title));
 
