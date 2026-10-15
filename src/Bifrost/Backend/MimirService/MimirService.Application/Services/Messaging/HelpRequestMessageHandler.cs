@@ -40,7 +40,7 @@ public sealed class HelpRequestMessageHandler(
 
         var request = HelpRequest.Create(message.Id, payload.SessionId, payload.Generation, payload.Message);
         var reply = new OutgoingMessage(message.Id,
-            new GeneralizedCreatedMessage(llmResponse, payload.SessionId, payload.Generation),
+            new GeneralizedCreatedMessage(payload.HelpRequestId, payload.SessionId, payload.Generation, llmResponse),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         if (await requestRepository.TryAddAsync(request, reply, cancellationToken))
             logger.LogInformation("Mimir stored help request {MessageId} for session {SessionId} generation {Generation}.",

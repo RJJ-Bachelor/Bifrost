@@ -1,3 +1,3 @@
 namespace Shared.Application.Messaging.Contracts;
 
-public sealed record HelpRequestCreatedMessage(string Message, Guid SessionId, int Generation);
+public sealed record HelpRequestCreatedMessage(Guid HelpRequestId, Guid SessionId, int Generation, string Message);

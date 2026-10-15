@@ -60,7 +60,7 @@ public sealed class HelpRequestMessageHandlerTests
     }
 
     private static MessageEnvelope<HelpRequestCreatedMessage> Message() =>
-        new(Guid.NewGuid(), new HelpRequestCreatedMessage("Help me", Guid.NewGuid(), 1));
+        new(Guid.NewGuid(), new HelpRequestCreatedMessage(Guid.NewGuid(), Guid.NewGuid(), 1, "Help me"));
 
     private sealed class CountingLlmClient : ILlmClient
     {

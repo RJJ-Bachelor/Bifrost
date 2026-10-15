@@ -23,7 +23,7 @@ public sealed class HelpRequestChangedIntegrationEventHandler
         {
             var text = request.Messages.OrderBy(message => message.SequenceNumber).First().Text.Value;
             notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
-                new HelpRequestCreatedMessage(text, request.SessionId, request.Generation),
+                new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, text),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestCreated));
             notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
                 new NotificationCreatedMessage(request.StudentId, text, request.SessionId, request.Generation),

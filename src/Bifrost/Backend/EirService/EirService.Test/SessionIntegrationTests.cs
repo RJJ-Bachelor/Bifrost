@@ -290,6 +290,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
         var queued = await db.Outbox.SingleAsync(message => message.MessageId == createdRequestIds[TestIds.From("new-request")] && message.RoutingKey == MessageRoutes.HelpRequestCreated);
         var payload = JsonSerializer.Deserialize<HelpRequestCreatedMessage>(queued.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(createdRequestIds[TestIds.From("new-request")], payload.HelpRequestId);
         Assert.Equal(session.Id, payload.SessionId);
         Assert.Equal(2, payload.Generation);
         Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Requests.CountAsync());
@@ -435,7 +436,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             var request = TestHelpRequests.Create(TestIds.From("rollback-request"), "student", "Help");
-            OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Messages.First().Text.Value, request.SessionId, request.Generation), "requests", new string('x', 256))];
+            OutgoingMessage[] messages = [new(request.Id, new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, request.Messages.First().Text.Value), "requests", new string('x', 256))];
             await Assert.ThrowsAsync<DbUpdateException>(() => TestHelpRequests.SaveWithOutboxAsync(db, request, messages));
         }
         await using var verification = app.Services.CreateAsyncScope();
@@ -489,10 +490,10 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         using var clear = await ClearAsync(session.Id, 1);
         var logger = new RecordingLogger<GeneralizedMessageHandler>();
         var handler = new GeneralizedMessageHandler(logger);
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"), new("Old answer", session.Id, 1)), CancellationToken.None);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"), new(TestIds.From("late"), session.Id, 1, "Old answer")), CancellationToken.None);
         Assert.Contains("Discarded", Assert.Single(logger.Messages));
         logger.Messages.Clear();
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("new"), new("New answer", session.Id, 2)), CancellationToken.None);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("new"), new(TestIds.From("new"), session.Id, 2, "New answer")), CancellationToken.None);
         Assert.Contains("New answer", Assert.Single(logger.Messages));
     }
 
