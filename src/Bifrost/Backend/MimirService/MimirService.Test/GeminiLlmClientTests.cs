@@ -12,11 +12,11 @@ public sealed class GeminiLlmClientTests
     [Fact]
     public async Task FirstModelAnswerIsReturnedWithoutTryingTheNext()
     {
-        var handler = new FakeGeminiHandler { ["model-a"] = Answer("Svar fra A"), ["model-b"] = Answer("Svar fra B") };
+        var handler = new FakeGeminiHandler { ["model-a"] = Answer("Answer from A"), ["model-b"] = Answer("Answer from B") };
 
         var text = await Client(handler, "model-a", "model-b").GenerateAsync("system", "prompt", CancellationToken.None);
 
-        Assert.Equal("Svar fra A", text);
+        Assert.Equal("Answer from A", text);
         Assert.Equal(new[] { "model-a" }, handler.Calls);
     }
 
@@ -26,33 +26,33 @@ public sealed class GeminiLlmClientTests
         var handler = new FakeGeminiHandler
         {
             ["model-a"] = Json("{}", HttpStatusCode.InternalServerError),
-            ["model-b"] = Answer("Svar fra B")
+            ["model-b"] = Answer("Answer from B")
         };
 
         var text = await Client(handler, "model-a", "model-b").GenerateAsync("system", "prompt", CancellationToken.None);
 
-        Assert.Equal("Svar fra B", text);
+        Assert.Equal("Answer from B", text);
         Assert.Equal(new[] { "model-a", "model-b" }, handler.Calls);
     }
 
     [Fact]
     public async Task EmptyAnswerFallsBackToTheNext()
     {
-        var handler = new FakeGeminiHandler { ["model-a"] = Answer(""), ["model-b"] = Answer("Svar fra B") };
+        var handler = new FakeGeminiHandler { ["model-a"] = Answer(""), ["model-b"] = Answer("Answer from B") };
 
         var text = await Client(handler, "model-a", "model-b").GenerateAsync("system", "prompt", CancellationToken.None);
 
-        Assert.Equal("Svar fra B", text);
+        Assert.Equal("Answer from B", text);
     }
 
     [Fact]
     public async Task InvalidJsonFallsBackToTheNext()
     {
-        var handler = new FakeGeminiHandler { ["model-a"] = Json("not json"), ["model-b"] = Answer("Svar fra B") };
+        var handler = new FakeGeminiHandler { ["model-a"] = Json("not json"), ["model-b"] = Answer("Answer from B") };
 
         var text = await Client(handler, "model-a", "model-b").GenerateAsync("system", "prompt", CancellationToken.None);
 
-        Assert.Equal("Svar fra B", text);
+        Assert.Equal("Answer from B", text);
     }
 
     [Fact]
@@ -60,12 +60,12 @@ public sealed class GeminiLlmClientTests
     {
         var handler = new FakeGeminiHandler
         {
-            ["model-a"] = Json("""{"candidates":[{"content":{"parts":[{"text":"Jeg tænker","thought":true},{"text":"Svar"}]}}]}""")
+            ["model-a"] = Json("""{"candidates":[{"content":{"parts":[{"text":"Thinking","thought":true},{"text":"Answer"}]}}]}""")
         };
 
         var text = await Client(handler, "model-a").GenerateAsync("system", "prompt", CancellationToken.None);
 
-        Assert.Equal("Svar", text);
+        Assert.Equal("Answer", text);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class GeminiLlmClientTests
     [Fact]
     public async Task CallerCancellationIsNotTreatedAsModelFailure()
     {
-        var handler = new FakeGeminiHandler { ["model-a"] = Answer("Svar fra A"), ["model-b"] = Answer("Svar fra B") };
+        var handler = new FakeGeminiHandler { ["model-a"] = Answer("Answer from A"), ["model-b"] = Answer("Answer from B") };
         using var cancellation = new CancellationTokenSource();
         await cancellation.CancelAsync();
 
