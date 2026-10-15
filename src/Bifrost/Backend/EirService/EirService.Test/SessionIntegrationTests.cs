@@ -106,6 +106,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         }
 
         var builder = WebApplication.CreateBuilder();
+        builder.Host.UseDefaultServiceProvider(options => options.ValidateScopes = true);
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
