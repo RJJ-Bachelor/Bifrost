@@ -38,10 +38,9 @@
   font-weight: bold;
 }
 
-/* AU Process Cyan: RGB 55/160/203, from AU's official colour palette.
-   https://medarbejdere.au.dk/administration/kommunikation/omdesignet/farver */
+/* Match the TestFrontend site header. */
 .login-layout {
-  --login-cyan: #37a0cb;
+  --login-blue: #002b52;
   --login-ink: #002546;
   margin: 0;
   color: var(--login-ink);
@@ -70,7 +69,7 @@
   box-shadow: 0 16px 48px rgb(0 37 70 / 8%), 0 2px 8px rgb(0 37 70 / 4%);
 }
 
-.login-card-header { padding: 28px 32px; background: var(--login-cyan); }
+.login-card-header { padding: 28px 32px; color: #fff; background: var(--login-blue); }
 .login-brand { margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; }
 .login-card-header h1 { margin: 0 0 8px; font-size: 32px; font-weight: 650; letter-spacing: -.6px; }
 .login-intro { margin: 0; font-size: 15px; line-height: 1.6; }
