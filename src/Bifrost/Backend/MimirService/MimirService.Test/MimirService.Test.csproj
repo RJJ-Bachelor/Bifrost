@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MimirService.Application\MimirService.Application.csproj" />
+    <ProjectReference Include="..\MimirService.Infrastructure\MimirService.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

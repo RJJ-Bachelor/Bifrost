@@ -18,6 +18,11 @@ public sealed class MimirRequestDbContext(
             entity.ToTable("requests");
             entity.HasKey(request => request.Id);
             entity.Property(request => request.Id).ValueGeneratedNever();
+            entity.Property(request => request.SessionId)
+                .IsRequired();
+            entity.Property(request => request.Generation)
+                .IsRequired();
+            entity.HasIndex(request => new { request.SessionId, request.Generation });
             entity.Property(request => request.Message)
                 .HasMaxLength(4000)
                 .IsRequired();

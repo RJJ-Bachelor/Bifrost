@@ -27,6 +27,9 @@ namespace MimirService.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -35,7 +38,12 @@ namespace MimirService.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("ReceivedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Generation");
 
                     b.ToTable("requests", (string)null);
                 });

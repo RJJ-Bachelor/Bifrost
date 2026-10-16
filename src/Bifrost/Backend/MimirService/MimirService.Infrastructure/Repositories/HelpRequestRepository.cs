@@ -10,6 +10,9 @@ namespace MimirService.Infrastructure.Repositories;
 
 public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeProvider timeProvider) : IHelpRequestRepository
 {
+    public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Requests.AnyAsync(existing => existing.Id == id, cancellationToken);
+
     public async Task<bool> TryAddAsync(HelpRequest request, OutgoingMessage reply, CancellationToken cancellationToken)
     {
         if (await dbContext.Requests.AnyAsync(existing => existing.Id == request.Id, cancellationToken)) return false;

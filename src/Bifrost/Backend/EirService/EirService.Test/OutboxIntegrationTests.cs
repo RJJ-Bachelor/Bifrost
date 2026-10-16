@@ -19,6 +19,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using IMimirHelpRequestRepository = MimirService.Application.Repositories.IHelpRequestRepository;
+using MimirService.Application.Services.Llm;
 using MimirService.Application.Services.Messaging;
 using MimirHelpRequest = MimirService.Domain.Entities.HelpRequest;
 using MimirService.Infrastructure;
@@ -78,7 +79,11 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
                 services.AddHelpRequestsInfrastructure(configuration);
                 services.ConfigureDbContext<EirRequestDbContext>(options => options.AddInterceptors(interceptor));
                 break;
-            case "mimir": services.AddMimirInfrastructure(configuration); break;
+            case "mimir":
+                services.AddMimirInfrastructure(configuration);
+                services.RemoveAll<ILlmClient>();
+                services.AddSingleton<ILlmClient, FakeLlmClient>();
+                break;
             case "gna": services.AddGnaInfrastructure(configuration); break;
         }
         if (!realBroker)
@@ -89,8 +94,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         return services.BuildServiceProvider();
     }
 
-    private static OutgoingMessage Reply(Guid id, Guid? sessionId = null, int? generation = null) =>
-        new(id, new GeneralizedCreatedMessage("Generalized answer", sessionId, generation),
+    private static OutgoingMessage Reply(Guid id, Guid sessionId, int generation) =>
+        new(id, new GeneralizedCreatedMessage(id, sessionId, generation, "Generalized answer"),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
 
     [PostgresFact]
@@ -204,7 +209,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
             var handler = scope.ServiceProvider.GetRequiredService<IHelpRequestMessageHandler>();
-            var message = new MessageEnvelope<HelpRequestCreatedMessage>(TestIds.From("request-1"), new("Help me", sessionId, 3));
+            var message = new MessageEnvelope<HelpRequestCreatedMessage>(TestIds.From("request-1"), new(TestIds.From("request-1"), sessionId, 3, "Help me"));
             await handler.HandleAsync(message, CancellationToken.None);
             await handler.HandleAsync(message, CancellationToken.None);
         }
@@ -234,8 +239,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
             await db.Database.MigrateAsync();
             var repository = scope.ServiceProvider.GetRequiredService<IMimirHelpRequestRepository>();
-            var reply = Reply(TestIds.From("rollback")) with { RoutingKey = new string('x', 256) };
-            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), "Help"), reply, CancellationToken.None));
+            var sessionId = Guid.NewGuid();
+            var reply = Reply(TestIds.From("rollback"), sessionId, 1) with { RoutingKey = new string('x', 256) };
+            await Assert.ThrowsAsync<DbUpdateException>(() => repository.TryAddAsync(MimirHelpRequest.Create(TestIds.From("rollback"), sessionId, 1, "Help"), reply, CancellationToken.None));
         }
         await using var verification = services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
@@ -304,7 +310,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             var request = TestHelpRequests.Create(TestIds.From("generic"), "student", "Help");
             OutgoingMessage[] messages =
             [
-                new(TestIds.From("failed"), new HelpRequestCreatedMessage("Help"), "requests", "fail"),
+                new(TestIds.From("failed"), new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, "Help"), "requests", "fail"),
                 new(TestIds.From("custom"), new { Value = "Any payload" }, "custom-exchange", "custom")
             ];
             await TestHelpRequests.SaveWithOutboxAsync(db, request, messages);
@@ -353,8 +359,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAsync();
-            OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage("Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
-            await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("stable-id"), "student", "Help"), messages);
+            var request = TestHelpRequests.Create(TestIds.From("stable-id"), "student", "Help");
+            OutgoingMessage[] messages = [new(TestIds.From("stable-id"), new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, "Help"), MessageRoutes.Requests, MessageRoutes.HelpRequestCreated)];
+            await TestHelpRequests.SaveWithOutboxAsync(db, request, messages);
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
@@ -453,9 +460,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await db.Database.MigrateAsync();
             OutgoingMessage[] messages =
             [
-                new(TestIds.From("request"), new HelpRequestCreatedMessage("Help", sessionId, 4), exchange, MessageRoutes.HelpRequestCreated),
+                new(TestIds.From("request"), new HelpRequestCreatedMessage(TestIds.From("request"), sessionId, 4, "Help"), exchange, MessageRoutes.HelpRequestCreated),
                 new(TestIds.From("request"), new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
-                new(TestIds.From("request"), new GeneralizedCreatedMessage("Answer", sessionId, 4), exchange, MessageRoutes.GeneralizedCreated),
+                new(TestIds.From("request"), new GeneralizedCreatedMessage(TestIds.From("request"), sessionId, 4, "Answer"), exchange, MessageRoutes.GeneralizedCreated),
                 new(clearedEvent.EventId, clearedEvent, exchange, MessageRoutes.SessionUpdated)
             ];
             await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("request"), "student", "Help"), messages);
@@ -479,9 +486,9 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         try
         {
             await dispatcher.PublishPendingAsync(CancellationToken.None);
-            Assert.Equal(new HelpRequestCreatedMessage("Help", sessionId, 4), (await help.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
+            Assert.Equal(new HelpRequestCreatedMessage(TestIds.From("request"), sessionId, 4, "Help"), (await help.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(new NotificationCreatedMessage("student", "Help", sessionId, 4), (await notification.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
-            Assert.Equal(new GeneralizedCreatedMessage("Answer", sessionId, 4), (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
+            Assert.Equal(new GeneralizedCreatedMessage(TestIds.From("request"), sessionId, 4, "Answer"), (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(TestIds.From("request"), help.Task.Result.Id);
             Assert.Equal(clearedEvent, (await cleared.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(clearedEvent.EventId, cleared.Task.Result.Id);

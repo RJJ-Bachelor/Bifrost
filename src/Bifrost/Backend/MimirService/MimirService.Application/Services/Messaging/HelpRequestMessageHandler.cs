@@ -18,14 +18,32 @@ public sealed class HelpRequestMessageHandler(
 
     public async Task HandleAsync(MessageEnvelope<HelpRequestCreatedMessage> message, CancellationToken cancellationToken)
     {
-        var llmResponse = await llmClient.GenerateAsync(SystemInstruction, message.Payload.Message, cancellationToken);
-        logger.LogInformation("Mimir generated LLM response for message {MessageId}: {Response}", message.Id, llmResponse);
+        var payload = message.Payload;
+        // A redelivery must not cost another LLM call
+        if (await requestRepository.ExistsAsync(payload.HelpRequestId, cancellationToken))
+        {
+            logger.LogInformation("Mimir ignored redelivered help request {HelpRequestId}.", payload.HelpRequestId);
+            return;
+        }
 
-        var request = HelpRequest.Create(message.Id, message.Payload.Message);
+        string llmResponse;
+        try
+        {
+            llmResponse = await llmClient.GenerateAsync(SystemInstruction, payload.Message, cancellationToken);
+            logger.LogInformation("Mimir generated LLM response for help request {HelpRequestId}.", payload.HelpRequestId);
+        }
+        catch (LlmUnavailableException exception)
+        {
+            logger.LogWarning(exception, "Mimir forwarded help request {HelpRequestId} unchanged because no LLM model responded.", payload.HelpRequestId);
+            llmResponse = payload.Message;
+        }
+
+        var request = HelpRequest.Create(payload.HelpRequestId, payload.SessionId, payload.Generation, payload.Message);
         var reply = new OutgoingMessage(message.Id,
-            new GeneralizedCreatedMessage(llmResponse, message.Payload.SessionId, message.Payload.Generation),
+            new GeneralizedCreatedMessage(payload.HelpRequestId, payload.SessionId, payload.Generation, llmResponse),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         if (await requestRepository.TryAddAsync(request, reply, cancellationToken))
-            logger.LogInformation("Mimir received help request {MessageId} with payload: {Payload}", message.Id, message.Payload.Message);
+            logger.LogInformation("Mimir stored help request {HelpRequestId} for session {SessionId} generation {Generation}.",
+                payload.HelpRequestId, payload.SessionId, payload.Generation);
     }
 }
