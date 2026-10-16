@@ -212,3 +212,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Role-based client-side routing and access control are enforced using Angular `CanMatchFn` guards (`studentGuard` and `teacherGuard`) that handle redirection and lazy-loaded feature boundaries.
 - Frontend state management and backend communication rely on Angular signals, service singletons, and HTTP clients configured with credentials (`withCredentials: true`) to support cookie-based authentication.
 - Review guidelines and project context were updated to replace frontend placeholders with explicit architectural and testing rules, including mandatory unit testing for business logic and prohibition of legacy Angular patterns.
+
+---
+
+## Update 2026-10-16
+
+- `MimirService` help request entities and database persistence now explicitly track `SessionId` and `Generation` for proper session lifecycle alignment.
+- `MimirService` message handlers enforce idempotency by verifying request existence prior to processing, avoiding redundant LLM calls on message redeliveries.
+- `MimirService` incorporates fallback resilience (`LlmUnavailableException`), gracefully forwarding original student queries if all configured LLM models fail.
+- Core integration message contracts (`HelpRequestCreatedMessage` and `GeneralizedCreatedMessage`) now strictly mandate `HelpRequestId`, `SessionId`, and `Generation`.
+- Session generation query handlers within `EirService` utilize explicit service scope factories to guarantee safe isolation and resource disposal.
