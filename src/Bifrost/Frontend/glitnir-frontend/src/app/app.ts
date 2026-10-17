@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 
 @Component({
   imports: [RouterOutlet],
-  selector: 'app-root',
+  selector: 'bifrost-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',
 })

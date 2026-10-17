@@ -3,7 +3,7 @@ import { Topbar } from '../../../../core/layout/topbar/topbar';
 
 @Component({
   imports: [Topbar],
-  selector: 'app-queue',
+  selector: 'bifrost-queue',
   styleUrl: './queue.scss',
   templateUrl: './queue.html',
 })

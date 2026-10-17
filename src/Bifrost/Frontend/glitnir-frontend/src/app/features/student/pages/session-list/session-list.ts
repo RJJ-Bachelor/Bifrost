@@ -5,7 +5,7 @@ import {Topbar} from '../../../../core/layout/topbar/topbar';
   imports: [
     Topbar
   ],
-  selector: 'app-session-list',
+  selector: 'bifrost-student-session-list',
   styleUrl: './session-list.scss',
   templateUrl: './session-list.html',
 })

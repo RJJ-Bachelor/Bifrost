@@ -3,7 +3,7 @@ import { Topbar } from '../../../../core/layout/topbar/topbar';
 
 @Component({
   imports: [Topbar],
-  selector: 'app-session',
+  selector: 'bifrost-teacher-session',
   styleUrl: './session.scss',
   templateUrl: './session.html',
 })

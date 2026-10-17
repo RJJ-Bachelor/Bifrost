@@ -2,7 +2,7 @@ import { Component } from '@angular/core';
 
 @Component({
   imports: [],
-  selector: 'app-faq-list',
+  selector: 'bifrost-faq-list',
   styleUrl: './faq-list.scss',
   templateUrl: './faq-list.html',
 })
