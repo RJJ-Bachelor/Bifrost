@@ -871,5 +871,157 @@
       "decision": "join",
       "candidateId": "g1"
     }
+  },
+  {
+    "id": "misspelled-exception-pair",
+    "category": "typos",
+    "note": "Samme opgave og samme exception, bare stavet forkert. FAQ'en skal staves rigtigt.",
+    "sessionTitle": "Objektorienteret programmering - klasser og objekter",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "jeg får NullReferenceException i opgave 5 når jeg kalder metoden på kunden" }
+    ],
+    "newQuestion": "opg5 får nullrefrence exeption hele tiden?? forstår det ik",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg en NullReferenceException i opgave 5?",
+        "mustNotContain": ["nullrefrence", "exeption"]
+      }
+    }
+  },
+  {
+    "id": "misspelled-git-push-join",
+    "category": "typos",
+    "note": "Samme fejl som g1 med stavefejl i både kommandoen og beskrivelsen.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" }
+    ],
+    "newQuestion": "git pusch virker ikk, siger noget med rejected og fetch first",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "slang-loop-join",
+    "category": "typos",
+    "note": "Slang, men det er tydeligt samme opgave og samme problem som g1.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor stopper løkken i opgave 3 aldrig?" }
+    ],
+    "newQuestion": "yo min loop i opg 3 kører bare for evigt lol, pc'en går helt amok",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "abbreviations-sql-pair",
+    "category": "typos",
+    "note": "Forkortelser og engelske ord, men samme opgave og samme problem. Tallet er kun fra det nye spørgsmål.",
+    "sessionTitle": "Databaser - SQL joins",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 2 min join giver alt for mange rækker, det ligner alle kombinationer" }
+    ],
+    "newQuestion": "opg2 join giver mega mange rows idk hvorfor, burde kun va 20 ish",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?",
+        "mustNotContain": ["20", "idk"]
+      }
+    }
+  },
+  {
+    "id": "mixed-language-cors-join",
+    "category": "typos",
+    "note": "En blanding af dansk og engelsk, men samme CORS-fejl som g1.",
+    "sessionTitle": "Webudvikling - fetch og API'er",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?" }
+    ],
+    "newQuestion": "my fetch call gets blocked by cors når jeg calls the backend, pls help",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "no-punctuation-python-pair",
+    "category": "typos",
+    "note": "Ingen tegnsætning og små bogstaver, men samme opgave og samme problem.",
+    "sessionTitle": "Python - funktioner",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 3 min funktion returnerer None selvom jeg beregner resultatet" }
+    ],
+    "newQuestion": "opgave 3 funktionen giver none ud hvorfor den printer jo det rigtige tal inde i funktionen",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor returnerer funktionen i opgave 3 None?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "misspelled-branch-different",
+    "category": "typos",
+    "note": "Stavefejlen ændrer ikke, at det er et andet problem: at slette en branch i stedet for at oprette en.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en ny branch?" }
+    ],
+    "newQuestion": "hvordan sletter jeg en brance jeg ikke skal bruge mere",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "slang-vague-same-task",
+    "category": "typos",
+    "note": "Samme opgave, men slangen skjuler, hvad problemet er. Ved tvivl står spørgsmålet alene.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 4 getElementById giver null" }
+    ],
+    "newQuestion": "opg 4 er helt død, intet virker 😭",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "abbreviated-exception-different-task",
+    "category": "typos",
+    "note": "Forkortet navn på samme exception, men i en anden opgave.",
+    "sessionTitle": "Programmering 1 - arrays",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en IndexOutOfRangeException i løkken i opgave 2?" }
+    ],
+    "newQuestion": "opg 7 får index out of range ex. når jeg looper baglæns",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "misspelled-ef-different-error",
+    "category": "typos",
+    "note": "Stavefejlene gør det ikke til samme fejl. Build failed er et andet problem end en manglende DbContext.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor kan dotnet ef ikke finde en DbContext, når jeg laver en migration?" }
+    ],
+    "newQuestion": "dotnet ef migratons add siger build faild",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
   }
 ]
