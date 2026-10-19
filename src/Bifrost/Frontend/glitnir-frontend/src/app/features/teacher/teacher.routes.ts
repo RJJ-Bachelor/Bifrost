@@ -4,7 +4,9 @@ export const teacherRoutes: Routes = [
   {
     path: '',
     loadComponent: () =>
-      import('./pages/session-list/session-list').then((m) => m.SessionList),
+      import('./pages/teacher-sessions/teacher-sessions').then(
+        (m) => m.TeacherSessions,
+      ),
   },
   {
     path: 'dashboard',

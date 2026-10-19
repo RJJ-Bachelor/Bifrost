@@ -1,12 +1,12 @@
 import { Component } from '@angular/core';
-import {Topbar} from '../../../../core/layout/topbar/topbar';
+import { Topbar } from '../../../../core/layout/topbar/topbar';
+import { Card } from '../../../../shared/components/card/card';
+import { SessionList } from '../../../session/components/session-list/session-list';
 
 @Component({
-  imports: [
-    Topbar
-  ],
-  selector: 'bifrost-student-session-list',
-  styleUrl: './session-list.scss',
-  templateUrl: './session-list.html',
+  imports: [Topbar, Card, SessionList],
+  selector: 'bifrost-student-sessions',
+  styleUrl: './student-sessions.scss',
+  templateUrl: './student-sessions.html',
 })
-export class SessionList {}
+export class StudentSessions {}
