@@ -198,5 +198,148 @@
         "mustNotContain": ["Postman"]
       }
     }
+  },
+  {
+    "id": "same-task-parse-vs-format",
+    "category": "clear-different",
+    "note": "Samme opgave, men to forskellige problemer: en FormatException ved parsing og formatering af output.",
+    "sessionTitle": "Programmering 1 - strenge og tal",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 2 mit program crasher med FormatException når jeg bruger int.Parse" }
+    ],
+    "newQuestion": "opgave 2 hvordan viser jeg et tal med 2 decimaler",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "git-conflict-vs-ignore",
+    "category": "clear-different",
+    "note": "Begge handler om git, men merge-konflikter og .gitignore er to forskellige ting.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan løser jeg en merge-konflikt i git?" }
+    ],
+    "newQuestion": "hvordan får jeg git til at ignorere bin og obj mapperne",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "sql-left-join-vs-foreign-key",
+    "category": "clear-different",
+    "note": "Et spørgsmål om syntaks for LEFT JOIN og en fejl ved INSERT. Ingen af kandidaterne passer.",
+    "sessionTitle": "Databaser - SQL joins",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en LEFT JOIN" },
+      { "id": "r2", "type": "request", "text": "hvad er forskellen på WHERE og HAVING?" }
+    ],
+    "newQuestion": "min INSERT i opgave 4 fejler med violates foreign key constraint",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "button-css-vs-event",
+    "category": "clear-different",
+    "note": "Begge nævner en knap, men det ene er CSS-layout og det andet er event-håndtering i JavaScript.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "min knap skal centreres men margin auto virker ikke" }
+    ],
+    "newQuestion": "addEventListener virker ikke på min knap i opgave 3, der sker ingenting når jeg klikker",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "python-indent-vs-csv",
+    "category": "clear-different",
+    "note": "En syntaksfejl og et spørgsmål om at læse en fil. Intet til fælles ud over sproget.",
+    "sessionTitle": "Python - funktioner",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?" }
+    ],
+    "newQuestion": "hvordan læser jeg en csv fil ind i python",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "docker-port-vs-migration",
+    "category": "clear-different",
+    "note": "En portkonflikt i Docker og et spørgsmål om EF Core-migrationer.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "docker compose up siger port 5432 is already allocated" },
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan forbinder jeg min applikation til Postgres i Docker?" }
+    ],
+    "newQuestion": "hvordan laver jeg en migration med ef core",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "async-task-vs-sorting",
+    "category": "clear-different",
+    "note": "En manglende await og sortering af en liste. Forskellige emner.",
+    "sessionTitle": "Programmering 2 - collections og async",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "min metode returnerer System.Threading.Tasks.Task`1[System.String] i stedet for teksten" }
+    ],
+    "newQuestion": "hvordan sorterer jeg en liste af personer efter navn i C#",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "same-task-discovery-vs-mocking",
+    "category": "clear-different",
+    "note": "Samme opgave, men at testene ikke bliver fundet og at mocke et interface er to forskellige problemer.",
+    "sessionTitle": "Test - unit tests med xUnit",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver testene i opgave 3 ikke fundet?" }
+    ],
+    "newQuestion": "hvordan mocker jeg et interface med Moq i opgave 3",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "different-tasks-average-vs-reverse",
+    "category": "clear-different",
+    "note": "Forskellige opgaver med forskelligt indhold.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 1: hvordan beregner jeg gennemsnittet af et array" }
+    ],
+    "newQuestion": "opgave 5: hvordan vender jeg en streng om",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "api-404-vs-validation",
+    "category": "clear-different",
+    "note": "Et nyt spørgsmål om validering af en DTO. Det passer hverken til 404-generaliseringen eller til PUT og PATCH.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver GET /api/products 404 i opgave 2?" },
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på PUT og PATCH?" }
+    ],
+    "newQuestion": "hvordan validerer jeg at et felt er påkrævet i min DTO",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
   }
 ]
