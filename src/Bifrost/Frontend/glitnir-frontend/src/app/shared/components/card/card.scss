@@ -3,7 +3,28 @@
   background-color: var(--color-white);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
-  padding: var(--space-6);
+  padding: var(--space-4);
+  --card-title-color: var(--color-au-dark-blue);
+}
+
+:host(.card--teacher) {
+  --card-title-color: var(--color-au-dark-cyan);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.card-title {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--card-title-color);
 }
 
 @media (max-width: 600px) {

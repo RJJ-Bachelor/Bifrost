@@ -1,3 +1,7 @@
-<div class="card-content">
-  <ng-content />
-</div>
+<header class="card-header">
+  @if (title()) {
+    <h2 class="card-title">{{ title() }}</h2>
+  }
+  <ng-content select="[card-header]" />
+</header>
+<ng-content />
