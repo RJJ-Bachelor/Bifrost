@@ -11,4 +11,5 @@ public static class MessageRoutes
     public const string GeneralizedCreated = "generalized.created";
     public const string Notifications = "notifications";
     public const string NotificationCreated = "gna-notification-requested";
+    public const string NotificationDeliveryRequested = "notification.delivery-requested";
 }

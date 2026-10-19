@@ -1,48 +1,27 @@
-<header>
-  <div class="brand"><span class="mark">B</span><div><h1>Bifrost</h1><p>EirService testfrontend</p></div></div>
-  <button (click)="api.login()" [disabled]="api.busy">Log ind som lærer</button>
+<header class="site-header">
+  <div class="header-inner">
+    <a class="brand" routerLink="/" aria-label="Bifrost, forside"><span class="brand-mark" aria-hidden="true">B</span><span>BIFROST<small>Hjælp i undervisningen</small></span></a>
+    <nav aria-label="Hovedmenu">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Forside</a>
+      <a routerLink="/students" routerLinkActive="active">Studerende</a>
+      <a routerLink="/teachers" routerLinkActive="active">Underviser</a>
+    </nav>
+  </div>
 </header>
-<main>
-  <nav aria-label="Hovedmenu">
-    <a routerLink="/overview" routerLinkActive="active">Oversigt</a>
-    <a routerLink="/teachers" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Lærer: sessioner</a>
-    <a routerLink="/teachers/requests" routerLinkActive="active">Lærer: hjælp</a>
-    <a routerLink="/students" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">Studerende: sessioner</a>
-    <a routerLink="/students/requests" routerLinkActive="active">Studerende: hjælp</a>
-  </nav>
-
-  <section class="card selection">
-    <div class="section-heading">
-      <div><h2>Valgt session</h2><p>{{ api.session.title || 'Vælg en session fra en liste, opret en, eller indsæt et ID.' }}</p></div>
-      <button class="secondary" (click)="api.resetSession()" [disabled]="api.busy">Nulstil valg</button>
-    </div>
-    <div class="fields">
-      <label>Session-ID
-        <input name="sessionId" [ngModel]="api.session.id" (ngModelChange)="api.changeSessionId($event)"
-          placeholder="Sessionens GUID" [disabled]="api.busy">
-      </label>
-      <label>Sessionskode
-        <input name="sessionCode" [(ngModel)]="api.session.code" (ngModelChange)="api.saveSession()"
-          placeholder="Kode til tilmelding" maxlength="8" [disabled]="api.busy">
-      </label>
-      <label>Generation
-        <input name="generation" type="number" min="1" step="1" [(ngModel)]="api.session.generation"
-          (ngModelChange)="api.saveSession()" [disabled]="api.busy">
-      </label>
-    </div>
-    <p class="hint">Sessionens ID bruges til at hente og sende hjælp. Generation bruges til rydning. Valget gemmes mellem faner og genindlæsninger.</p>
-    <p *ngIf="api.session.id && !api.hasSessionId" class="error">Session-ID skal være en GUID, fx 12345678-1234-1234-1234-123456789abc.</p>
-    <p *ngIf="!api.hasGeneration" class="error">Generation skal være et heltal større end 0.</p>
-    <div *ngIf="api.sessionLink" class="divider">
-      <label for="session-link">Sessionslink til de andre elever</label>
-      <div class="input-action">
-        <input id="session-link" #sessionLinkInput [value]="api.sessionLink" readonly (focus)="sessionLinkInput.select()">
-        <button class="secondary" (click)="copySessionLink()" [disabled]="api.busy">Kopiér link</button>
-      </div>
-      <p class="hint">Åbn linket i en separat browserprofil eller browser, og tryk Tilmeld som studerende. Hver profil får sin egen elevcookie. Almindelige faner er samme elev.</p>
-      <p *ngIf="copyNotice" role="status">{{ copyNotice }}</p>
-    </div>
+<main id="main-content"><router-outlet /></main>
+<footer class="site-footer"><span>Bifrost</span><span>Testfrontend · EirService</span></footer>
+<div *ngIf="notifications.current() as notification" class="notification-overlay">
+  <section class="notification-modal" role="dialog" aria-modal="true" aria-labelledby="notification-title">
+    <p class="eyebrow">BIFROST</p>
+    <h2 id="notification-title">Ny notifikation</h2>
+    <dl class="notification-details">
+      <div><dt>UserId:</dt><dd>{{ notification.userId }}</dd></div>
+      <div><dt>SessionId:</dt><dd>{{ notification.sessionId ?? '—' }}</dd></div>
+      <div><dt>HelpRequestId:</dt><dd>{{ notification.helpRequestId ?? '—' }}</dd></div>
+      <div><dt>NotificationId:</dt><dd>{{ notification.notificationId }}</dd></div>
+      <div><dt>CreatedAt:</dt><dd>{{ notification.createdAt | date:'dd.MM.yyyy HH:mm:ss' }}</dd></div>
+      <div><dt>Messages:</dt><dd>{{ notification.message }}</dd></div>
+    </dl>
+    <button type="button" (click)="notifications.dismiss()" autofocus>Luk</button>
   </section>
-
-  <router-outlet />
-</main>
+</div>

@@ -77,6 +77,7 @@ var heimdallGateway = builder.AddProject<Projects.HeimdallGateway>("heimdallgate
 
 // Frontend apps
 builder.AddJavaScriptApp("glitnir-frontend", "../../../Frontend/glitnir-frontend")
+    .WithNpm(installCommand: "ci")
     .WithRunScript("start")
     .WithHttpEndpoint(targetPort: 7002, port: 7000, env: "PORT")
     .WaitFor(heimdallGateway);

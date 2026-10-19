@@ -274,7 +274,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.Equal(1, result.Generation);
         Assert.Equal("Please help", Assert.Single(result.Messages).Text);
         Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
-        Assert.Equal((result.Id, studentId, "Please help"), Assert.Single(_requests.Notifications));
+        var notification = Assert.Single(_requests.Notifications);
+        Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
+            sessionId, 1, result.Id, "Created", "Pending"), notification.Message);
+        Assert.NotEqual(result.Id, notification.Id);
         using var duplicate = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
             new { Message = "Another question", HelpType = HelpType.Physical });
         Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
@@ -316,7 +319,9 @@ public sealed class CommandBusTests : IAsyncLifetime
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal("student-123", Assert.Single(_requests.Saved).StudentId);
         Assert.Single(_requests.RequestMessages);
-        Assert.Single(_requests.Notifications);
+        var notification = Assert.Single(_requests.Notifications);
+        Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
+            sessionId, 1, result.Id, "Created", "Pending"), notification.Message);
     }
 
     [Fact]
@@ -506,7 +511,7 @@ public sealed class CommandBusTests : IAsyncLifetime
         public List<HelpRequest> Saved { get; } = [];
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(Guid Id, string Message)> RequestMessages { get; } = [];
-        public List<(Guid Id, string? UserId, string Message)> Notifications { get; } = [];
+        public List<(Guid Id, NotificationCreatedMessage Message)> Notifications { get; } = [];
         public Task AddAsync(HelpRequest request, CancellationToken cancellationToken)
         {
             Saved.Add(request);
@@ -520,7 +525,7 @@ public sealed class CommandBusTests : IAsyncLifetime
                     await new DomainEventNotification<HelpRequestChangedDomainEvent>(domainEvent, outgoing =>
                     {
                         if (outgoing.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((outgoing.Id, help.Message));
-                        if (outgoing.Payload is NotificationCreatedMessage notification) Notifications.Add((outgoing.Id, notification.UserId, notification.Messages));
+                        if (outgoing.Payload is NotificationCreatedMessage notification) Notifications.Add((outgoing.Id, notification));
                     }).PublishAsync(Mode.WaitForAll, cancellationToken);
                 request.ClearDomainEvents();
             }

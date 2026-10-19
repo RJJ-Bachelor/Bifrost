@@ -3,12 +3,15 @@ using Shared.Application.Messaging;
 using GnaService.Application.Repositories;
 using GnaService.Domain.Entities;
 using Shared.Application.Messaging.Contracts;
+using Shared.Application.Persistence;
 
 namespace GnaService.Application.Services.Messaging;
 
 public sealed class NotificationMessageHandler(
     ILogger<NotificationMessageHandler> logger,
-    INotificationRepository notificationRepository) : INotificationMessageHandler
+    INotificationRepository notificationRepository,
+    IUnitOfWork<INotificationRepository> unitOfWork,
+    TimeProvider timeProvider) : INotificationMessageHandler
 {
     public async Task HandleAsync(
         MessageEnvelope<NotificationCreatedMessage> message,
@@ -23,8 +26,17 @@ public sealed class NotificationMessageHandler(
         var notification = Notification.Create(
             message.Id,
             message.Payload.UserId,
-            message.Payload.Messages);
+            message.Payload.Messages,
+            now: timeProvider.GetUtcNow(),
+            sessionId: message.Payload.SessionId,
+            generation: message.Payload.Generation,
+            helpRequestId: message.Payload.HelpRequestId,
+            change: message.Payload.Change,
+            status: message.Payload.Status);
 
-        await notificationRepository.AddAsync(notification, cancellationToken);
+        if (await notificationRepository.TryAddAsync(notification, cancellationToken))
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        else
+            logger.LogInformation("Ignored duplicate notification {NotificationId}.", message.Id);
     }
 }

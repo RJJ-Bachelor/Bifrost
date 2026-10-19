@@ -53,6 +53,7 @@ public static class AuthenticationServiceCollectionExtensions
                 options.RequireHttpsMetadata = !environment.IsDevelopment();
                 options.Audience = "Bifrost";
                 options.MapInboundClaims = false;
+                options.Events.OnMessageReceived = NotificationHubAuthentication.ReadQueryToken;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     NameClaimType = "name",

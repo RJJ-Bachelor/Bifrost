@@ -37,6 +37,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         services["eir"] = await StartServiceAsync("eir");
+        services["gna"] = await StartServiceAsync("gna");
         services["mimir"] = await StartServiceAsync("mimir");
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
         builder.Logging.ClearProviders();
@@ -300,6 +301,34 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         using var response = await client.GetAsync("/api/requests/11111111-1111-1111-1111-111111111111");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task NotificationRouteForwardsStudentCookieToGna()
+    {
+        using var response = await client.GetAsync("/api/students/notifications/negotiate");
+        var identity = (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal("gna", identity.Service);
+        Assert.Contains("Student", identity.Roles);
+        Assert.False(string.IsNullOrWhiteSpace(identity.Cookie));
+    }
+
+    [Fact]
+    public async Task NotificationRouteForwardsTeacherJwtFromQuery()
+    {
+        using var response = await client.GetAsync("/api/teachers/notifications?access_token=" + TeacherToken());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var identity = (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal("gna", identity.Service);
+        Assert.Equal("teacher|opaque-id", identity.UserId);
+        Assert.StartsWith("Bearer ", identity.Authorization);
+    }
+
+    [Fact]
+    public async Task TeacherNotificationQueryRejectsInvalidToken()
+    {
+        using var response = await client.GetAsync("/api/teachers/notifications?access_token=invalid");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private async Task<WebApplication> StartServiceAsync(string name)

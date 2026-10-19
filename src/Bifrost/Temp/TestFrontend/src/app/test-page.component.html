@@ -1,137 +1,97 @@
-<section class="card">
-  <h2>{{ titles[page] }}</h2>
-
-  <ng-container *ngIf="page === 'overview'">
-    <p>Brug fanerne til at kalde de samme EirService-endpoints som i Bruno.</p>
-    <ol>
-      <li>Log ind som lærer og opret en session.</li>
-      <li>Tilmeld med sessionskoden på Studerende: sessioner eller Studerende: hjælp.</li>
-      <li>Vælg en af dine sessioner på Studerende: hjælp, og send en hjælpeanmodning.</li>
-      <li>Åbn sessionslinket i en anden browserprofil, og tilmeld endnu en elev.</li>
-      <li>Gå til Lærer: hjælp, vælg sessionen, og reservér med Tag næste.</li>
-      <li>Start og afslut fysisk hjælp, eller send et digitalt svar i samtalen.</li>
-    </ol>
-    <p>Brug en profil til læreren og en separat profil eller browser til hver elev. Almindelige faner deler elevidentitet.</p>
-    <button (click)="loadAlive()" [disabled]="busy">Hent servicestatus</button>
-  </ng-container>
-
-  <ng-container *ngIf="page === 'teachers'">
-    <p>Log ind med en konto, der har rollen Teacher. Din elevidentitet kan bruges i samme browser.</p>
-    <div class="actions">
-      <button (click)="api.login()" [disabled]="busy">Log ind som lærer</button>
-      <button class="secondary" (click)="api.logout()" [disabled]="busy">Log ud som lærer</button>
-      <button class="secondary" (click)="loadIdentity('teachers')" [disabled]="busy">Hent læreridentitet</button>
-    </div>
-    <p *ngIf="identity"><strong>Lærer:</strong> {{ identity.name || identity.userId }} · Roller: {{ identity.roles.join(', ') }}</p>
-
-    <form #teacherForm="ngForm" (ngSubmit)="createSession()">
-      <h3>Opret session</h3>
-      <label for="session-title">Titel</label>
-      <input id="session-title" name="title" [(ngModel)]="sessionTitle" required maxlength="200" [disabled]="busy">
-      <button type="submit" [disabled]="busy || teacherForm.invalid || !sessionTitle.trim()">Opret session</button>
-    </form>
-
-    <div class="actions">
-      <button (click)="loadTeacherSessions()" [disabled]="busy">Hent mine sessions</button>
-      <button class="secondary" (click)="loadTeacherSession()" [disabled]="busy || !api.hasSessionId">Hent valgt session</button>
-    </div>
-    <div *ngIf="teacherSessions !== null" class="table-wrap">
-      <p *ngIf="teacherSessions.length === 0">Du har ingen sessions.</p>
-      <table *ngIf="teacherSessions.length > 0">
-        <thead><tr><th>Titel</th><th>Kode</th><th>Generation</th><th>Valg</th></tr></thead>
-        <tbody><tr *ngFor="let session of teacherSessions" [class.selected]="session.id === api.session.id">
-          <td>{{ session.title }}<small>{{ session.id }}</small></td>
-          <td><code>{{ session.code }}</code></td><td>{{ session.currentGeneration }}</td>
-          <td><button class="secondary" (click)="chooseSession(session, session.code)" [disabled]="busy">Vælg</button></td>
-        </tr></tbody>
-      </table>
-    </div>
-    <div class="divider">
-      <h3>Ryd valgt session</h3>
-      <p>Rydning skjuler gamle hjælpeanmodninger og hæver generationen. Eleverne forbliver tilmeldt.</p>
-      <p class="hint">Der sendes expectedGeneration = {{ api.session.generation }}. Den nye generation gemmes fra API-svaret.</p>
-      <button (click)="clearSession()" [disabled]="busy || !api.hasSessionId || !api.hasGeneration">Ryd session</button>
-    </div>
-  </ng-container>
-
-  <ng-container *ngIf="page === 'students'">
-    <p>Denne browserprofil er én elev. Brug en separat profil eller browser til hver ekstra elev, og tilmeld dem med samme sessionskode.</p>
-    <button class="secondary" (click)="loadIdentity('students')" [disabled]="busy">Hent elevidentitet</button>
-    <p *ngIf="identity" class="identity"><strong>Student-ID:</strong> {{ identity.userId }} · Roller: {{ identity.roles.join(', ') }}</p>
-
-    <form #joinForm="ngForm" (ngSubmit)="joinSession()">
-      <h3>Tilmeld session</h3>
-      <label for="join-code">Sessionskode fra læreren</label>
-      <input id="join-code" name="code" [(ngModel)]="api.session.code" (ngModelChange)="api.saveSession()"
-        placeholder="8 tegn" required maxlength="8" [disabled]="busy">
-      <button type="submit" [disabled]="busy || joinForm.invalid || !api.session.code.trim()">Tilmeld som studerende</button>
-    </form>
-
-    <div class="actions">
-      <button (click)="loadStudentSessions()" [disabled]="busy">Hent mine tilmeldte sessions</button>
-      <button class="secondary" (click)="loadStudentSession()" [disabled]="busy || !api.hasSessionId">Hent valgt session</button>
-    </div>
-    <div *ngIf="studentSessions !== null" class="table-wrap">
-      <p *ngIf="studentSessions.length === 0">Du er ikke tilmeldt nogen sessions endnu.</p>
-      <table *ngIf="studentSessions.length > 0">
-        <thead><tr><th>Titel</th><th>Generation</th><th>Valg</th></tr></thead>
-        <tbody><tr *ngFor="let session of studentSessions" [class.selected]="session.id === api.session.id">
-          <td>{{ session.title }}<small>{{ session.id }}</small></td><td>{{ session.currentGeneration }}</td>
-          <td><button class="secondary" (click)="chooseSession(session)" [disabled]="busy">Vælg</button></td>
-        </tr></tbody>
-      </table>
-    </div>
-  </ng-container>
-
-  <app-student-help-requests *ngIf="page === 'studentRequests'" [view]="this" />
-  <app-teacher-help-requests *ngIf="page === 'teacherRequests'" [view]="this" />
-</section>
-
-<section *ngIf="page === 'studentRequests' || page === 'teacherRequests'" class="card">
-  <h2>Valgt samtale</h2>
-  <label for="help-request-id">Anmodningens ID</label>
-  <div class="input-action">
-    <input id="help-request-id" name="helpRequestId" [(ngModel)]="api.requestId" (ngModelChange)="api.saveRequestId()"
-      placeholder="Vælg fra listen, eller indsæt en GUID" [disabled]="busy">
-    <button (click)="loadHelpRequest()" [disabled]="busy || !api.hasRequestId">Hent samtale</button>
+<a *ngIf="sessionId" class="back-link" [routerLink]="['/' + role]">← Mine sessioner</a>
+<div class="page-heading">
+  <div><p class="eyebrow">{{ isTeacher ? 'UNDERVISER' : 'STUDERENDE' }}</p>
+    <h1>{{ sessionId ? (session?.title || 'Session') : (isTeacher ? 'Dine undervisningssessioner' : 'Dine sessioner') }}</h1>
+    <p>{{ sessionId ? 'Spørgsmål, kø og samtaler samlet ét sted.' : (isTeacher ? 'Opret en session, og hjælp dine studerende.' : 'Tilmeld dig en session, og få hjælp fra din underviser.') }}</p>
   </div>
-  <p class="hint">Opret eller vælg en anmodning, eller brug Tag næste som lærer. Et gammelt ID kan stadig bruges til at læse samtalen efter rydning.</p>
-  <ng-container *ngIf="currentRequest as request">
-    <h3>Anmodning {{ request.displayNumber }}</h3>
-    <p><strong>Status:</strong> {{ request.status }} · <strong>Hjælpeform:</strong> {{ request.helpType }} · <strong>Generation:</strong> {{ request.generation }}</p>
-    <p class="identity"><strong>Elev:</strong> {{ request.studentId }}<br><strong>Underviser:</strong> {{ request.assignedTeacherId || 'Ikke reserveret' }}</p>
-    <p class="hint">I kø siden {{ request.queuedAt | date:'medium' }}<span *ngIf="request.startedAt"> · Startet {{ request.startedAt | date:'medium' }}</span><span *ngIf="request.closedAt"> · Lukket {{ request.closedAt | date:'medium' }}</span></p>
-    <p *ngIf="!canAct" class="hint">Handlinger kræver anmodningens session og aktuelle generation. Vælg sessionen og hent køen. Samtaler fra tidligere generationer kan kun læses.</p>
-    <p *ngIf="isTeacher && request.status === 'Pending' && !request.assignedTeacherId" class="hint">Brug Tag næste for at reservere, før du starter hjælp eller svarer.</p>
-    <div class="actions">
-      <button *ngIf="isTeacher && request.helpType === 'Physical'" (click)="changeStatus('Start')" [disabled]="busy || !canStart">Start fysisk hjælp</button>
-      <button *ngIf="isTeacher && request.helpType === 'Physical'" (click)="changeStatus('Complete')" [disabled]="busy || !canComplete">Afslut fysisk hjælp</button>
-      <button class="secondary" (click)="changeStatus('Cancel')" [disabled]="busy || !canCancel">{{ isTeacher ? 'Send forrest i køen' : 'Annuller anmodning' }}</button>
-    </div>
-    <p *ngIf="request.status === 'Cancelled'">Anmodningen er annulleret. Eleven kan oprette en ny, hvis der stadig er brug for hjælp.</p>
-    <h3>Beskeder</h3>
-    <ol class="conversation">
-      <li *ngFor="let message of request.messages">
-        <p><strong>{{ message.authorRole === 'Teacher' ? 'Lærer' : 'Elev' }}</strong> · #{{ message.sequenceNumber }} · {{ message.createdAt | date:'medium' }}</p>
-        <p class="message">{{ message.text }}</p>
-      </li>
-    </ol>
-    <form *ngIf="!isTeacher || request.helpType === 'Digital'" #messageForm="ngForm" (ngSubmit)="sendMessage()">
-      <h3>{{ isTeacher ? 'Digitalt svar' : 'Ny besked' }}</h3>
-      <p class="hint">{{ isTeacher ? 'Svaret afslutter anmodningen.' : 'En ny besked giver en ny plads bagest i køen. En afsluttet samtale genåbnes.' }}</p>
-      <label for="reply-text">{{ isTeacher ? 'Svar til eleven' : 'Besked til læreren' }}</label>
-      <textarea id="reply-text" name="replyText" [(ngModel)]="replyText" rows="3" maxlength="4000" required [disabled]="busy || !canSendMessage"></textarea>
-      <button type="submit" [disabled]="busy || !canSendMessage || messageForm.invalid || !replyText.trim()">{{ isTeacher ? 'Send digitalt svar' : 'Send ny besked' }}</button>
-    </form>
-  </ng-container>
-</section>
+  <div class="heading-actions" *ngIf="identity">
+    <span *ngIf="isTeacher" class="signed-in">{{ identity.name || 'Logget ind som underviser' }}</span>
+    <button *ngIf="isTeacher" class="text-button" (click)="api.logout()" [disabled]="busy">Log ud</button>
+  </div>
+</div>
 
-<section class="card response" aria-live="polite" [attr.aria-busy]="busy">
-  <div class="section-heading"><h2>Seneste API-kald</h2><span *ngIf="status !== null" class="status" [class.failed]="error">{{ status === 0 ? 'Ingen forbindelse' : 'HTTP ' + status }}</span></div>
-  <code>{{ endpoint }}</code>
-  <p *ngIf="busy">Venter på API-svar …</p>
-  <p *ngIf="notice" class="success" role="status">{{ notice }}</p>
-  <p *ngIf="error" class="error" role="alert">{{ error }}</p>
-  <ng-container *ngIf="requestBody !== undefined"><h3>Sendt JSON</h3><pre>{{ requestBody | json }}</pre></ng-container>
-  <ng-container *ngIf="result !== undefined"><h3>Svar</h3><pre>{{ result | json }}</pre></ng-container>
+<p *ngIf="loading" class="loading" role="status">Henter dine oplysninger …</p>
+<p *ngIf="error || refreshError" class="alert error" role="alert">{{ error || refreshError }}</p>
+<p *ngIf="notice" class="alert success" role="status">{{ notice }}</p>
+
+<section *ngIf="loginRequired" class="card login-card">
+  <p class="eyebrow">VELKOMMEN</p><h2>Log ind som underviser</h2>
+  <p>Log ind for at se dine sessioner og hjælpe de studerende.</p>
+  <button (click)="api.login(sessionId ? '/teachers/sessions/' + sessionId : '/teachers')">Log ind som underviser →</button>
 </section>
+<div *ngIf="!loading && error && !identity && !loginRequired" class="actions"><button class="secondary" (click)="loadIdentity()">Prøv igen</button></div>
+
+<ng-container *ngIf="identity">
+  <ng-container *ngIf="!sessionId">
+    <section *ngIf="!isTeacher" class="card join-card">
+      <div><p class="eyebrow">DELTAG I UNDERVISNINGEN</p><h2>Tilmeld en session</h2><p>Brug den sessionskode, du har fået af din underviser.</p></div>
+      <form #joinForm="ngForm" (ngSubmit)="joinSession()" class="join-form">
+        <label for="join-code">Sessionskode</label>
+        <div class="input-action"><input id="join-code" name="code" [(ngModel)]="joinCode" placeholder="Fx AB23CD45" required pattern="[A-Za-z2-9]{8}" maxlength="8" autocomplete="off" spellcheck="false" [disabled]="busy"><button type="submit" [disabled]="busy || joinForm.invalid">Tilmeld →</button></div>
+      </form>
+    </section>
+    <div *ngIf="isTeacher" class="create-session">
+      <button (click)="showCreateSession = !showCreateSession" [attr.aria-expanded]="showCreateSession" aria-controls="create-session-form" [disabled]="busy">＋ Opret session</button>
+      <form *ngIf="showCreateSession" id="create-session-form" class="card" #sessionForm="ngForm" (ngSubmit)="createSession()">
+        <h2>Ny session</h2><label for="session-title">Sessionens titel</label>
+        <div class="input-action"><input id="session-title" name="title" [(ngModel)]="sessionTitle" required maxlength="200" placeholder="Fx Programmering · Hold 2" [disabled]="busy"><button type="submit" [disabled]="busy || sessionForm.invalid || !sessionTitle.trim()">Opret session</button><button type="button" class="secondary" (click)="showCreateSession = false" [disabled]="busy">Fortryd</button></div>
+      </form>
+    </div>
+    <section class="sessions-section" aria-labelledby="sessions-title">
+      <div class="section-heading"><div><h2 id="sessions-title">{{ isTeacher ? 'Mine sessioner' : 'Mine tilmeldte sessioner' }} <span class="count">{{ sessions.length }}</span></h2><p class="hint">Åbn en session for at se spørgsmål og hjælp.</p></div><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></div>
+      <div *ngIf="!loading && sessions.length === 0" class="card empty-state"><h3>Ingen sessioner endnu</h3><p>{{ isTeacher ? 'Opret din første session med knappen ovenfor.' : 'Tilmeld dig med en sessionskode ovenfor.' }}</p></div>
+      <div class="session-grid">
+        <a *ngFor="let item of sessions" class="session-card" [routerLink]="['/' + role + '/sessions', item.id]">
+          <span class="session-card-top"><span class="eyebrow">UNDERVISNINGSSESSION</span><span class="arrow" aria-hidden="true">↗</span></span>
+          <h3>{{ item.title }}</h3>
+          <span class="session-card-bottom"><span>Oprettet {{ item.createdAtUtc | date:'dd.MM.yyyy' }}</span><span>Åbn session →</span></span>
+        </a>
+      </div>
+    </section>
+  </ng-container>
+
+  <ng-container *ngIf="sessionId">
+    <section *ngIf="sessionUnavailable" class="card empty-state"><h2>Sessionen er ikke tilgængelig</h2><p>Den kan være slettet, eller du mangler adgang. Vælg en af dine sessioner fra oversigten.</p></section>
+    <ng-container *ngIf="session">
+      <section class="session-toolbar" *ngIf="isTeacher">
+        <div><span class="hint">Sessionskode</span><strong class="session-code">{{ sessionCode }}</strong></div>
+        <div class="actions"><button class="secondary" (click)="copySessionLink()">Kopiér tilmeldingslink</button><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></div>
+      </section>
+      <div class="session-layout">
+        <div class="session-workspace">
+          <app-student-help-requests *ngIf="!isTeacher" [view]="this" />
+          <app-teacher-help-requests *ngIf="isTeacher" [view]="this" />
+        </div>
+        <section class="card conversation-panel" aria-labelledby="conversation-title">
+          <ng-container *ngIf="conversation as request; else noConversation">
+            <div class="section-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">{{ request.displayNumber }}</h2></div><span class="status" [attr.data-status]="request.status">{{ statusLabel(request.status) }}</span></div>
+            <p class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }}</p>
+            <p *ngIf="!canAct" class="alert info">Denne anmodning er fra før sessionen blev ryddet. Samtalen kan stadig læses.</p>
+            <p *ngIf="isTeacher && request.status === 'Pending' && !request.assignedTeacherId" class="hint">Tag den næste anmodning i køen for at starte hjælp eller svare.</p>
+            <ol class="conversation">
+              <li *ngFor="let message of request.messages" [class.teacher-message]="message.authorRole === 'Teacher'">
+                <div class="message-meta"><strong>{{ message.authorRole === 'Teacher' ? 'Underviser' : 'Studerende' }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
+                <p>{{ message.text }}</p>
+              </li>
+            </ol>
+            <div class="actions" *ngIf="isTeacher && request.helpType === 'Physical'">
+              <button *ngIf="request.status === 'Pending'" (click)="changeStatus('Start')" [disabled]="busy || !canStart">Start fysisk hjælp</button>
+              <button *ngIf="request.status === 'Active'" (click)="changeStatus('Complete')" [disabled]="busy || !canComplete">Afslut fysisk hjælp</button>
+            </div>
+            <form *ngIf="(!isTeacher || request.helpType === 'Digital') && canSendMessage" #replyForm="ngForm" (ngSubmit)="sendMessage()" class="reply-form">
+              <label for="reply-text">{{ isTeacher ? 'Dit svar' : 'Ny besked til underviseren' }}</label>
+              <p class="hint">{{ isTeacher ? 'Når du sender dit svar, afsluttes anmodningen.' : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
+              <textarea id="reply-text" name="replyText" [(ngModel)]="replyText" rows="4" maxlength="4000" required [disabled]="busy" placeholder="Skriv din besked …"></textarea>
+              <button type="submit" [disabled]="busy || replyForm.invalid || !replyText.trim()">{{ isTeacher ? 'Send svar og afslut' : 'Send besked' }}</button>
+            </form>
+            <p *ngIf="request.status === 'Cancelled'" class="hint">Anmodningen er annulleret. Opret en ny, hvis du stadig har brug for hjælp.</p>
+            <div class="conversation-footer" *ngIf="canCancel"><button class="text-button" [class.danger]="!isTeacher" (click)="changeStatus('Cancel')" [disabled]="busy">{{ isTeacher ? 'Send forrest i køen' : 'Annuller anmodning' }}</button></div>
+          </ng-container>
+          <ng-template #noConversation><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">Her vises din samtale</h2><p class="hint">{{ selectedRequestId && refreshing ? 'Henter samtalen …' : (isTeacher ? 'Tag næste anmodning, eller åbn en samtale fra køen.' : 'Opret en hjælpeanmodning, eller vælg en af dine samtaler.') }}</p></ng-template>
+        </section>
+      </div>
+      <details *ngIf="isTeacher" class="session-settings"><summary>Sessionindstillinger</summary><p>Ryd køen og de aktuelle hjælpeanmodninger. De studerende forbliver tilmeldt.</p><button class="secondary danger" (click)="clearSession()" [disabled]="busy">Ryd session</button></details>
+      <p class="live-note"><span class="live-dot" aria-hidden="true"></span>Opdateres automatisk <span *ngIf="refreshing">· Henter …</span></p>
+    </ng-container>
+  </ng-container>
+</ng-container>

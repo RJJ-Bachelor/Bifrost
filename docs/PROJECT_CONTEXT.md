@@ -222,3 +222,24 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `MimirService` incorporates fallback resilience (`LlmUnavailableException`), gracefully forwarding original student queries if all configured LLM models fail.
 - Core integration message contracts (`HelpRequestCreatedMessage` and `GeneralizedCreatedMessage`) now strictly mandate `HelpRequestId`, `SessionId`, and `Generation`.
 - Session generation query handlers within `EirService` utilize explicit service scope factories to guarantee safe isolation and resource disposal.
+
+---
+
+## Update 2026-10-19
+
+- `GnaService` integrates real-time SignalR hubs (`/api/students/notifications` and `/api/teachers/notifications`) for pushing notifications to connected clients.
+- SignalR connection authentication supports both student identity cookies and JWT Bearer tokens passed via query parameters (`access_token`).
+- A multi-channel `NotificationDispatcher` in `GnaService` attempts delivery via active SignalR connections before falling back to push notification channels.
+- `GnaService` persistence introduces `PushSubscription` entities and extended `Notification` metadata attributes for tracking delivery context.
+- Outbox dispatcher polling intervals for `EirService.HelpRequests` and `GnaService` are tuned to 500ms to minimize integration event propagation latency.
+- The test frontend includes reactive SignalR client subscriptions for real-time notification handling and state synchronization.
+
+---
+
+## Update 2026-10-19
+
+- `GnaService` implements real-time SignalR hubs (`/api/students/notifications` and `/api/teachers/notifications`) supporting both student identity cookies and query-string JWT bearer tokens (`access_token`).
+- A multi-channel `NotificationDispatcher` in `GnaService` attempts delivery via active SignalR connections before falling back to push notification channels.
+- `GnaService` persistence incorporates `PushSubscription` entities and extended notification metadata fields (`SessionId`, `Generation`, `HelpRequestId`, `Change`, `Status`) to track delivery context.
+- Outbox dispatcher polling intervals for `EirService.HelpRequests` and `GnaService` are tuned to 500ms to minimize integration event propagation latency.
+- Notification message handlers enforce persistence idempotency using unique constraints and transaction handling to safely handle redelivered messages.

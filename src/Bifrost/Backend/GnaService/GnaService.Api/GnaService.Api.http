@@ -1,6 +1,6 @@
 @GnaService.Api_HostAddress = http://localhost:5255
 
-GET {{GnaService.Api_HostAddress}}/weatherforecast/
+GET {{GnaService.Api_HostAddress}}/health
 Accept: application/json
 
 ###

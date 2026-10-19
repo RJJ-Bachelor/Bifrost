@@ -8,7 +8,6 @@ using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.HelpRequests.Application.Repositories;
-using GnaService.Application.Services.Messaging;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -35,9 +34,11 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
+using MimirService.Application.Services.Llm;
 
 namespace EirService.Test;
 
+[Collection("FastEndpoints")]
 public sealed class OutboxIntegrationTests : IAsyncLifetime
 {
     private string? adminConnectionString;
@@ -90,6 +91,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         {
             services.RemoveAll<IMessageBus>();
             services.AddSingleton<IMessageBus>(bus);
+            services.RemoveAll<ILlmClient>();
+            services.AddSingleton<ILlmClient, StubLlmClient>();
         }
         return services.BuildServiceProvider();
     }
@@ -97,6 +100,12 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     private static OutgoingMessage Reply(Guid id, Guid sessionId, int generation) =>
         new(id, new GeneralizedCreatedMessage(id, sessionId, generation, "Generalized answer"),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+
+    private sealed class StubLlmClient : ILlmClient
+    {
+        public Task<string> GenerateAsync(string systemInstruction, string prompt, CancellationToken cancellationToken) =>
+            Task.FromResult("Generalized answer");
+    }
 
     [PostgresFact]
     public async Task EirStartupMigrationsCreateEachHistoryTableBeforeReadingAndCanRunAgain()
@@ -273,22 +282,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         Assert.False(db.Database.HasPendingModelChanges());
     }
 
-    [PostgresFact]
-    public async Task GnaIgnoresNotificationRedelivery()
-    {
-        await using var services = BuildServices("gna");
-        await using (var scope = services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
-            await db.Database.MigrateAsync();
-            var handler = scope.ServiceProvider.GetRequiredService<INotificationMessageHandler>();
-            var message = new MessageEnvelope<NotificationCreatedMessage>(TestIds.From("notification-1"), new("student-1", "Help needed"));
-            await handler.HandleAsync(message, CancellationToken.None);
-            await handler.HandleAsync(message, CancellationToken.None);
-        }
-        await using var verification = services.CreateAsyncScope();
-        Assert.Single(await verification.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Notifications.ToArrayAsync());
-    }
+    // Notification redelivery and its atomic delivery-outbox are covered in GnaService.Test.NotificationPersistenceTests.
 
     [PostgresFact]
     public async Task GenericMessagesRetainTraceAndFailedMessageDoesNotBlockOthers()
@@ -375,7 +369,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     }
 
     [OutboxBrokerFact]
-    public async Task PreparedHelpRequestQueuesAllowOutboxRetryAndKeepEventsForFutureConsumers()
+    public async Task PreparedQueuesKeepHelpRequestEventsAndNotificationDeliveriesUntilConsumersConnect()
     {
         await using var eir = BuildServices("eir", realBroker: true);
         await using var gna = BuildServices("gna", realBroker: true);
@@ -385,6 +379,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         var updated = new HelpRequestUpdatedIntegrationEvent(Guid.NewGuid(), requestId, sessionId, 2,
             "student", "Answered", "Completed", "Digital", "teacher", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         var answered = new HelpRequestAnsweredMessage(requestId, sessionId, 2, "Question", "Answer");
+        var delivery = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), "student", "Answer available",
+            DateTimeOffset.UtcNow, sessionId, requestId);
         await using (var scope = eir.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
@@ -400,6 +396,10 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using var channel = await connection.CreateChannelAsync();
         try
         {
+            // Reset these destinations on the isolated test broker before testing missing routes.
+            await channel.QueueDeleteAsync("gna-request-updated");
+            await channel.QueueDeleteAsync("gna-notification-delivery");
+            await channel.QueueDeleteAsync("mimir-request-answered");
             // Reproduce the missing-route error; pending events must not be discarded.
             await dispatcher.PublishPendingAsync(CancellationToken.None);
             await using (var scope = eir.CreateAsyncScope())
@@ -408,18 +408,23 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
 
             foreach (var services in new[] { gna, mimir })
             {
-                var initializer = services.GetServices<IHostedService>()
-                    .Single(service => service.GetType().Name == "RabbitMqQueueInitializer");
-                await initializer.StartAsync(CancellationToken.None);
-                await initializer.StartAsync(CancellationToken.None); // Safe on every service startup.
-                await initializer.StopAsync(CancellationToken.None);
+                foreach (var initializer in services.GetServices<IHostedService>()
+                    .Where(service => service.GetType().Name == "RabbitMqQueueInitializer"))
+                {
+                    await initializer.StartAsync(CancellationToken.None);
+                    await initializer.StartAsync(CancellationToken.None); // Safe on every service startup.
+                    await initializer.StopAsync(CancellationToken.None);
+                }
             }
+            // Delivery requests must be stored even before the delivery subscriber connects.
+            await gna.GetRequiredService<IMessageBus>().PublishAsync(delivery.NotificationId, delivery,
+                MessageRoutes.Notifications, MessageRoutes.NotificationDeliveryRequested);
             await dispatcher.PublishPendingAsync(CancellationToken.None);
             await using (var scope = eir.CreateAsyncScope())
                 Assert.Equal(2, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>()
                     .Outbox.CountAsync(message => message.PublishedAtUtc != null));
 
-            foreach (var queueName in new[] { "gna-request-updated", "mimir-request-answered" })
+            foreach (var queueName in new[] { "gna-request-updated", "gna-notification-delivery", "mimir-request-answered" })
             {
                 var queue = await channel.QueueDeclarePassiveAsync(queueName);
                 Assert.Equal(1u, queue.MessageCount);
@@ -427,20 +432,26 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             }
             var storedUpdate = await channel.BasicGetAsync("gna-request-updated", autoAck: false);
             var storedAnswer = await channel.BasicGetAsync("mimir-request-answered", autoAck: false);
+            var storedDelivery = await channel.BasicGetAsync("gna-notification-delivery", autoAck: false);
             Assert.NotNull(storedUpdate);
             Assert.NotNull(storedAnswer);
+            Assert.NotNull(storedDelivery);
             var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
             Assert.Equal(updated, JsonSerializer.Deserialize<MessageEnvelope<HelpRequestUpdatedIntegrationEvent>>(storedUpdate.Body.Span, options)!.Payload);
             Assert.Equal(answered, JsonSerializer.Deserialize<MessageEnvelope<HelpRequestAnsweredMessage>>(storedAnswer.Body.Span, options)!.Payload);
+            Assert.Equal(delivery, JsonSerializer.Deserialize<MessageEnvelope<NotificationDeliveryRequestedMessage>>(storedDelivery.Body.Span, options)!.Payload);
             Assert.Equal(DeliveryModes.Persistent, storedUpdate.BasicProperties.DeliveryMode);
             Assert.Equal(DeliveryModes.Persistent, storedAnswer.BasicProperties.DeliveryMode);
+            Assert.Equal(DeliveryModes.Persistent, storedDelivery.BasicProperties.DeliveryMode);
             await channel.BasicNackAsync(storedUpdate.DeliveryTag, multiple: false, requeue: true);
             await channel.BasicNackAsync(storedAnswer.DeliveryTag, multiple: false, requeue: true);
+            await channel.BasicNackAsync(storedDelivery.DeliveryTag, multiple: false, requeue: true);
         }
         finally
         {
-            // These tests require an isolated broker; only the two queues created here are removed.
+            // These tests require an isolated broker; only the three queues created here are removed.
             await channel.QueueDeleteAsync("gna-request-updated");
+            await channel.QueueDeleteAsync("gna-notification-delivery");
             await channel.QueueDeleteAsync("mimir-request-answered");
         }
     }

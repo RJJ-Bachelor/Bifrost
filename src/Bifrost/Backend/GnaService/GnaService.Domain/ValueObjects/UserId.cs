@@ -12,6 +12,7 @@ public sealed record UserId
     public static UserId Create(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        if (value.Length > 100) throw new ArgumentException("User IDs cannot exceed 100 characters.", nameof(value));
         return new UserId(value);
     }
 }

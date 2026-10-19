@@ -1,5 +1,5 @@
-import { Component, inject } from '@angular/core';
-import { HeimdallService } from './heimdall.service';
+import { Component, DestroyRef, inject } from '@angular/core';
+import { NotificationService } from './notification.service';
 
 @Component({
   selector: 'app-root',
@@ -8,16 +8,9 @@ import { HeimdallService } from './heimdall.service';
   styleUrl: './app.component.css'
 })
 export class AppComponent {
-  readonly api = inject(HeimdallService);
-  copyNotice = '';
+  readonly notifications = inject(NotificationService);
 
-  async copySessionLink() {
-    if (!this.api.sessionLink) return;
-    try {
-      await navigator.clipboard.writeText(this.api.sessionLink);
-      this.copyNotice = 'Sessionslinket er kopieret.';
-    } catch {
-      this.copyNotice = 'Markér og kopiér linket i feltet.';
-    }
+  constructor() {
+    inject(DestroyRef).onDestroy(() => { void this.notifications.stop(); });
   }
 }

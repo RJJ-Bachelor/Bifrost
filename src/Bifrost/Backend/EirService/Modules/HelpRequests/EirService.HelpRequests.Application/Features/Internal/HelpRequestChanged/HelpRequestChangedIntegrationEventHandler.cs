@@ -1,5 +1,9 @@
+using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.DomainEvents;
+using EirService.HelpRequests.Domain.Entities;
 using FastEndpoints;
+using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.DomainEvents;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
@@ -7,10 +11,10 @@ using Shared.Application.Messaging.Outbox;
 
 namespace EirService.HelpRequests.Application.Features.Internal.HelpRequestChanged;
 
-public sealed class HelpRequestChangedIntegrationEventHandler
+public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFactory scopeFactory)
     : IEventHandler<DomainEventNotification<HelpRequestChangedDomainEvent>>
 {
-    public Task HandleAsync(DomainEventNotification<HelpRequestChangedDomainEvent> notification, CancellationToken cancellationToken)
+    public async Task HandleAsync(DomainEventNotification<HelpRequestChangedDomainEvent> notification, CancellationToken cancellationToken)
     {
         var change = notification.DomainEvent;
         var request = change.Request;
@@ -25,10 +29,24 @@ public sealed class HelpRequestChangedIntegrationEventHandler
             notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
                 new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, text),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestCreated));
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
-                new NotificationCreatedMessage(request.StudentId, text, request.SessionId, request.Generation),
-                MessageRoutes.Notifications, MessageRoutes.NotificationCreated));
         }
+        if (change.Change is "Created" or "StudentMessageAdded")
+        {
+            // Event handlers are singletons; keep database dependencies in a local scope.
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var repository = scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>();
+            var queued = await repository.GetForSessionAsync(request.SessionId, request.Generation, cancellationToken);
+            if (!queued.Any(other => other.Id != request.Id && other.Status == HelpRequestStatus.Pending))
+            {
+                var session = await new GetHelpRequestSessionQuery(request.SessionId).ExecuteAsync(cancellationToken);
+                if (session is not null && session.Generation == request.Generation)
+                    Notify(session.TeacherId, change.Change == "Created"
+                        ? "Køen er startet. Der er en ny hjælpeanmodning."
+                        : "Køen er opdateret. Der er en opfølgende besked.");
+            }
+        }
+        if (change.Change == "Started")
+            Notify(request.StudentId, $"Det er din tur til fysisk hjælp. {request.DisplayNumber}.");
         if (change.Change == "Answered")
         {
             var messages = request.Messages.OrderBy(message => message.SequenceNumber).ToArray();
@@ -36,7 +54,12 @@ public sealed class HelpRequestChangedIntegrationEventHandler
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,
                     messages[^2].Text.Value, messages[^1].Text.Value),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered));
+            Notify(request.StudentId, "Der er kommet svar på din hjælpeanmodning.");
         }
-        return Task.CompletedTask;
+
+        void Notify(string userId, string message) => notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+            new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
+                request.Id, change.Change, request.Status.ToString()),
+            MessageRoutes.Notifications, MessageRoutes.NotificationCreated));
     }
 }
