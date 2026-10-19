@@ -7,6 +7,8 @@ export interface Notification {
   userId: string;
   message: string;
   createdAt: string;
+  sessionId?: string | null;
+  helpRequestId?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

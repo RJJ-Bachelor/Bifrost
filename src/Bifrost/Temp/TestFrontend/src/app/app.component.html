@@ -14,7 +14,14 @@
   <section class="notification-modal" role="dialog" aria-modal="true" aria-labelledby="notification-title">
     <p class="eyebrow">BIFROST</p>
     <h2 id="notification-title">Ny notifikation</h2>
-    <p>{{ notification.message }}</p>
+    <dl class="notification-details">
+      <div><dt>UserId:</dt><dd>{{ notification.userId }}</dd></div>
+      <div><dt>SessionId:</dt><dd>{{ notification.sessionId ?? '—' }}</dd></div>
+      <div><dt>HelpRequestId:</dt><dd>{{ notification.helpRequestId ?? '—' }}</dd></div>
+      <div><dt>NotificationId:</dt><dd>{{ notification.notificationId }}</dd></div>
+      <div><dt>CreatedAt:</dt><dd>{{ notification.createdAt | date:'dd.MM.yyyy HH:mm:ss' }}</dd></div>
+      <div><dt>Messages:</dt><dd>{{ notification.message }}</dd></div>
+    </dl>
     <button type="button" (click)="notifications.dismiss()" autofocus>Luk</button>
   </section>
 </div>

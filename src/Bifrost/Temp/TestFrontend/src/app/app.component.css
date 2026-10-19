@@ -1,3 +1,6 @@
 .notification-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgb(0 25 49 / 55%); }
-.notification-modal { width: min(100%, 460px); border-top: 4px solid var(--blue); border-radius: 3px; padding: 32px; background: #fff; box-shadow: 0 16px 60px rgb(0 0 0 / 18%); }
-.notification-modal > p:not(.eyebrow) { white-space: pre-wrap; overflow-wrap: anywhere; margin: 20px 0 24px; }
+.notification-modal { width: min(100%, 620px); max-height: calc(100dvh - 40px); overflow-y: auto; border-top: 4px solid var(--blue); border-radius: 3px; padding: 32px; background: #fff; box-shadow: 0 16px 60px rgb(0 0 0 / 18%); }
+.notification-details { display: grid; gap: 10px; margin: 20px 0 24px; }
+.notification-details > div { display: flex; flex-wrap: wrap; gap: 4px 8px; }
+.notification-details dt { font-weight: 600; }
+.notification-details dd { min-width: 0; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }

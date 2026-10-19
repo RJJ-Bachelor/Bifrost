@@ -75,15 +75,29 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
     {
         await using var scope = app.Services.CreateAsyncScope();
         var handler = scope.ServiceProvider.GetRequiredService<INotificationMessageHandler>();
-        var incoming = new MessageEnvelope<NotificationCreatedMessage>(Guid.NewGuid(), new("student", "Hello"));
+        var incoming = new MessageEnvelope<NotificationCreatedMessage>(Guid.NewGuid(),
+            new("student", "Hello", Guid.NewGuid(), 2, Guid.NewGuid(), "Answered", "Completed"));
         await handler.HandleAsync(incoming, default);
         await handler.HandleAsync(incoming, default);
         var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
-        Assert.Single(await db.Notifications.ToArrayAsync());
+        db.ChangeTracker.Clear();
+        var saved = Assert.Single(await db.Notifications.ToArrayAsync());
+        Assert.Equal(incoming.Payload.SessionId, saved.SessionId);
+        Assert.Equal(incoming.Payload.HelpRequestId, saved.HelpRequestId);
+        Assert.Equal(incoming.Payload.Generation, saved.Generation);
+        Assert.Equal(incoming.Payload.Change, saved.Change);
+        Assert.Equal(incoming.Payload.Status, saved.Status);
         var outbox = Assert.Single(await db.Outbox.ToArrayAsync());
         Assert.Equal(incoming.Id, outbox.MessageId);
         Assert.Equal(MessageRoutes.NotificationDeliveryRequested, outbox.RoutingKey);
         Assert.Null(outbox.PublishedAtUtc);
+        var delivery = JsonSerializer.Deserialize<NotificationDeliveryRequestedMessage>(outbox.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(incoming.Id, delivery.NotificationId);
+        Assert.Equal(incoming.Payload.UserId, delivery.UserId);
+        Assert.Equal(incoming.Payload.Messages, delivery.Message);
+        Assert.Equal(incoming.Payload.SessionId, delivery.SessionId);
+        Assert.Equal(incoming.Payload.HelpRequestId, delivery.HelpRequestId);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 

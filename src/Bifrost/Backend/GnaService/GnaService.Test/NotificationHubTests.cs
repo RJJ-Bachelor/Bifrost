@@ -94,11 +94,17 @@ public sealed class NotificationHubTests : IAsyncLifetime
         Assert.True(registry.IsConnected(Student));
         Assert.False(registry.IsConnected("someone-else"));
         using var scope = app.Services.CreateScope();
-        var notification = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, "Only this student", DateTimeOffset.UtcNow);
+        var notification = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, "Only this student", DateTimeOffset.UtcNow,
+            Guid.NewGuid(), Guid.NewGuid());
         Assert.True(await scope.ServiceProvider.GetRequiredService<IRealtimeNotificationSender>().TrySendAsync(notification, default));
-        var frame = JsonDocument.Parse((await ReadAsync(socket)).TrimEnd('\u001e'));
+        using var frame = JsonDocument.Parse((await ReadAsync(socket)).TrimEnd('\u001e'));
         Assert.Equal("NotificationReceived", frame.RootElement.GetProperty("target").GetString());
-        Assert.Equal(notification.NotificationId, frame.RootElement.GetProperty("arguments")[0].GetProperty("notificationId").GetGuid());
+        var payload = frame.RootElement.GetProperty("arguments")[0];
+        Assert.False(payload.TryGetProperty("change", out _));
+        Assert.False(payload.TryGetProperty("status", out _));
+        Assert.False(payload.TryGetProperty("generation", out _));
+        var received = payload.Deserialize<NotificationDeliveryRequestedMessage>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(notification, received);
         await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
         for (var attempt = 0; attempt < 50 && registry.IsConnected(Student); attempt++) await Task.Delay(10);
         Assert.False(registry.IsConnected(Student));

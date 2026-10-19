@@ -58,7 +58,8 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         }
 
         void Notify(string userId, string message) => notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
-            new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation),
+            new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
+                request.Id, change.Change, request.Status.ToString()),
             MessageRoutes.Notifications, MessageRoutes.NotificationCreated));
     }
 }

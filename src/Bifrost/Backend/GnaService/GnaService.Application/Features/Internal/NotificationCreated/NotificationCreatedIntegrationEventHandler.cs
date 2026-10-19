@@ -14,7 +14,8 @@ public sealed class NotificationCreatedIntegrationEventHandler
     {
         var created = notification.DomainEvent.Notification;
         notification.EnqueueIntegrationEvent(new OutgoingMessage(created.Id,
-            new NotificationDeliveryRequestedMessage(created.Id, created.UserId.Value, created.Messages.Value, created.CreatedAt),
+            new NotificationDeliveryRequestedMessage(created.Id, created.UserId.Value, created.Messages.Value, created.CreatedAt,
+                created.SessionId, created.HelpRequestId),
             MessageRoutes.Notifications, MessageRoutes.NotificationDeliveryRequested));
         return Task.CompletedTask;
     }

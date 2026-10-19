@@ -27,13 +27,28 @@ namespace GnaService.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Change")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("HelpRequestId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Messages")
                         .IsRequired()
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("text");
 
                     b.Property<string>("UserId")
                         .IsRequired()

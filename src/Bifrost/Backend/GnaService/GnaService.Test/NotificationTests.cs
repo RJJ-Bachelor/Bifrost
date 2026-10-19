@@ -1,13 +1,17 @@
 using GnaService.Application.Features.Internal.NotificationCreated;
 using GnaService.Application.Notifications;
+using GnaService.Application.Repositories;
+using GnaService.Application.Services.Messaging;
 using GnaService.Domain.DomainEvents;
 using GnaService.Domain.Entities;
 using GnaService.Infrastructure.Notifications;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Shared.Application.DomainEvents;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
+using Shared.Application.Persistence;
 
 namespace GnaService.Test;
 
@@ -82,17 +86,23 @@ public sealed class NotificationTests
     }
 
     [Fact]
-    public async Task DomainEventStagesDeliveryWithTheOriginalRecipient()
+    public async Task IncomingNotificationStagesDeliveryWithTheOriginalRecipientAndContext()
     {
-        var created = Notification.Create(Guid.NewGuid(), "student", "Help", DateTimeOffset.UtcNow);
+        var incoming = new MessageEnvelope<NotificationCreatedMessage>(Guid.NewGuid(),
+            new("student", "Hej fra backenden", Guid.NewGuid(), 2, Guid.NewGuid(), "Answered", "Completed"));
+        var store = new NotificationStore();
+        await new NotificationMessageHandler(NullLogger<NotificationMessageHandler>.Instance, store, store, TimeProvider.System)
+            .HandleAsync(incoming, default);
+        var created = Assert.IsType<Notification>(store.Saved);
+        Assert.Equal(1, store.Commits);
         var domainEvent = Assert.IsType<NotificationCreatedDomainEvent>(Assert.Single(created.GetDomainEvents()));
         var outgoing = new List<OutgoingMessage>();
         await new NotificationCreatedIntegrationEventHandler().HandleAsync(
             new DomainEventNotification<NotificationCreatedDomainEvent>(domainEvent, outgoing.Add), default);
         var staged = Assert.Single(outgoing);
         var payload = Assert.IsType<NotificationDeliveryRequestedMessage>(staged.Payload);
-        Assert.Equal(created.Id, payload.NotificationId);
-        Assert.Equal(created.UserId.Value, payload.UserId);
+        Assert.Equal(new NotificationDeliveryRequestedMessage(incoming.Id, incoming.Payload.UserId, incoming.Payload.Messages,
+            created.CreatedAt, incoming.Payload.SessionId, incoming.Payload.HelpRequestId), payload);
         Assert.Equal(MessageRoutes.NotificationDeliveryRequested, staged.RoutingKey);
     }
 
@@ -113,6 +123,24 @@ public sealed class NotificationTests
         {
             Calls++;
             return failure is null ? Task.FromResult(result) : Task.FromException<bool>(failure);
+        }
+    }
+
+    private sealed class NotificationStore : INotificationRepository, IUnitOfWork<INotificationRepository>
+    {
+        public Notification? Saved { get; private set; }
+        public int Commits { get; private set; }
+
+        public Task<bool> TryAddAsync(Notification notification, CancellationToken cancellationToken)
+        {
+            Saved = notification;
+            return Task.FromResult(true);
+        }
+
+        public Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            Commits++;
+            return Task.CompletedTask;
         }
     }
 

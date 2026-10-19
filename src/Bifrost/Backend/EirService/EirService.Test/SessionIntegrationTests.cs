@@ -796,7 +796,8 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await JoinAsync(session.Code);
         var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
         var first = Assert.Single(await ReadNotificationsAsync());
-        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.", session.Id, 1), first.Message);
+        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
+            session.Id, 1, firstId, "Created", "Pending"), first.Message);
         Assert.NotEqual(firstId, first.Id);
 
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
@@ -832,7 +833,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
             SubmitAsync(otherStudent, session.Id, HelpType.Physical));
         Assert.Equal(2, ids.Distinct().Count());
         var notification = Assert.Single(await ReadNotificationsAsync());
-        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.", session.Id, 1), notification.Message);
+        Assert.Contains(notification.Message.HelpRequestId, ids.Select(id => (Guid?)id));
+        Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
+            session.Id, 1, notification.Message.HelpRequestId, "Created", "Pending"), notification.Message);
     }
 
     [PostgresFact]
@@ -866,6 +869,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(2, followUps.Length);
         Assert.Equal(2, followUps.Select(item => item.Id).Distinct().Count());
         Assert.All(followUps, item => Assert.Equal(session.Id, item.Message.SessionId));
+        Assert.All(followUps, item => Assert.Equal(id, item.Message.HelpRequestId));
+        Assert.All(followUps, item => Assert.Equal("StudentMessageAdded", item.Message.Change));
+        Assert.All(followUps, item => Assert.Equal("Pending", item.Message.Status));
     }
 
     [PostgresFact]
@@ -915,6 +921,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var turn = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
         Assert.Equal($"Det er din tur til fysisk hjælp. {displayNumber}.", turn.Message.Messages);
         Assert.Equal(session.Id, turn.Message.SessionId);
+        Assert.Equal(id, turn.Message.HelpRequestId);
+        Assert.Equal("Started", turn.Message.Change);
+        Assert.Equal("Active", turn.Message.Status);
         var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
         Assert.Equal(0, queue.GetProperty("waitingCount").GetInt32());
         Assert.Single(queue.GetProperty("activeRequests").EnumerateArray());
@@ -945,7 +954,8 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
         var studentId = (await answer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("studentId").GetString();
         var answered = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
-        Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.", session.Id, 1), answered.Message);
+        Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.",
+            session.Id, 1, id, "Answered", "Completed"), answered.Message);
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
         Assert.Equal("Completed", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
