@@ -633,5 +633,243 @@
       "decision": "join",
       "candidateId": "g1"
     }
+  },
+  {
+    "id": "queue-loops-join-second",
+    "category": "multi-candidate",
+    "note": "g2 er samme opgave og samme problem. g1 handler også om en løkke, men i en anden opgave og med et andet problem.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor stopper løkken i opgave 3 aldrig?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvorfor kommer det sidste element ikke med i løkken i opgave 2?" },
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en do while" },
+      { "id": "r2", "type": "request", "text": "opgave 5 hvordan vender jeg en streng om" },
+      { "id": "r3", "type": "request", "text": "kan du komme forbi?" },
+      { "id": "r4", "type": "request", "text": "opgave 4 hvordan tæller jeg kun lige tal" }
+    ],
+    "newQuestion": "opgave 2 min løkke stopper et element for tidligt, det sidste tal bliver aldrig skrevet ud",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g2"
+    }
+  },
+  {
+    "id": "queue-web-pair-form-reload",
+    "category": "multi-candidate",
+    "note": "r3 er samme opgave og samme problem. r1 nævner også en knap, men handler om event listeners generelt.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor returnerer document.getElementById null i opgave 4?" },
+      { "id": "r1", "type": "request", "text": "hvordan tilføjer man en event listener til en knap?" },
+      { "id": "r2", "type": "request", "text": "min knap skal centreres men margin auto virker ikke" },
+      { "id": "r3", "type": "request", "text": "opgave 5 når jeg submitter formen bliver siden genindlæst og mine data forsvinder" },
+      { "id": "r4", "type": "request", "text": "hvad er forskellen på let og const" }
+    ],
+    "newQuestion": "opg 5 siden refresher hver gang jeg trykker på submit knappen",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r3",
+      "faq": {
+        "example": "Hvorfor genindlæses siden, når formularen i opgave 5 sendes?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "queue-git-standalone",
+    "category": "multi-candidate",
+    "note": "Mange git-kandidater, men ingen af dem handler om at fortryde en commit.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvordan løser jeg en merge-konflikt i git?" },
+      { "id": "r1", "type": "request", "text": "git push siger Permission denied (publickey)" },
+      { "id": "r2", "type": "request", "text": "hvordan laver jeg en ny branch?" },
+      { "id": "r3", "type": "request", "text": "hvordan får jeg git til at ignorere bin og obj mapperne" }
+    ],
+    "newQuestion": "jeg har committet en forkert fil, hvordan fortryder jeg den sidste commit",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "queue-sql-join-last",
+    "category": "multi-candidate",
+    "note": "Den rigtige kandidat står sidst. g1 handler også om joins, men om syntaksen og ikke om for mange rækker.",
+    "sessionTitle": "Databaser - SQL joins",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på WHERE og HAVING?" },
+      { "id": "r2", "type": "request", "text": "min INSERT i opgave 4 fejler med violates foreign key constraint" },
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan laver man en LEFT JOIN?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?" }
+    ],
+    "newQuestion": "opgave 2 jeg får tusindvis af rækker når jeg joiner kunder og ordrer, der burde kun være 20",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g2"
+    }
+  },
+  {
+    "id": "queue-ef-pair-password",
+    "category": "multi-candidate",
+    "note": "r2 er samme fejl. g1 nævner også dotnet ef, og r4 nævner også Postgres, men begge handler om noget andet.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor kan dotnet ef ikke finde en DbContext, når jeg laver en migration?" },
+      { "id": "r1", "type": "request", "text": "hvordan seeder man data i EF Core?" },
+      { "id": "r2", "type": "request", "text": "når jeg kører database update får jeg 'password authentication failed for user postgres'" },
+      { "id": "r3", "type": "request", "text": "hvordan laver jeg en foreign key mellem to tabeller i ef core" },
+      { "id": "r4", "type": "request", "text": "docker compose up siger port 5432 is already allocated" }
+    ],
+    "newQuestion": "dotnet ef database update fejler med password authentication failed",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r2",
+      "faq": {
+        "example": "Hvorfor fejler dotnet ef database update med 'password authentication failed'?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "queue-oop-standalone",
+    "category": "multi-candidate",
+    "note": "Samme opgave som r4 og samme emne som flere kandidater, men et andet problem.",
+    "sessionTitle": "Objektorienteret programmering - arv",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor kan jeg ikke lave en instans af en abstract class?" },
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på et interface og en abstract class" },
+      { "id": "r2", "type": "request", "text": "hvordan kalder jeg base constructoren fra en subklasse" },
+      { "id": "r3", "type": "request", "text": "opgave 2 hvad betyder virtual og override" },
+      { "id": "r4", "type": "request", "text": "hvorfor bliver min override metode ikke kaldt i opgave 4" },
+      { "id": "r5", "type": "request", "text": "kan du godkende opgave 1?" }
+    ],
+    "newQuestion": "opgave 4 hvordan laver jeg en property som kun kan sættes i constructoren",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "queue-api-join-third",
+    "category": "multi-candidate",
+    "note": "g3 er samme problem. Fejlteksten nævner hverken API'et eller porten på samme måde som FAQ-spørgsmålet.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver GET /api/products 404 i opgave 2?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvorfor siger browseren, at forbindelsen ikke er sikker, når jeg kører API'et lokalt?" },
+      { "id": "g3", "type": "generalization", "faqQuestion": "Hvorfor kan jeg ikke starte API'et, fordi porten allerede er i brug?" },
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på PUT og PATCH?" },
+      { "id": "r2", "type": "request", "text": "hvordan validerer jeg at et felt er påkrævet i min DTO" },
+      { "id": "r3", "type": "request", "text": "opgave 3 mit POST endpoint får altid null i body" },
+      { "id": "r4", "type": "request", "text": "hvordan returnerer jeg 201 created med location header" }
+    ],
+    "newQuestion": "kan ikke køre api'et, den siger address already in use på port 5001",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g3"
+    }
+  },
+  {
+    "id": "queue-python-pair-none",
+    "category": "multi-candidate",
+    "note": "r4 er samme opgave og samme problem. r2 er beslægtet, fordi årsagen nok er en manglende return, men r2 er et begrebsspørgsmål uden opgave.",
+    "sessionTitle": "Python - funktioner",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?" },
+      { "id": "r1", "type": "request", "text": "hvordan læser jeg en csv fil ind i python" },
+      { "id": "r2", "type": "request", "text": "hvad er forskellen på return og print" },
+      { "id": "r3", "type": "request", "text": "opgave 2 hvordan giver jeg en default værdi til en parameter" },
+      { "id": "r4", "type": "request", "text": "opgave 3 min funktion returnerer None selvom jeg beregner resultatet" }
+    ],
+    "newQuestion": "i opgave 3 får jeg None ud når jeg kalder funktionen, men inde i funktionen er tallet rigtigt",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r4",
+      "faq": {
+        "example": "Hvorfor returnerer funktionen i opgave 3 None?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "queue-tests-join-first",
+    "category": "multi-candidate",
+    "note": "g1 er samme opgave og samme problem. r2 nævner [Fact], men handler om forskellen på to attributter.",
+    "sessionTitle": "Test - unit tests med xUnit",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver testene i opgave 3 ikke fundet?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvordan mocker jeg et interface med Moq?" },
+      { "id": "r1", "type": "request", "text": "opgave 5 min test crasher med NullReferenceException fordi listen i klassen aldrig bliver oprettet" },
+      { "id": "r2", "type": "request", "text": "hvad er forskellen på [Fact] og [Theory]" }
+    ],
+    "newQuestion": "opg 3 test explorer viser 0 tests selvom projektet bygger",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "queue-async-standalone",
+    "category": "multi-candidate",
+    "note": "Handler om async ligesom flere kandidater, men at vente på flere kald på én gang er et andet problem.",
+    "sessionTitle": "Programmering 2 - collections og async",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvornår skal man bruge async og await?" },
+      { "id": "r1", "type": "request", "text": "min wpf app fryser når jeg kalder .Result på en task" },
+      { "id": "r2", "type": "request", "text": "min metode returnerer System.Threading.Tasks.Task`1[System.String] i stedet for teksten" },
+      { "id": "r3", "type": "request", "text": "hvordan sorterer jeg en liste af personer efter navn i C#" },
+      { "id": "r4", "type": "request", "text": "hvad er forskellen på List og Dictionary" }
+    ],
+    "newQuestion": "hvordan kører jeg flere http kald på samme tid og venter på dem alle",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "queue-fetch-pair-promise",
+    "category": "multi-candidate",
+    "note": "r2 er samme opgave og samme problem. De to generaliseringer handler også om kald til API'et, men om andre fejl.",
+    "sessionTitle": "Webudvikling - fetch og API'er",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvorfor får jeg 401, når frontenden kalder API'et?" },
+      { "id": "r1", "type": "request", "text": "hvordan sender jeg json med fetch" },
+      { "id": "r2", "type": "request", "text": "opgave 6 min fetch returnerer et Promise i stedet for dataen" },
+      { "id": "r3", "type": "request", "text": "hvad er forskellen på localStorage og sessionStorage" },
+      { "id": "r4", "type": "request", "text": "opgave 7 hvordan viser jeg en loading spinner mens jeg henter" }
+    ],
+    "newQuestion": "opgave 6 console.log af resultatet fra fetch skriver bare Promise { <pending> }",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r2",
+      "faq": {
+        "example": "Hvorfor giver fetch i opgave 6 et Promise i stedet for dataen?",
+        "mustNotContain": ["console.log"]
+      }
+    }
+  },
+  {
+    "id": "queue-arrays-join-long-queue",
+    "category": "multi-candidate",
+    "note": "Lang kø med 8 kandidater. g1 er samme opgave og samme fejl. r1 er en lignende exception, men et andet problem.",
+    "sessionTitle": "Programmering 1 - arrays",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en IndexOutOfRangeException i løkken i opgave 2?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvordan finder jeg det største tal i et array?" },
+      { "id": "r1", "type": "request", "text": "ArgumentOutOfRangeException når jeg fjerner elementer fra listen inde i en for løkke" },
+      { "id": "r2", "type": "request", "text": "hvordan kopierer jeg et array" },
+      { "id": "r3", "type": "request", "text": "opgave 4 hvordan sorterer jeg arrayet uden Array.Sort" },
+      { "id": "r4", "type": "request", "text": "hvad er forskellen på array og List" },
+      { "id": "r5", "type": "request", "text": "opgave 1: hvordan beregner jeg gennemsnittet af et array" },
+      { "id": "r6", "type": "request", "text": "kan du komme forbi?" }
+    ],
+    "newQuestion": "opgave 2 crasher med index was outside the bounds of the array når i bliver lig med length",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
   }
 ]
