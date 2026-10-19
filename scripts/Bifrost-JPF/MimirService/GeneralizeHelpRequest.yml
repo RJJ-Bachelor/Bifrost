@@ -1,0 +1,33 @@
+info:
+  name: GeneralizeHelpRequest
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "message": "Hej, jeg hedder Peter og forstår ikke hvorfor min for-løkke i Python aldrig stopper?",
+        "helpType": "Digital"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // A new session per run, because a student can only have one open request per session.
+        await bru.runRequest("Login/Teacher/Login");
+        const session = (await bru.runRequest("EirService/Teacher/Sessions/CreateSession/CreateSession")).data;
+        bru.setEnvVar("sessionId", session.id);
+        bru.setEnvVar("sessionCode", session.code);
+        bru.setEnvVar("sessionGeneration", String(session.currentGeneration));
+        await bru.runRequest("EirService/Student/Participants/JoinSession/JoinSession");
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setEnvVar("helpRequestId", res.body.id);
