@@ -34,6 +34,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString));
         services.AddRabbitMqMessageBus(configuration);
         services.AddRabbitMqQueue("gna-request-updated", MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated);
+        services.AddRabbitMqQueue("gna-notification-delivery", MessageRoutes.Notifications, MessageRoutes.NotificationDeliveryRequested);
         services.AddScoped<INotificationMessageHandler, NotificationMessageHandler>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IUnitOfWork<INotificationRepository>, NotificationUnitOfWork>();
