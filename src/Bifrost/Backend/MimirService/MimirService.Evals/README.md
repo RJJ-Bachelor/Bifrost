@@ -74,6 +74,7 @@ En generalisering har kun sit FAQ-spørgsmål og ikke medlemmernes tekst, fordi 
 - **FAQ-spørgsmål** (kun ved `pair`):
   - Automatisk: ingen af teksterne i `mustNotContain` må forekomme. Store og små bogstaver tæller ikke.
   - Manuelt eller med en sprogmodel som bedømmer, med `example` som reference: dækker det begge spørgsmål, er det ikke mere specifikt end det fælles, er det på dansk, og er det formuleret som et spørgsmål?
+- **FAQ-spørgsmål, der ikke skal være der:** skriver modellen et FAQ-spørgsmål ved `join` eller `standalone`, tælles det som en fejl. Ved `join` fastholdes generaliseringens formulering, og ved `standalone` er der intet at generalisere.
 - **Ugyldige svar:** ugyldig JSON eller et id uden for kandidaterne tælles som ugyldigt og som `standalone`, ligesom Mimir behandler det.
 
 Måltal:

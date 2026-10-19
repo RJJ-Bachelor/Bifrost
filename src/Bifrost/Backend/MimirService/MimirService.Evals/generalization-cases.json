@@ -87,7 +87,7 @@
   {
     "id": "cors-error-pair",
     "category": "clear-match",
-    "note": "Samme CORS-fejl. Kun det nye spørgsmål nævner opgave 6, og kun det første nævner porten, så ingen af dem må stå i FAQ'en.",
+    "note": "Samme CORS-fejl. Det er pair, selvom kun det nye spørgsmål nævner en opgave, fordi CORS skyldes backendens opsætning og ikke koden i opgaven. Kun det nye spørgsmål nævner opgave 6, og kun det første nævner porten, så ingen af dem må stå i FAQ'en.",
     "sessionTitle": "Webudvikling - fetch og API'er",
     "candidates": [
       { "id": "r1", "type": "request", "text": "min fetch til localhost:5000 fejler med 'blocked by CORS policy'" }
@@ -170,7 +170,7 @@
   {
     "id": "recursion-stack-overflow-join",
     "category": "clear-match",
-    "note": "Samme fejl i samme opgave. Den studerende nævner hvilken funktion, men FAQ'en fastholdes ved join.",
+    "note": "Samme fejl i samme opgave. Den studerende nævner, hvilken funktion det er, men FAQ'en fastholdes ved join.",
     "sessionTitle": "Algoritmer - rekursion",
     "candidates": [
       { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver den rekursive funktion i opgave 4 en StackOverflowException?" }
@@ -566,7 +566,7 @@
       "candidateId": "r1",
       "faq": {
         "example": "Hvorfor siger browseren, at forbindelsen ikke er sikker, når jeg kører API'et lokalt?",
-        "mustNotContain": ["Chrome"]
+        "mustNotContain": ["Chrome", "Swagger"]
       }
     }
   },
@@ -754,7 +754,7 @@
   {
     "id": "queue-api-join-third",
     "category": "multi-candidate",
-    "note": "g3 er samme problem. Fejlteksten nævner hverken API'et eller porten på samme måde som FAQ-spørgsmålet.",
+    "note": "g3 er samme problem. Fejlteksten 'address already in use' betyder det samme som g3's 'porten er i brug'.",
     "sessionTitle": "Backend - REST API i ASP.NET Core",
     "candidates": [
       { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver GET /api/products 404 i opgave 2?" },
@@ -1128,7 +1128,7 @@
       "candidateId": "r1",
       "faq": {
         "example": "Hvorfor får jeg en NullReferenceException i opgave 5?",
-        "mustNotContain": ["sofie", "mikkel"]
+        "mustNotContain": ["sofie", "mikkel", "GetNavn"]
       }
     }
   },
