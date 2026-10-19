@@ -1023,5 +1023,141 @@
       "decision": "standalone",
       "candidateId": null
     }
+  },
+  {
+    "id": "greeting-names-pair",
+    "category": "names",
+    "note": "Begge hilser med navne, og den ene nævner sin gruppe. Hverken underviserens, de studerendes eller gruppens navn må stå i FAQ'en.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "Hej Peter, det er Sofie. min while løkke i opgave 3 stopper aldrig" }
+    ],
+    "newQuestion": "hej, Mikkel her fra gruppe 4, opgave 3 løkken kører bare uendeligt",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor stopper løkken i opgave 3 aldrig?",
+        "mustNotContain": ["Peter", "Sofie", "Mikkel", "gruppe 4"]
+      }
+    }
+  },
+  {
+    "id": "partner-names-pair",
+    "category": "names",
+    "note": "Begge nævner den, de arbejder sammen med. Navnene må ikke stå i FAQ'en.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "mig og Ahmed kan ikke få getElementById til at virke i opgave 4, den giver null" }
+    ],
+    "newQuestion": "opgave 4 getElementById returnerer null, Emma og jeg har prøvet alt",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor returnerer document.getElementById null i opgave 4?",
+        "mustNotContain": ["Ahmed", "Emma"]
+      }
+    }
+  },
+  {
+    "id": "file-path-username-pair",
+    "category": "names",
+    "note": "Stierne indeholder brugernavne. Hverken navnene eller stierne må stå i FAQ'en.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "dotnet ef siger No DbContext was found in assembly, projektet ligger i C:\\Users\\mikkel.hansen\\source\\repos\\Bibliotek" }
+    ],
+    "newQuestion": "når jeg laver en migration står der 'No DbContext was found', mit projekt er i /Users/freja/dev/bibliotek",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor kan dotnet ef ikke finde en DbContext, når jeg laver en migration?",
+        "mustNotContain": ["mikkel", "freja", "C:\\Users", "/Users"]
+      }
+    }
+  },
+  {
+    "id": "contact-details-pair",
+    "category": "names",
+    "note": "Brugernavn, studienummer og mail er personoplysninger. Ingen af dem må stå i FAQ'en.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "git push siger Permission denied (publickey), min github er sofie-n2003" }
+    ],
+    "newQuestion": "får Permission denied (publickey) når jeg pusher. mit studienummer er 201905123 hvis du skal bruge det, mail: s201905123@studerende.example",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg 'Permission denied (publickey)', når jeg pusher?",
+        "mustNotContain": ["sofie-n2003", "201905123", "@"]
+      }
+    }
+  },
+  {
+    "id": "health-info-pair",
+    "category": "names",
+    "note": "Ordblindhed og sygdom er helbredsoplysninger og dermed følsomme personoplysninger. De må ikke stå i FAQ'en.",
+    "sessionTitle": "Python - funktioner",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "undskyld hvis det er dumt spurgt, jeg er ordblind. opgave 3 min funktion giver None" }
+    ],
+    "newQuestion": "jeg var syg i går og missede forelæsningen, opgave 3 funktionen returnerer None hvorfor",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor returnerer funktionen i opgave 3 None?",
+        "mustNotContain": ["ordblind", "syg", "forelæsning"]
+      }
+    }
+  },
+  {
+    "id": "names-in-identifiers-pair",
+    "category": "names",
+    "note": "Navnene står inde i kodens navne. De må heller ikke stå i FAQ'en.",
+    "sessionTitle": "Objektorienteret programmering - klasser og objekter",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "NullReferenceException i opgave 5 når jeg kalder sofiesKunde.GetNavn()" }
+    ],
+    "newQuestion": "opgave 5 crasher med NullReferenceException i min klasse MikkelBank",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg en NullReferenceException i opgave 5?",
+        "mustNotContain": ["sofie", "mikkel"]
+      }
+    }
+  },
+  {
+    "id": "names-join",
+    "category": "names",
+    "note": "Navnene påvirker ikke beslutningen. Ved join skrives ingen ny FAQ, så der er intet at tjekke for navne.",
+    "sessionTitle": "Databaser - SQL joins",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?" }
+    ],
+    "newQuestion": "Hej Peter, Lucas her. opgave 2 min join giver alle kombinationer af kunder og ordrer",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "same-name-different-problem",
+    "category": "names",
+    "note": "Begge henvender sig til Peter i samme opgave, men problemerne er forskellige. Et fælles navn er ikke et tegn på samme problem.",
+    "sessionTitle": "Test - unit tests med xUnit",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "Hej Peter, mine tests i opgave 3 bliver ikke fundet af test explorer" }
+    ],
+    "newQuestion": "Hej Peter, hvordan mocker jeg et interface med Moq i opgave 3?",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
   }
 ]
