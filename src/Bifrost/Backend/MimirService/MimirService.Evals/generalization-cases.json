@@ -1,0 +1,202 @@
+[
+  {
+    "id": "loop-never-stops-pair",
+    "category": "clear-match",
+    "note": "Samme opgave og samme problem: løkken stopper ikke. Kun den første nævner i++, så det må ikke stå i FAQ'en.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opg 3 min while løkke stopper aldrig, jeg har prøvet at tilføje i++ men den kører stadig" }
+    ],
+    "newQuestion": "mit program i opgave 3 hænger bare og bliver ved med at skrive det samme tal ud",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor stopper løkken i opgave 3 aldrig?",
+        "mustNotContain": ["i++"]
+      }
+    }
+  },
+  {
+    "id": "null-reference-pair",
+    "category": "clear-match",
+    "note": "Samme exception i samme opgave, bare beskrevet med fejlteksten. Kandidaten om constructors handler om noget andet.",
+    "sessionTitle": "Objektorienteret programmering - klasser og objekter",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "jeg får NullReferenceException når jeg kalder kunde.GetNavn() i opgave 5" },
+      { "id": "r2", "type": "request", "text": "hvordan laver man en constructor med flere parametre?" }
+    ],
+    "newQuestion": "opgave 5 crasher med object reference not set to an instance of an object",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg en NullReferenceException i opgave 5?",
+        "mustNotContain": ["GetNavn"]
+      }
+    }
+  },
+  {
+    "id": "git-push-rejected-join",
+    "category": "clear-match",
+    "note": "Samme fejl som generaliseringen, vist med gits egen fejltekst.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" },
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en ny branch?" }
+    ],
+    "newQuestion": "når jeg pusher står der ! [rejected] main -> main (fetch first), hvad gør jeg",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "sql-join-too-many-rows-pair",
+    "category": "clear-match",
+    "note": "Begge beskriver et kartesisk produkt i samme opgave. Tallene er kun fra den første.",
+    "sessionTitle": "Databaser - SQL joins",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 2 min join giver 500 rækker men der er kun 20 ordrer" }
+    ],
+    "newQuestion": "hvorfor får jeg alle kombinationer af kunder og ordrer i opg 2? det ligner hver kunde er sat sammen med hver ordre",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?",
+        "mustNotContain": ["500", "20"]
+      }
+    }
+  },
+  {
+    "id": "get-element-null-join",
+    "category": "clear-match",
+    "note": "Samme problem og samme opgave som g1. g2 handler om event listeners.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor returnerer document.getElementById null i opgave 4?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvordan tilføjer man en event listener til en knap?" }
+    ],
+    "newQuestion": "opgave 4: getElementById giver null selvom id'et står rigtigt i html'en",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "cors-error-pair",
+    "category": "clear-match",
+    "note": "Samme CORS-fejl. Kun det nye spørgsmål nævner opgave 6, og kun det første nævner porten, så ingen af dem må stå i FAQ'en.",
+    "sessionTitle": "Webudvikling - fetch og API'er",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "min fetch til localhost:5000 fejler med 'blocked by CORS policy'" }
+    ],
+    "newQuestion": "får CORS fejl i konsollen når frontend kalder vores api i opgave 6",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?",
+        "mustNotContain": ["5000", "opgave 6"]
+      }
+    }
+  },
+  {
+    "id": "index-out-of-range-join",
+    "category": "clear-match",
+    "note": "Samme exception i samme opgave, vist med den engelske fejltekst.",
+    "sessionTitle": "Programmering 1 - arrays",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en IndexOutOfRangeException i løkken i opgave 2?" }
+    ],
+    "newQuestion": "index was outside the bounds of the array i opgave 2, jeg looper igennem arrayet med <=",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "python-indentation-pair",
+    "category": "clear-match",
+    "note": "Samme fejl i samme opgave. Linjenummeret er kun fra det nye spørgsmål.",
+    "sessionTitle": "Python - funktioner",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "IndentationError: unexpected indent i opgave 1, jeg kan ikke se hvad der er galt" }
+    ],
+    "newQuestion": "opgave 1 siger unexpected indent på linje 7 men det ser rigtigt ud",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?",
+        "mustNotContain": ["linje 7"]
+      }
+    }
+  },
+  {
+    "id": "ef-no-dbcontext-join",
+    "category": "clear-match",
+    "note": "Samme fejl som g1, vist med værktøjets egen fejltekst. r1 handler om seed-data.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor kan dotnet ef ikke finde en DbContext, når jeg laver en migration?" },
+      { "id": "r1", "type": "request", "text": "hvordan seeder man data i EF Core?" }
+    ],
+    "newQuestion": "dotnet ef migrations add siger 'No DbContext was found in assembly'",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "tests-not-discovered-pair",
+    "category": "clear-match",
+    "note": "Begge handler om, at testene i opgave 3 ikke bliver fundet, set fra Test Explorer og fra dotnet test.",
+    "sessionTitle": "Test - unit tests med xUnit",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "mine tests dukker ikke op i test explorer i opgave 3" }
+    ],
+    "newQuestion": "dotnet test siger 'No test is available' i opg 3, selvom jeg har skrevet [Fact] over metoderne",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor bliver testene i opgave 3 ikke fundet?",
+        "mustNotContain": ["[Fact]"]
+      }
+    }
+  },
+  {
+    "id": "recursion-stack-overflow-join",
+    "category": "clear-match",
+    "note": "Samme fejl i samme opgave. Den studerende nævner hvilken funktion, men FAQ'en fastholdes ved join.",
+    "sessionTitle": "Algoritmer - rekursion",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver den rekursive funktion i opgave 4 en StackOverflowException?" }
+    ],
+    "newQuestion": "fakultet funktionen i opgave 4 crasher med stack overflow når jeg kører den",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "endpoint-404-pair",
+    "category": "clear-match",
+    "note": "Samme endpoint giver 404 i samme opgave. Postman er kun nævnt i det nye spørgsmål.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "mit endpoint GET /api/products giver 404 i opgave 2 selvom controlleren er lavet" }
+    ],
+    "newQuestion": "opgave 2 postman siger 404 not found når jeg kalder api/products",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor giver GET /api/products 404 i opgave 2?",
+        "mustNotContain": ["Postman"]
+      }
+    }
+  }
+]
