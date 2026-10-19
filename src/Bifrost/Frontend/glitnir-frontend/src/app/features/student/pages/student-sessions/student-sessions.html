@@ -1,6 +1,12 @@
 <bifrost-topbar />
 <div class="page-container">
   <bifrost-card title="Dine sessioner">
-    <bifrost-session-list [sessions]="sessions" />
+    @if (sessions.isLoading()) {
+      <p class="state-message">Indlæser sessioner...</p>
+    } @else if (sessions.error()) {
+      <p class="state-message">Kunne ikke hente sessioner.</p>
+    } @else {
+      <bifrost-session-list [sessions]="sessions.value()" />
+    }
   </bifrost-card>
 </div>
