@@ -1296,5 +1296,41 @@
         "mustNotContain": ["Emil", "bedste", "head"]
       }
     }
+  },
+  {
+    "id": "empty-queue-clear-question",
+    "category": "empty-queue",
+    "note": "Et tydeligt spørgsmål, men der er ingen kandidater at sammenligne med. Det første spørgsmål i en session står altid alene.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [],
+    "newQuestion": "opgave 3 min while løkke stopper aldrig",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "empty-queue-refers-to-others",
+    "category": "empty-queue",
+    "note": "Den studerende henviser til andre med samme problem, men de er ikke i køen. Modellen må ikke opfinde en kandidat.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [],
+    "newQuestion": "jeg har samme problem som dem ved siden af mig, git push bliver rejected",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "empty-queue-long-with-code",
+    "category": "empty-queue",
+    "note": "Lang tekst med kode og et navn. Uden kandidater er svaret altid standalone, og der må ikke skrives et FAQ-spørgsmål.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [],
+    "newQuestion": "hej Peter, opgave 4\nmin knap gør ingenting når jeg klikker:\nconst knap = document.getElementById('send');\nknap.addEventListener('click', send());\ner der noget galt med måden jeg kalder funktionen på?",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
   }
 ]
