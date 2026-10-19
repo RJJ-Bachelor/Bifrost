@@ -61,7 +61,7 @@ En generalisering har kun sit FAQ-spørgsmål og ikke medlemmernes tekst, fordi 
 |---|---|
 | `clear-match` | Samme opgave og samme problem, formuleret forskelligt. |
 | `clear-different` | Forskellige opgaver eller problemer. |
-| `borderline` | Samme emne med et andet problem, vage spørgsmål og næsten samme ordlyd om noget forskelligt. |
+| `borderline` | Tilfælde tæt på grænsen i begge retninger: samme emne med et andet problem, vage spørgsmål, næsten samme ordlyd om noget forskelligt og forskellig ordlyd om det samme problem. |
 | `multi-candidate` | Realistiske køer med mange kandidater, hvor den rigtige skal vælges. |
 | `typos` | Stavefejl, slang og forkortelser. |
 | `names` | Navne og personoplysninger, der ikke må komme med i FAQ-spørgsmålet. |

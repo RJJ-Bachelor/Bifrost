@@ -341,5 +341,297 @@
       "decision": "standalone",
       "candidateId": null
     }
+  },
+  {
+    "id": "abstract-concept-vs-instance-error",
+    "category": "borderline",
+    "note": "Samme emne, men det ene er et begrebsspørgsmål og det andet en konkret fejl i opgave 3. Svarene er forskellige.",
+    "sessionTitle": "Objektorienteret programmering - arv",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på et interface og en abstract class" }
+    ],
+    "newQuestion": "hvorfor kan jeg ikke lave en instans af min abstract class i opgave 3, den siger cannot create an instance",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "foreign-key-howto-vs-cascade-error",
+    "category": "borderline",
+    "note": "Begge handler om foreign keys, men det ene er hvordan man laver en, og det andet er en fejl med cascade delete.",
+    "sessionTitle": "Backend - Entity Framework Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en foreign key mellem to tabeller i ef core" }
+    ],
+    "newQuestion": "min migration fejler med 'Introducing FOREIGN KEY constraint may cause cycles or multiple cascade paths'",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "async-concept-vs-deadlock",
+    "category": "borderline",
+    "note": "Relateret emne, men en konkret deadlock kræver et andet svar end en forklaring af async og await.",
+    "sessionTitle": "Programmering 2 - collections og async",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvornår skal man bruge async og await?" }
+    ],
+    "newQuestion": "min wpf app fryser når jeg kalder .Result på en task",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "pull-request-create-vs-conflict",
+    "category": "borderline",
+    "note": "Begge handler om pull requests, men at oprette en og at løse konflikter i en er forskellige problemer.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en pull request på github" }
+    ],
+    "newQuestion": "min pull request siger 'This branch has conflicts that must be resolved'",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "vague-same-task",
+    "category": "borderline",
+    "note": "Samme opgave, men ingen af dem siger, hvad problemet er. Ved tvivl står spørgsmålet alene.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "jeg er gået i stå i opgave 4" }
+    ],
+    "newQuestion": "opgave 4 driller",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "no-content",
+    "category": "borderline",
+    "note": "Ingen af dem beskriver et problem. Der er intet at generalisere.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "kan du komme forbi?" }
+    ],
+    "newQuestion": "kan jeg få hjælp",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "vague-vs-generalization",
+    "category": "borderline",
+    "note": "Det nye spørgsmål kan handle om hvad som helst. Det må ikke kobles på en generalisering, bare fordi den findes.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor stopper løkken i opgave 3 aldrig?" }
+    ],
+    "newQuestion": "min kode virker ikke",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "recursion-concept-vs-task",
+    "category": "borderline",
+    "note": "En generel forklaring kunne hjælpe begge, men det ene er et begrebsspørgsmål og det andet handler om en bestemt opgave. Ved tvivl står spørgsmålet alene. Gruppen bør bekræfte facit.",
+    "sessionTitle": "Algoritmer - rekursion",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "jeg forstår ikke rekursion" }
+    ],
+    "newQuestion": "hvordan skal rekursionen virke i opgave 4",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "same-exception-different-tasks",
+    "category": "borderline",
+    "note": "Samme exception, men i forskellige opgaver og dermed forskellig kode. Årsagen kan være en anden.",
+    "sessionTitle": "Objektorienteret programmering - klasser og objekter",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "NullReferenceException i opgave 5 når jeg kalder metoden på kunden" }
+    ],
+    "newQuestion": "får NullReferenceException i opgave 7",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "index-vs-argument-out-of-range",
+    "category": "borderline",
+    "note": "Lignende navne, men to forskellige fejl: et indeks uden for arrayet og at ændre en liste, mens man løber igennem den.",
+    "sessionTitle": "Programmering 1 - arrays",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "IndexOutOfRangeException når jeg læser det sidste element i arrayet" }
+    ],
+    "newQuestion": "ArgumentOutOfRangeException når jeg fjerner elementer fra listen inde i en for løkke",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "push-rejected-vs-permission-denied",
+    "category": "borderline",
+    "note": "Samme kommando, men en anden fejl. Det handler om SSH-nøgler og ikke om at hente ændringer først.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" }
+    ],
+    "newQuestion": "git push siger Permission denied (publickey)",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "cors-vs-unauthorized",
+    "category": "borderline",
+    "note": "Samme situation, men 401 handler om login og tokens og ikke om CORS.",
+    "sessionTitle": "Webudvikling - fetch og API'er",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?" }
+    ],
+    "newQuestion": "når frontend kalder api'et får jeg 401 unauthorized",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "two-problems-one-matches",
+    "category": "borderline",
+    "note": "Det nye spørgsmål indeholder to problemer, og kun det ene passer. Ét svar løser ikke begge, så facit er standalone. Gruppen bør bekræfte, at det er den ønskede regel.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opg 3 min while løkke stopper aldrig" }
+    ],
+    "newQuestion": "opgave 3 løkken stopper ikke, og hvordan skriver jeg resultatet ud med 2 decimaler?",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "same-exception-different-cause",
+    "category": "borderline",
+    "note": "Samme opgave og samme exception, men årsagerne er forskellige: en liste, der aldrig oprettes, og en mock uden opsætning.",
+    "sessionTitle": "Test - unit tests med xUnit",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 5 min test crasher med NullReferenceException fordi listen i klassen aldrig bliver oprettet" }
+    ],
+    "newQuestion": "opgave 5 NullReferenceException i testen, min mock returnerer bare null",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "approval-requests",
+    "category": "borderline",
+    "note": "Samme ønske, men en godkendelse gælder den enkelte studerendes kode. Det kan ikke besvares med ét fælles svar.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "kan du godkende opgave 2?" }
+    ],
+    "newQuestion": "jeg er færdig med opgave 2, kan du tjekke den",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "dev-certificate-pair",
+    "category": "borderline",
+    "note": "Forskellig ordlyd, men samme problem: udviklingscertifikatet er ikke godkendt. Det nye spørgsmål viser kun fejlkoden.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "når jeg åbner swagger siger chrome 'Your connection is not private'" }
+    ],
+    "newQuestion": "får NET::ERR_CERT_AUTHORITY_INVALID når jeg kører api'et lokalt",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor siger browseren, at forbindelsen ikke er sikker, når jeg kører API'et lokalt?",
+        "mustNotContain": ["Chrome"]
+      }
+    }
+  },
+  {
+    "id": "not-a-repository-pair",
+    "category": "borderline",
+    "note": "Den ene citerer fejlen, den anden beskriver den med egne ord. Samme problem.",
+    "sessionTitle": "Git og versionsstyring",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "git status siger fatal: not a git repository" }
+    ],
+    "newQuestion": "når jeg prøver at committe får jeg en fejl om at mappen ikke er et repository",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor siger git, at mappen ikke er et repository?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "cors-without-the-word-join",
+    "category": "borderline",
+    "note": "Ordet CORS står ikke i spørgsmålet, men fejlteksten er en CORS-fejl.",
+    "sessionTitle": "Webudvikling - fetch og API'er",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?" }
+    ],
+    "newQuestion": "opgave 6 konsollen siger No 'Access-Control-Allow-Origin' header is present on the requested resource",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
+    "id": "last-element-skipped-pair",
+    "category": "borderline",
+    "note": "Forskellige ord for det samme problem i samme opgave.",
+    "sessionTitle": "Programmering 1 - løkker",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 2 min for løkke springer det sidste element over" }
+    ],
+    "newQuestion": "opg 2 jeg får aldrig det sidste tal med når jeg looper igennem listen",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor kommer det sidste element ikke med i løkken i opgave 2?",
+        "mustNotContain": []
+      }
+    }
+  },
+  {
+    "id": "port-in-use-join",
+    "category": "borderline",
+    "note": "Fejlteksten fra dotnet run betyder, at porten allerede er i brug.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor kan jeg ikke starte API'et, fordi porten allerede er i brug?" }
+    ],
+    "newQuestion": "dotnet run fejler med 'Failed to bind to address http://127.0.0.1:5000: address already in use'",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
   }
 ]
