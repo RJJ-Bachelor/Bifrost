@@ -1025,6 +1025,42 @@
     }
   },
   {
+    "id": "english-only-pair",
+    "category": "typos",
+    "note": "Begge spørgsmål er på engelsk, men FAQ'en skal stadig skrives på dansk. De engelske ord i mustNotContain fanger en FAQ på engelsk. Postman nævner kun den ene.",
+    "sessionTitle": "Backend - REST API i ASP.NET Core",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "my POST endpoint in task 3 always gets null in the body" }
+    ],
+    "newQuestion": "task 3: the object in my POST action is always null even though I send json from postman",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor er body altid null i POST-endpointet i opgave 3?",
+        "mustNotContain": ["Postman", "why", "always", "task"]
+      }
+    }
+  },
+  {
+    "id": "english-new-question-pair",
+    "category": "typos",
+    "note": "Kandidaten er på dansk og det nye spørgsmål på engelsk. Det er samme opgave og samme problem, og FAQ'en skal være på dansk. De engelske ord i mustNotContain fanger en FAQ på engelsk.",
+    "sessionTitle": "Webudvikling - JavaScript og DOM",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "opgave 5 når jeg submitter formen bliver siden genindlæst" }
+    ],
+    "newQuestion": "in exercise 5 the page reloads every time I submit the form and my data is gone",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r1",
+      "faq": {
+        "example": "Hvorfor genindlæses siden, når formularen i opgave 5 sendes?",
+        "mustNotContain": ["why", "page", "exercise"]
+      }
+    }
+  },
+  {
     "id": "greeting-names-pair",
     "category": "names",
     "note": "Begge hilser med navne, og den ene nævner sin gruppe. Hverken underviserens, de studerendes eller gruppens navn må stå i FAQ'en.",

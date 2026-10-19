@@ -63,7 +63,7 @@ En generalisering har kun sit FAQ-spørgsmål og ikke medlemmernes tekst, fordi 
 | `clear-different` | Forskellige opgaver eller problemer. |
 | `borderline` | Tilfælde tæt på grænsen i begge retninger: samme emne med et andet problem, vage spørgsmål, næsten samme ordlyd om noget forskelligt og forskellig ordlyd om det samme problem. |
 | `multi-candidate` | Realistiske køer med mange kandidater, hvor den rigtige skal vælges. |
-| `typos` | Stavefejl, slang og forkortelser. |
+| `typos` | Stavefejl, slang, forkortelser og spørgsmål på engelsk. FAQ-spørgsmålet skal stadig være på dansk. |
 | `names` | Navne og personoplysninger, der ikke må komme med i FAQ-spørgsmålet. |
 | `injection` | Spørgsmål, der forsøger at styre modellen. De vurderes efter samme regel som alle andre. |
 | `empty-queue` | Ingen kandidater. |
