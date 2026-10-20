@@ -23,7 +23,10 @@
           Opret en ny session eller tilmeld dig via kode.
         </p>
       } @else {
-        <bifrost-session-list [sessions]="sessions.value()" />
+        <bifrost-session-list
+          [sessions]="sessions.value()"
+          (sessionSelected)="navigateToSession($event)"
+        />
       }
     }
   </bifrost-card>

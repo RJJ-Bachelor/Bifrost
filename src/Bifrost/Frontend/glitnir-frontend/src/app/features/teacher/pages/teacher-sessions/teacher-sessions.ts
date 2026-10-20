@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
@@ -7,6 +8,7 @@ import { SessionJoinForm } from '../../../session/components/session-join-form/s
 import { SessionCreateForm } from '../../../session/components/session-create-form/session-create-form';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import { SessionApi } from '../../../session/services/session-api';
+import { Session } from '../../../session/session.model';
 
 @Component({
   imports: [
@@ -24,6 +26,8 @@ import { SessionApi } from '../../../session/services/session-api';
 })
 export class TeacherSessions {
   private readonly sessionApi = inject(SessionApi);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly sessions = this.sessionApi.getTeacherSessions();
 
@@ -62,6 +66,12 @@ export class TeacherSessions {
     this.createDialogOpen.set(false);
     this.createError.set(null);
     this.createSuccess.set(false);
+  }
+
+  protected navigateToSession(session: Session): void {
+    this.router.navigate(['sessions', session.id], {
+      relativeTo: this.route,
+    });
   }
 
   protected onJoin(code: string): void {

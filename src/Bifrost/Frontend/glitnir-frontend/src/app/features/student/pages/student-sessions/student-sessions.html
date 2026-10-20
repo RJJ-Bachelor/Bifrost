@@ -24,7 +24,10 @@
           Du er endnu ikke tilknyttet nogen sessioner.
         </p>
       } @else {
-        <bifrost-session-list [sessions]="sessions.value()" />
+        <bifrost-session-list
+          [sessions]="sessions.value()"
+          (sessionSelected)="navigateToSession($event)"
+        />
       }
     }
   </bifrost-card>
