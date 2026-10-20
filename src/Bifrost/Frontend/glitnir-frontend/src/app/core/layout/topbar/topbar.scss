@@ -19,14 +19,9 @@
 }
 
 .topbar__brand {
-  position: absolute;
-  left: 1.5rem;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 0.625rem;
-  z-index: 1;
   color: var(--color-white);
   text-decoration: none;
   font-weight: 700;
@@ -60,7 +55,6 @@
   align-items: center;
   gap: 0.75rem;
   justify-self: start;
-  padding-left: 8rem;
 }
 
 .topbar__center {

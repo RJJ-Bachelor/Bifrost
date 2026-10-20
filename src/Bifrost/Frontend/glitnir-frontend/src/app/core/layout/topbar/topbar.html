@@ -1,14 +1,14 @@
 <header class="topbar" [class.topbar--teacher]="authStore.isTeacher()">
-  <a
-    class="topbar__brand"
-    [routerLink]="homeLink()"
-    (mouseenter)="onBrandEnter()"
-    (mouseleave)="onBrandLeave()"
-  >
-    <img class="topbar__logo" src="bifrost-logo.svg" alt="" />
-    <span class="topbar__name">Bifrost</span>
-  </a>
   <div class="topbar__left">
+    <a
+      class="topbar__brand"
+      [routerLink]="homeLink()"
+      (mouseenter)="onBrandEnter()"
+      (mouseleave)="onBrandLeave()"
+    >
+      <img class="topbar__logo" src="bifrost-logo.svg" alt="" />
+      <span class="topbar__name">Bifrost</span>
+    </a>
     @if (switcherRevealed()) {
       <div (mouseenter)="onSwitcherEnter()" (mouseleave)="onSwitcherLeave()">
         <bifrost-view-switcher />
