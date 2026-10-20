@@ -20,9 +20,12 @@
             (joined)="onJoin($event)"
           />
         </div>
+        <p class="state-message">
+          Du er endnu ikke tilknyttet nogen sessioner.
+        </p>
+      } @else {
+        <bifrost-session-list [sessions]="sessions.value()" />
       }
-
-      <bifrost-session-list [sessions]="sessions.value()" />
     }
   </bifrost-card>
 </div>
