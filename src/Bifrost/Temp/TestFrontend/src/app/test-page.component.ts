@@ -54,13 +54,17 @@ export class TestPageComponent {
   private destroyed = false;
 
   get sessionCode() { return this.session && 'code' in this.session ? this.session.code : ''; }
-  get waitingRequests() { return this.teacherQueue?.requests ?? []; }
+  get teacherCode() { return this.session && 'teacherCode' in this.session ? this.session.teacherCode : ''; }
+  get waitingRequests() { return (this.teacherQueue?.requests ?? []).filter(request => !request.assignedTeacherId); }
   get activeRequests() { return this.teacherQueue?.activeRequests ?? []; }
+  get assignedRequests() { return [...(this.teacherQueue?.requests ?? []), ...this.activeRequests].filter(request => !!request.assignedTeacherId); }
+  get myRequests() { return this.assignedRequests.filter(request => request.assignedTeacherId === this.identity?.userId); }
+  get otherTeacherRequests() { return this.assignedRequests.filter(request => request.assignedTeacherId !== this.identity?.userId); }
   get hasOpenRequest() {
     return this.requests.some(request => ['Pending', 'Active', 'AwaitingConfirmation'].includes(request.status));
   }
   get canAct() { return !!this.conversation && this.conversation.generation === this.session?.currentGeneration; }
-  get isAssignedTeacher() { return !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
+  get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canStart() {
     return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Pending';
   }
@@ -77,7 +81,7 @@ export class TestPageComponent {
   get canCancel() {
     const request = this.conversation;
     if (!this.canAct || !request || ['Completed', 'Cancelled'].includes(request.status)) return false;
-    return this.isTeacher ? request.assignedTeacherId === null || this.isAssignedTeacher : request.status !== 'Active';
+    return this.isTeacher ? this.isAssignedTeacher : request.status !== 'Active';
   }
 
   constructor() {
@@ -89,7 +93,7 @@ export class TestPageComponent {
       debounceTime(150), takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.refresh());
     // Not every queue change produces a notification.
-    interval(10000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    interval(this.isTeacher ? 2000 : 10000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (!document.hidden && !this.refreshing) this.refresh();
     });
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
@@ -155,11 +159,18 @@ export class TestPageComponent {
 
   joinSession() {
     const code = this.joinCode.trim().toUpperCase();
-    if (!/^[A-Z2-9]{8}$/.test(code)) return;
-    this.execute(this.api.post<SessionSummary>('students/sessions/join', { code }), session => {
+    if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return;
+    this.execute(this.api.post<SessionSummary | TeacherSession>(this.role + '/sessions/join', { code }), session => {
       this.joinCode = '';
       this.notice = 'Du er tilmeldt ' + session.title + '.';
+      if (this.isTeacher) void this.router.navigate(['/teachers/sessions', session.id]);
     });
+  }
+
+  login() { this.api.login(this.router.url); }
+
+  ownsSession(session: SessionSummary | TeacherSession) {
+    return 'createdByTeacherId' in session && session.createdByTeacherId === this.identity?.userId;
   }
 
   createSession() {
@@ -180,8 +191,14 @@ export class TestPageComponent {
   }
 
   takeNext() {
+    if (!this.isTeacher || !this.session) return;
     this.execute(this.api.post<HelpRequest | null>('teachers/sessions/' + this.sessionId + '/queue/take-next', null), request => {
-      if (request) { this.selectRequest(request.id); this.replyText = ''; }
+      if (request) {
+        this.selectRequest(request.id);
+        this.conversation = request;
+        this.replyText = '';
+        this.notice = 'Du har taget ' + request.displayNumber + '.';
+      }
       else this.notice = 'Der er ingen ledige hjælpeanmodninger i køen.';
     });
   }
@@ -197,7 +214,8 @@ export class TestPageComponent {
   sendMessage() {
     if (!this.canSendMessage || !this.replyText.trim()) return;
     this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/messages',
-      { text: this.replyText.trim() }), () => {
+      { text: this.replyText.trim() }), request => {
+      this.conversation = request;
       this.replyText = '';
       this.notice = this.isTeacher ? 'Dit svar er sendt, og hjælpen er afsluttet.' : 'Din besked er sendt. Anmodningen er tilbage i køen.';
     });
@@ -205,14 +223,15 @@ export class TestPageComponent {
 
   changeStatus(action: HelpRequestAction) {
     if (action === 'Start' && !this.canStart || action === 'Complete' && !this.canComplete || action === 'Cancel' && !this.canCancel) return;
-    this.execute(this.api.patch<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/status', { action }), () => {
+    this.execute(this.api.patch<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/status', { action }), request => {
+      this.conversation = request;
       this.notice = action === 'Start' ? 'Fysisk hjælp er startet.' : action === 'Complete' ? 'Hjælpen er afsluttet.'
         : this.isTeacher ? 'Anmodningen er sendt forrest i køen.' : 'Din anmodning er annulleret.';
     });
   }
 
   clearSession() {
-    if (!this.session || !window.confirm('Ryd sessionens kø og hjælpeanmodninger? De studerende forbliver tilmeldt.')) return;
+    if (!this.session || !window.confirm('Ryd køen og hjælpeanmodningerne for alle undervisere i sessionen? Alle deltagere forbliver tilmeldt.')) return;
     this.execute(this.api.post<ClearSessionResult>('teachers/sessions/' + this.sessionId + '/clear',
       { expectedGeneration: this.session.currentGeneration }), () => {
       this.selectRequest('');
@@ -221,11 +240,25 @@ export class TestPageComponent {
     });
   }
 
-  async copySessionLink() {
-    const link = new URL('/students', window.location.origin);
-    link.searchParams.set('code', this.sessionCode);
-    try { await navigator.clipboard.writeText(link.toString()); this.notice = 'Tilmeldingslinket er kopieret.'; }
-    catch { this.notice = 'Del sessionskoden: ' + this.sessionCode; }
+  async copySessionLink(role: 'students' | 'teachers' = 'students') {
+    const code = role === 'teachers' ? this.teacherCode : this.sessionCode;
+    if (!this.isTeacher || !code) return;
+    const link = new URL('/' + role, window.location.origin);
+    link.searchParams.set('code', code);
+    try {
+      await navigator.clipboard.writeText(link.toString());
+      this.notice = role === 'teachers' ? 'Underviserlinket er kopieret.' : 'Studenterlinket er kopieret.';
+    } catch {
+      this.notice = (role === 'teachers' ? 'Del underviserkoden: ' : 'Del studenterkoden: ') + code;
+    }
+  }
+
+  assignmentLabel(request: HelpRequest) {
+    return request.assignedTeacherId === this.identity?.userId ? 'Tildelt dig' : 'Tildelt en anden underviser';
+  }
+
+  requestStatusLabel(request: HelpRequest) {
+    return request.status === 'Pending' && request.assignedTeacherId ? 'Reserveret' : this.statusLabel(request.status);
   }
 
   statusLabel(status: string) {

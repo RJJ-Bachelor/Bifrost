@@ -1,22 +1,32 @@
 <section class="card">
-  <div class="section-heading"><div><p class="eyebrow">HJÆLPEKØ</p><h2>Ventende <span class="count">{{ view.waitingRequests.length }}</span></h2></div><button (click)="view.takeNext()" [disabled]="view.busy || view.waitingRequests.length === 0">Tag næste →</button></div>
-  <p class="hint">Tag næste anmodning for at starte fysisk hjælp eller sende et digitalt svar.</p>
-  <div *ngIf="view.waitingRequests.length === 0" class="empty-state compact"><span class="empty-symbol" aria-hidden="true">✓</span><h3>Køen er tom</h3><p>Nye spørgsmål vises her automatisk.</p></div>
+  <div class="section-heading"><div><p class="eyebrow">FÆLLES HJÆLPEKØ</p><h2>Ledige <span class="count">{{ view.waitingRequests.length }}</span></h2></div><button (click)="view.takeNext()" [disabled]="view.busy || view.waitingRequests.length === 0">Tag næste →</button></div>
+  <p class="hint">Alle undervisere deler køen. Når du tager en anmodning, bliver den tildelt dig.</p>
+  <div *ngIf="view.waitingRequests.length === 0" class="empty-state compact"><span class="empty-symbol" aria-hidden="true">✓</span><h3>Ingen ledige anmodninger</h3><p>{{ view.assignedRequests.length ? 'De øvrige anmodninger er allerede taget af en underviser.' : 'Nye spørgsmål vises her automatisk.' }}</p></div>
   <div class="queue-list">
     <button *ngFor="let request of view.waitingRequests; let position = index" class="queue-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
       <span class="queue-position">{{ position + 1 }}</span>
-      <span class="queue-item-content"><span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status">{{ request.helpType === 'Physical' ? 'Fysisk' : 'Digital' }}</span></span><span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">{{ request.assignedTeacherId ? 'Reserveret' : 'Venter på hjælp' }}</span></span>
+      <span class="queue-item-content"><span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status">{{ request.helpType === 'Physical' ? 'Fysisk' : 'Digital' }}</span></span><span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">Venter på en underviser</span></span>
       <span class="arrow" aria-hidden="true">→</span>
     </button>
   </div>
 </section>
 <section class="card">
-  <div class="section-heading"><div><p class="eyebrow">FYSISK HJÆLP</p><h2>I gang <span class="count">{{ view.activeRequests.length }}</span></h2></div></div>
-  <p *ngIf="view.activeRequests.length === 0" class="hint">Ingen aktiv fysisk hjælp lige nu.</p>
+  <div class="section-heading"><div><p class="eyebrow">DIN HJÆLP</p><h2>Dine anmodninger <span class="count">{{ view.myRequests.length }}</span></h2></div></div>
+  <p *ngIf="view.myRequests.length === 0" class="hint">Du har ingen anmodninger. Tag den næste fra den fælles kø.</p>
   <div class="request-list">
-    <button *ngFor="let request of view.activeRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
-      <span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status" data-status="Active">I gang</span></span>
-      <span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">Åbn for at afslutte eller sende forrest i køen →</span>
+    <button *ngFor="let request of view.myRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
+      <span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status" [attr.data-status]="request.status">{{ view.requestStatusLabel(request) }}</span></span>
+      <span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }} · Åbn din samtale →</span>
+    </button>
+  </div>
+</section>
+<section *ngIf="view.otherTeacherRequests.length" class="card">
+  <div class="section-heading"><div><p class="eyebrow">FÆLLES OVERBLIK</p><h2>Hos andre undervisere <span class="count">{{ view.otherTeacherRequests.length }}</span></h2></div></div>
+  <p class="hint">Disse anmodninger håndteres af dine kolleger. Du kan åbne og læse samtalerne.</p>
+  <div class="request-list">
+    <button *ngFor="let request of view.otherTeacherRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
+      <span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status" [attr.data-status]="request.status">{{ view.requestStatusLabel(request) }}</span></span>
+      <span class="request-preview">{{ request.messages.at(0)?.text }}</span><span class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }} · Tildelt en anden underviser</span>
     </button>
   </div>
 </section>

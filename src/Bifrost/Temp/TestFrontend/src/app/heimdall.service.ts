@@ -17,6 +17,7 @@ export interface SessionSummary {
 
 export interface TeacherSession extends SessionSummary {
   code: string;
+  teacherCode: string;
   createdByTeacherId: string;
   createdByDisplayName: string | null;
 }
