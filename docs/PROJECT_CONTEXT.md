@@ -253,3 +253,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `SessionParticipant` aggregates and persistence models incorporate explicit `ParticipantRole` (`Student` or `Teacher`) to support distinct permission boundaries.
 - Help request queues are shared across all teachers joined to a session, while atomic request reservations remain bound to the individual claiming teacher.
 - New cross-module query contracts (`GetSessionTeacherIdsQuery`, `IsSessionTeacherQuery`) enable decentralized authorization checks across `Sessions`, `Participants`, and `HelpRequests`.
+
+---
+
+## Update 2026-10-20
+
+- Sessions feature distinct student (`Code`) and teacher (`TeacherCode`) access codes to enforce role-specific entry separation.
+- Teachers can join sessions using `TeacherCode` via `POST /api/teachers/sessions/join`, enabling multi-teacher classroom collaboration and shared queue access.
+- `SessionParticipant` aggregates and persistence models include an explicit `ParticipantRole` (`Student` or `Teacher`) for fine-grained permission boundaries.
+- Help request reservations are bound to the individual claiming teacher while remaining visible across all teachers joined to the session.
+- New cross-module query contracts (`GetSessionTeacherIdsQuery`, `IsSessionTeacherQuery`, `GetTeacherSessionIdsQuery`) enable decentralized authorization and role verification across `Sessions`, `Participants`, and `HelpRequests`.
