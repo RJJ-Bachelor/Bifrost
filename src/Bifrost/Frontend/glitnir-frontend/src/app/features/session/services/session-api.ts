@@ -29,9 +29,9 @@ export class SessionApi {
     );
   }
 
-  joinSession(code: string): Observable<void> {
-    return this.http.post<void>(
-      '/api/students/join',
+  joinSession(code: string): Observable<Session> {
+    return this.http.post<Session>(
+      '/api/students/sessions/join',
       { code },
       { withCredentials: true },
     );

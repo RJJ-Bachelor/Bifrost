@@ -1,0 +1,18 @@
+<form class="join-form" (submit)="onSubmit($event)">
+  <div class="join-form__row">
+    <input
+      type="text"
+      class="join-form__input"
+      placeholder="Kode til session..."
+      [formField]="joinForm.code"
+    />
+    <button
+      type="submit"
+      class="btn btn--primary"
+      [disabled]="joinForm().invalid()"
+    >
+      Tilmeld
+    </button>
+  </div>
+  <div class="join-form__error">{{ error() }}</div>
+</form>
