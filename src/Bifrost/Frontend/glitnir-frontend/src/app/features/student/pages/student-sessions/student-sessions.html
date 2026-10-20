@@ -3,7 +3,8 @@
   <bifrost-card title="Dine sessioner">
     @if (!sessions.isLoading() && !sessions.error() && !isEmpty()) {
       <button card-header class="btn btn--primary" (click)="openDialog()">
-        + Tilmeld via kode
+        <span class="btn__label-long">+ Tilmeld via kode</span>
+        <span class="btn__label-short">+ Tilmeld</span>
       </button>
     }
 

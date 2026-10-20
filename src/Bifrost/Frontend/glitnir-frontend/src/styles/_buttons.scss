@@ -17,6 +17,12 @@
   }
 }
 
+@media (max-width: 500px) {
+  .btn {
+    padding: var(--space-2) var(--space-4);
+  }
+}
+
 .btn--primary {
   background-color: var(--color-primary);
   color: var(--color-white);
@@ -32,5 +38,33 @@
 
   &:hover:not(:disabled) {
     background-color: #d0d0d0;
+  }
+}
+
+.btn__label-short {
+  display: none;
+}
+
+@media (max-width: 500px) {
+  .btn__label-long {
+    display: none;
+  }
+
+  .btn__label-short {
+    display: inline;
+  }
+}
+
+.btn__label-short {
+  display: none;
+}
+
+@media (max-width: 500px) {
+  .btn__label-long {
+    display: none;
+  }
+
+  .btn__label-short {
+    display: inline;
   }
 }
