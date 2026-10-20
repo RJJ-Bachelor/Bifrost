@@ -1,0 +1,9 @@
+<bifrost-dialog [open]="open()" [showClose]="false" size="sm" (closed)="closed.emit()">
+  <div class="status" [class.status--error]="variant() === 'error'">
+    <div class="status-icon" aria-hidden="true"></div>
+    <h2 class="status-title">{{ message() }}</h2>
+    <button type="button" class="btn btn--primary" (click)="closed.emit()">
+      OK
+    </button>
+  </div>
+</bifrost-dialog>

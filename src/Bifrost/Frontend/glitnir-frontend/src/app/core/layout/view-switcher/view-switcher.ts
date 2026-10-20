@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 
 @Component({
-  selector: 'app-view-switcher',
+  selector: 'bifrost-view-switcher',
   imports: [RouterLink],
   templateUrl: './view-switcher.html',
   styleUrl: './view-switcher.scss',
@@ -29,6 +29,6 @@ export class ViewSwitcher {
   );
 
   protected readonly label = computed(() =>
-    this.onTeacherSide() ? 'Skift til student' : 'Skift til underviser',
+    this.onTeacherSide() ? 'Skift til studerende' : 'Skift til underviser',
   );
 }

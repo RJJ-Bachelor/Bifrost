@@ -1,0 +1,27 @@
+<form class="create-form" (submit)="onSubmit($event)">
+  <input
+    type="text"
+    class="create-form__input"
+    placeholder="Navn på session..."
+    [formField]="createForm.title"
+  />
+  <div class="create-form__error">{{ error() }}</div>
+  <div class="create-form__actions">
+    @if (showCancel()) {
+      <button
+        type="button"
+        class="btn btn--secondary"
+        (click)="cancelled.emit()"
+      >
+        Annuller
+      </button>
+    }
+    <button
+      type="submit"
+      class="btn btn--primary"
+      [disabled]="createForm().invalid()"
+    >
+      Opret
+    </button>
+  </div>
+</form>

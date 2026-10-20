@@ -9,6 +9,7 @@ body {
   background: var(--color-bg-page);
   font-family: 'AU Passata', system-ui, sans-serif;
   font-weight: 400;
+  font-size: var(--font-size-body);
   line-height: 1.5;
 }
 
@@ -18,3 +19,10 @@ textarea,
 select {
   font: inherit;
 }
+
+h1, h2, h3, h4, h5, h6, p {
+  margin: 0;
+}
+
+h1 { font-size: var(--font-size-h1); }
+h2 { font-size: var(--font-size-h2); }

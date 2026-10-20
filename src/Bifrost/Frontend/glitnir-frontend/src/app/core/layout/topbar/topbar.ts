@@ -4,7 +4,7 @@ import { AuthStore } from '../../auth/services/auth-store';
 import { ViewSwitcher } from '../view-switcher/view-switcher';
 
 @Component({
-  selector: 'app-topbar',
+  selector: 'bifrost-topbar',
   imports: [RouterLink, ViewSwitcher],
   templateUrl: './topbar.html',
   styleUrl: './topbar.scss',

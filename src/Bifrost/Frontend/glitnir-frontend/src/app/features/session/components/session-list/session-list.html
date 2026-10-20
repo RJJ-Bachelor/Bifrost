@@ -1,1 +1,10 @@
-<p>session-list works!</p>
+<div class="session-list">
+  @for (session of sessions(); track session.id) {
+    <bifrost-list-row (click)="sessionSelected.emit(session)">
+      <span left>{{ session.title }}</span>
+      <img right src="arrow-right.svg" alt="" class="session-chevron" />
+    </bifrost-list-row>
+  } @empty {
+    <p class="state-message">Du er endnu ikke tilknyttet nogen sessioner.</p>
+  }
+</div>

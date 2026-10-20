@@ -1,0 +1,8 @@
+<button type="button" class="list-row" [class.list-row--muted]="muted()">
+  <span class="list-row__left">
+    <ng-content select="[left]" />
+  </span>
+  <span class="list-row__right">
+    <ng-content select="[right]" />
+  </span>
+</button>

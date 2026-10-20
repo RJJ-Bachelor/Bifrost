@@ -1,0 +1,27 @@
+<form class="join-form" (submit)="onSubmit($event)">
+  <input
+    type="text"
+    class="join-form__input"
+    placeholder="Kode til session..."
+    [formField]="joinForm.code"
+  />
+  <div class="join-form__error">{{ error() }}</div>
+  <div class="join-form__actions">
+    @if (showCancel()) {
+      <button
+        type="button"
+        class="btn btn--secondary"
+        (click)="cancelled.emit()"
+      >
+        Annuller
+      </button>
+    }
+    <button
+      type="submit"
+      class="btn btn--primary"
+      [disabled]="joinForm().invalid()"
+    >
+      Tilmeld
+    </button>
+  </div>
+</form>

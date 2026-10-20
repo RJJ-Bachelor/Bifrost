@@ -1,0 +1,47 @@
+<bifrost-topbar />
+<div class="page-container">
+  <bifrost-card title="Dine sessioner">
+    @if (!sessions.isLoading() && !sessions.error() && !isEmpty()) {
+      <button card-header class="btn btn--primary" (click)="openDialog()">
+        <span class="btn__label-long">+ Tilmeld via kode</span>
+        <span class="btn__label-short">+ Tilmeld</span>
+      </button>
+    }
+
+    @if (sessions.isLoading()) {
+      <p class="state-message">Indlæser sessioner...</p>
+    } @else if (sessions.error()) {
+      <p class="state-message">Kunne ikke hente sessioner.</p>
+    } @else {
+      @if (isEmpty()) {
+        <div class="join-area join-area--centered">
+          <bifrost-session-join-form
+            [error]="joinError()"
+            (joined)="onJoin($event)"
+          />
+        </div>
+        <p class="state-message">
+          Du er endnu ikke tilknyttet nogen sessioner.
+        </p>
+      } @else {
+        <bifrost-session-list
+          [sessions]="sessions.value()"
+          (sessionSelected)="navigateToSession($event)"
+        />
+      }
+    }
+  </bifrost-card>
+</div>
+
+<bifrost-dialog
+  [open]="userOpenedJoin()"
+  title="Tilmeld via kode"
+  (closed)="closeDialog()"
+>
+  <bifrost-session-join-form
+    [error]="joinError()"
+    [showCancel]="true"
+    (joined)="onJoin($event)"
+    (cancelled)="closeDialog()"
+  />
+</bifrost-dialog>

@@ -5,17 +5,56 @@
   --color-au-dark-cyan: #003e5c;
   --color-au-dark-blue: #002546;
 
+  /* Danger (from AU) */
+  --color-red: #e2001a;
+  --color-red-dark: #5b0c0c;
+
   /* Neutrals */
   --color-white: #ffffff;
   --color-grey-100: #f2f2f2;
+  --color-grey-200: #e0e0e0;
   --color-grey-500: #878787;
   --color-grey-800: #4b4b4a;
 
   /* Surfaces */
   --color-bg-page: #f6f7f8;
+  --color-muted: var(--color-grey-500);
+  --color-secondary-bg: var(--color-grey-200);
+
+  /* Semantic (Student default) */
+  --color-primary: var(--color-au-blue);
+  --color-primary-dark: var(--color-au-dark-blue);
 
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Typography */
+  --font-size-sm: 0.875rem;
+  --font-size-body: 1rem;
+  --font-size-lg: 1.1875rem;
+  --font-size-xl: 1.5rem;
+  --font-size-h2: 1.75rem;
+  --font-size-h1: 2.5rem;
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 999rem;
+}
+
+.theme-teacher {
+  --color-primary: var(--color-au-cyan);
+  --color-primary-dark: var(--color-au-dark-cyan);
 }

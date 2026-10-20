@@ -1,0 +1,10 @@
+.join-area {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-bottom: var(--space-4);
+
+  &--centered {
+    align-items: center;
+  }
+}

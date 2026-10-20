@@ -1,0 +1,35 @@
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--space-5) 0 var(--space-2);
+  text-align: center;
+}
+
+.status-icon {
+  width: 5rem;
+  height: 5rem;
+  margin-bottom: var(--space-5);
+  background-color: var(--color-primary);
+  mask-image: url('/check-circle.svg');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+
+.status--error .status-icon {
+  background-color: var(--color-red);
+  mask-image: url('/alert-circle.svg');
+}
+
+.status-title {
+  margin: 0 0 var(--space-5);
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-primary-dark);
+}
+
+.status > .btn {
+  align-self: stretch;
+}

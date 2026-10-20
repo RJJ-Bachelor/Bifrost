@@ -4,7 +4,9 @@ export const studentRoutes: Routes = [
   {
     path: '',
     loadComponent: () =>
-      import('./pages/session-list/session-list').then((m) => m.SessionList),
+      import('./pages/student-sessions/student-sessions').then(
+        (m) => m.StudentSessions,
+      ),
   },
   {
     path: 'sessions/:id',
