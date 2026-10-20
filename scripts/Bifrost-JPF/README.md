@@ -31,7 +31,8 @@ EirService/
 │       └── CancelHelpRequest/
 └── Teacher/
     ├── Participants/
-    │   └── GetTeacherIdentity/
+    │   ├── GetTeacherIdentity/
+    │   └── JoinSession/
     ├── Sessions/
     │   ├── CreateSession/
     │   ├── GetSessions/
@@ -49,7 +50,11 @@ EirService/
 via ID. Listekaldene viser dine anmodninger i sessionernes aktuelle generation.
 `GetHelpRequestById` henter status og alle samtalens beskeder og kan også bruges
 til en anmodning fra før ClearSession.
-Teacher-sessioner returnerer lærerens ID som `createdByTeacherId`.
+Teacher-sessioner returnerer opretterens ID som `createdByTeacherId`.
+Andre undervisere kan bruge `Teacher/Participants/JoinSession` med `teacherSessionCode`.
+`sessionCode` er kun til studerende; undervisertilmelding kræver den separate `teacherCode`.
+`GetSessions` viser derefter både oprettede og tilmeldte sessioner. Tilknyttede
+undervisere deler køen, mens hver reservation tilhører den underviser, der tog den.
 
 ## Login
 
@@ -68,6 +73,7 @@ Alle Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `htt
 |---|---|
 | `sessionId` | Kopiér `id` fra CreateSession eller GetSessions |
 | `sessionCode` | Kopiér `code` fra CreateSession eller GetSession som teacher |
+| `teacherSessionCode` | Kopiér `teacherCode` fra CreateSession eller GetSession som teacher |
 | `sessionGeneration` | Kopiér `currentGeneration` fra et session-svar; starter på 1 |
 | `helpRequestId` | Kopiér `id` fra CreateHelpRequest eller TakeNextHelpRequest |
 

@@ -16,7 +16,7 @@ public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> op
         modelBuilder.AddOutbox("sessions");
         modelBuilder.Entity<Session>(entity =>
         {
-            entity.ToTable("sessions");
+            entity.ToTable("sessions", table => table.HasCheckConstraint("CK_sessions_DistinctCodes", "\"Code\" <> \"TeacherCode\""));
             entity.HasKey(session => session.Id);
             entity.Property(session => session.Id).ValueGeneratedNever();
             entity.Property(session => session.Title).HasMaxLength(200).IsRequired();
@@ -24,6 +24,10 @@ public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> op
                 .HasConversion(code => code.Value, value => new SessionCode(value))
                 .HasMaxLength(SessionCode.Length).IsRequired();
             entity.HasIndex(session => session.Code).IsUnique();
+            entity.Property(session => session.TeacherCode)
+                .HasConversion(code => code.Value, value => new SessionCode(value))
+                .HasMaxLength(SessionCode.Length).IsRequired();
+            entity.HasIndex(session => session.TeacherCode).IsUnique();
             entity.Property(session => session.CreatedByTeacherId).IsRequired();
             entity.HasIndex(session => session.CreatedByTeacherId);
             entity.Property(session => session.CurrentGeneration).IsConcurrencyToken();

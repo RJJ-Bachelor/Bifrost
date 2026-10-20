@@ -3,4 +3,11 @@ using FastEndpoints;
 
 namespace EirService.Contracts.Sessions.FindSessionByCode;
 
-public sealed record FindSessionByCodeQuery(string Code) : ICommand<StudentSessionSummary?>;
+public enum SessionCodeType
+{
+    Student,
+    Teacher
+}
+
+public sealed record FindSessionByCodeQuery(string Code, SessionCodeType CodeType = SessionCodeType.Student)
+    : ICommand<SessionSummary?>;

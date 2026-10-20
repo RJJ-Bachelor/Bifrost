@@ -6,7 +6,7 @@ using EndpointTags = EirService.Api.Endpoints.Tags;
 
 namespace EirService.Api.Endpoints.Student.Participants.JoinSession;
 
-internal sealed class JoinSession : Endpoint<JoinSessionRequest, StudentSessionSummary>
+internal sealed class JoinSession : Endpoint<JoinSessionRequest, SessionSummary>
 {
     public override void Configure()
     {

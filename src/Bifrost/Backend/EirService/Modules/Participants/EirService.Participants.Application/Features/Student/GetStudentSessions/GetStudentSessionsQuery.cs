@@ -3,4 +3,4 @@ using FastEndpoints;
 
 namespace EirService.Participants.Application.Features.Student.GetStudentSessions;
 
-public sealed record GetStudentSessionsQuery(string StudentId) : ICommand<IReadOnlyList<StudentSessionSummary>>;
+public sealed record GetStudentSessionsQuery(string StudentId) : ICommand<IReadOnlyList<SessionSummary>>;

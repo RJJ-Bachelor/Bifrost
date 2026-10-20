@@ -3,4 +3,4 @@ using FastEndpoints;
 
 namespace EirService.Sessions.Application.Features.Student.GetStudentSession;
 
-public sealed record GetStudentSessionQuery(Guid SessionId, string StudentId) : ICommand<StudentSessionSummary>;
+public sealed record GetStudentSessionQuery(Guid SessionId, string StudentId) : ICommand<SessionSummary>;

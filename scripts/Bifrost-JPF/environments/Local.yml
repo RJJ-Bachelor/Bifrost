@@ -13,6 +13,8 @@ variables:
     value: ''
   - name: sessionCode
     value: ''
+  - name: teacherSessionCode
+    value: ''
   - name: sessionGeneration
     value: '1'
   - name: helpRequestId

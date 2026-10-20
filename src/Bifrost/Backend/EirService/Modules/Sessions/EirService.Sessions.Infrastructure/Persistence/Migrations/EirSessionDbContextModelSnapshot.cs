@@ -50,6 +50,11 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset?>("LastClearedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("TeacherCode")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -62,7 +67,13 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CreatedByTeacherId");
 
-                    b.ToTable("sessions", "sessions");
+                    b.HasIndex("TeacherCode")
+                        .IsUnique();
+
+                    b.ToTable("sessions", "sessions", t =>
+                        {
+                            t.HasCheckConstraint("CK_sessions_DistinctCodes", "\"Code\" <> \"TeacherCode\"");
+                        });
                 });
 
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>

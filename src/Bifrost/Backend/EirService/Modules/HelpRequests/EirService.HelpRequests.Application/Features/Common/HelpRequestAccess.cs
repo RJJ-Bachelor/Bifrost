@@ -16,7 +16,7 @@ public sealed class HelpRequestAccess(IHelpRequestRepository repository)
 
         var allowed = role switch
         {
-            AuthorRole.Teacher => session.TeacherId == actorId,
+            AuthorRole.Teacher => session.TeacherIds.Contains(actorId, StringComparer.Ordinal),
             AuthorRole.Student => await new IsSessionParticipantQuery(sessionId, actorId).ExecuteAsync(cancellationToken),
             _ => false
         };

@@ -8,13 +8,13 @@ using EirService.Contracts.Exceptions;
 namespace EirService.Participants.Application.Features.Student.JoinSession;
 
 public sealed class JoinSessionCommandHandler(IParticipantRepository repository, TimeProvider timeProvider)
-    : ICommandHandler<JoinSessionCommand, StudentSessionSummary>
+    : ICommandHandler<JoinSessionCommand, SessionSummary>
 {
-    public async Task<StudentSessionSummary> ExecuteAsync(JoinSessionCommand command, CancellationToken cancellationToken)
+    public async Task<SessionSummary> ExecuteAsync(JoinSessionCommand command, CancellationToken cancellationToken)
     {
         var session = await new FindSessionByCodeQuery(command.Code).ExecuteAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
-        await repository.JoinAsync(SessionParticipant.Join(session.Id, command.StudentId, timeProvider.GetUtcNow()), cancellationToken);
+        await repository.JoinAsync(SessionParticipant.Join(session.Id, command.StudentId, ParticipantRole.Student, timeProvider.GetUtcNow()), cancellationToken);
         return session;
     }
 }

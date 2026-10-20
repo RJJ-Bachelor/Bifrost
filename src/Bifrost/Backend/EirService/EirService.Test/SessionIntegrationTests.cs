@@ -20,6 +20,7 @@ using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Participants.Application.Features.Student.JoinSession;
+using EirService.Participants.Application.Features.Teacher.JoinSession;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.Teacher.ClearSession;
@@ -70,7 +71,7 @@ public sealed class PostgresFactAttribute : FactAttribute
 }
 
 [Collection("FastEndpoints")]
-public sealed class SessionIntegrationTests : IAsyncLifetime
+public sealed partial class SessionIntegrationTests : IAsyncLifetime
 {
     private string? adminConnectionString;
     private string databaseName = null!;
@@ -136,7 +137,9 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddTransient<IValidator<GetSessionsQuery>, GetSessionsQueryValidator>();
         builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<JoinSessionCommand>, JoinSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(typeof(CommandValidationMiddleware<,>), typeof(CommandLoggingMiddleware<,>)));
+        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddScheme<AuthenticationSchemeOptions, CommandBusTests.TestAuthenticationHandler>(JwtBearerDefaults.AuthenticationScheme, _ => { })
             .AddStudentCookie(builder.Configuration, options => options.DataProtectionProvider = new EphemeralDataProtectionProvider());
@@ -185,7 +188,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         using var response = await teacher.PostAsJsonAsync("/api/teachers/sessions", new
         {
             Title = "  Algorithms  ", CreatedByTeacherId = "spoofed", CreatedByDisplayName = "Spoofed",
-            CreatedAtUtc = DateTimeOffset.MinValue, Code = "ZZZZZZZZ", CurrentGeneration = 88
+            CreatedAtUtc = DateTimeOffset.MinValue, Code = "ZZZZZZZZ", TeacherCode = "ZZZZZZZZ", CurrentGeneration = 88
         });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = (await response.Content.ReadFromJsonAsync<SessionResult>())!;
@@ -196,6 +199,8 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(1, result.CurrentGeneration);
         Assert.Null(result.LastClearedAtUtc);
         Assert.True(SessionCode.IsValid(result.Code));
+        Assert.True(SessionCode.IsValid(result.TeacherCode));
+        Assert.NotEqual(result.Code, result.TeacherCode);
         Assert.Equal($"/api/teachers/sessions/{result.Id}", response.Headers.Location!.ToString());
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
@@ -252,7 +257,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("code", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("createdBy", body, StringComparison.OrdinalIgnoreCase);
-        var list = (await student.GetFromJsonAsync<StudentSessionSummary[]>("/api/students/sessions"))!;
+        var list = (await student.GetFromJsonAsync<SessionSummary[]>("/api/students/sessions"))!;
         Assert.Equal(session.Id, Assert.Single(list).Id);
         await using var scope = app.Services.CreateAsyncScope();
         Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Participants.CountAsync());
@@ -277,7 +282,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         Assert.Empty((await student.GetFromJsonAsync<HelpRequestResult[]>("/api/students/requests"))!);
         var after = (await teacher.GetFromJsonAsync<SessionResult>($"/api/teachers/sessions/{session.Id}"))!;
         Assert.Equal(session with { CurrentGeneration = 2, LastClearedAtUtc = clock.Now }, after);
-        var studentSession = (await student.GetFromJsonAsync<StudentSessionSummary>($"/api/students/sessions/{session.Id}"))!;
+        var studentSession = (await student.GetFromJsonAsync<SessionSummary>($"/api/students/sessions/{session.Id}"))!;
         Assert.Equal(2, studentSession.CurrentGeneration);
         using var stale = await student.PostAsJsonAsync($"/api/students/requests/{createdRequestIds[TestIds.From("old-request")]}/messages",
             new { Text = "Late follow-up" });
@@ -426,7 +431,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         await JoinAsync(session.Code);
         await using var scope = app.Services.CreateAsyncScope();
         var participant = await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Participants.SingleAsync();
-        Assert.Equal(new SessionParticipantId(participant.SessionId, participant.StudentSubjectId), participant.Id);
+        Assert.Equal(new SessionParticipantId(participant.SessionId, participant.SubjectId, participant.Role), participant.Id);
     }
 
     [PostgresFact]
@@ -477,7 +482,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         var original = await CreateAsync();
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
-        var collision = Session.Create("Collision", new SessionCode(original.Code), "teacher", null, clock.Now);
+        var collision = Session.Create("Collision", new SessionCode(original.Code), SessionCode.Generate(), "teacher", null, clock.Now);
         var repository = new SessionRepository(db);
         Assert.False(await repository.TryAddAsync(collision, CancellationToken.None));
         Assert.Equal(1, await db.Sessions.CountAsync());
@@ -555,7 +560,7 @@ public sealed class SessionIntegrationTests : IAsyncLifetime
         const string previousMigration = "20261011102900_RemoveSessionOutbox";
         await migrator.MigrateAsync(previousMigration);
 
-        var original = Session.Create("Existing session", new SessionCode("abcd2345"),
+        var original = Session.Create("Existing session", new SessionCode("abcd2345"), new SessionCode("EFGH6789"),
             "provider|opaque-teacher", "Trusted Teacher", clock.Now);
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO sessions.sessions

@@ -1,0 +1,18 @@
+info:
+  name: JoinTeacherSession
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/join'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "code": "{{teacherSessionCode}}"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false

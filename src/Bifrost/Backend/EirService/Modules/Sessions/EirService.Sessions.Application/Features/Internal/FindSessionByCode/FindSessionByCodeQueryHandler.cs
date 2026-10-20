@@ -8,11 +8,11 @@ using FastEndpoints;
 namespace EirService.Sessions.Application.Features.Internal.FindSessionByCode;
 
 public sealed class FindSessionByCodeQueryHandler(ISessionRepository repository)
-    : ICommandHandler<FindSessionByCodeQuery, StudentSessionSummary?>
+    : ICommandHandler<FindSessionByCodeQuery, SessionSummary?>
 {
-    public async Task<StudentSessionSummary?> ExecuteAsync(FindSessionByCodeQuery query, CancellationToken cancellationToken)
+    public async Task<SessionSummary?> ExecuteAsync(FindSessionByCodeQuery query, CancellationToken cancellationToken)
     {
         if (!SessionCode.IsValid(query.Code)) return null;
-        return (await repository.GetByCodeAsync(new SessionCode(query.Code).Value, cancellationToken))?.ToStudentSummary();
+        return (await repository.GetByCodeAsync(new SessionCode(query.Code).Value, query.CodeType, cancellationToken))?.ToSummary();
     }
 }

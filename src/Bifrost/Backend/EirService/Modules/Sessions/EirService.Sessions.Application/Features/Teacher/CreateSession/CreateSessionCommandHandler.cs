@@ -19,7 +19,10 @@ public sealed class CreateSessionCommandHandler(
         // A unique index arbitrates collisions, including concurrent creators.
         for (var attempt = 0; attempt < 5; attempt++)
         {
-            var session = Session.Create(request.Title, SessionCode.Generate(), request.TeacherId, request.DisplayName, now);
+            var studentCode = SessionCode.Generate();
+            var teacherCode = SessionCode.Generate();
+            if (studentCode == teacherCode) continue;
+            var session = Session.Create(request.Title, studentCode, teacherCode, request.TeacherId, request.DisplayName, now);
             if (await repository.TryAddAsync(session, cancellationToken))
             {
                 logger.LogInformation("CreateSession handler called for teacher {TeacherId}", request.TeacherId);

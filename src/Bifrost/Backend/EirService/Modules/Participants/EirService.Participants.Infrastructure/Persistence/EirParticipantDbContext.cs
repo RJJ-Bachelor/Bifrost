@@ -14,10 +14,11 @@ public sealed class EirParticipantDbContext(DbContextOptions<EirParticipantDbCon
         {
             entity.ToTable("session_participants");
             entity.Ignore(participant => participant.Id);
-            entity.HasKey(participant => new { participant.SessionId, participant.StudentSubjectId });
+            entity.HasKey(participant => new { participant.SessionId, participant.SubjectId, participant.Role });
             entity.Property(participant => participant.SessionId).ValueGeneratedNever();
-            entity.Property(participant => participant.StudentSubjectId).HasMaxLength(100).IsRequired();
-            entity.HasIndex(participant => participant.StudentSubjectId);
+            entity.Property(participant => participant.SubjectId).HasMaxLength(100).IsRequired();
+            entity.Property(participant => participant.Role).HasConversion<string>().HasMaxLength(20);
+            entity.HasIndex(participant => new { participant.SubjectId, participant.Role });
         });
     }
 }

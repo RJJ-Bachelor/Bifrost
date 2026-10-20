@@ -3,4 +3,4 @@ using FastEndpoints;
 
 namespace EirService.Contracts.Sessions.GetSessionSummaries;
 
-public sealed record GetSessionSummariesQuery(Guid[] SessionIds) : ICommand<IReadOnlyList<StudentSessionSummary>>;
+public sealed record GetSessionSummariesQuery(Guid[] SessionIds) : ICommand<IReadOnlyList<SessionSummary>>;

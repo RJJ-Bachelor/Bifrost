@@ -10,7 +10,7 @@ public sealed class ParticipantRepository(EirParticipantDbContext dbContext) : I
 {
     public async Task JoinAsync(SessionParticipant participant, CancellationToken cancellationToken)
     {
-        if (await IsParticipantAsync(participant.SessionId, participant.StudentSubjectId, cancellationToken)) return;
+        if (await IsParticipantAsync(participant.SessionId, participant.SubjectId, participant.Role, cancellationToken)) return;
         dbContext.Participants.Add(participant);
         try { await dbContext.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
@@ -21,10 +21,15 @@ public sealed class ParticipantRepository(EirParticipantDbContext dbContext) : I
         }
     }
 
-    public Task<bool> IsParticipantAsync(Guid sessionId, string studentId, CancellationToken cancellationToken) =>
-        dbContext.Participants.AsNoTracking().AnyAsync(participant => participant.SessionId == sessionId && participant.StudentSubjectId == studentId, cancellationToken);
+    public Task<bool> IsParticipantAsync(Guid sessionId, string subjectId, ParticipantRole role, CancellationToken cancellationToken) =>
+        dbContext.Participants.AsNoTracking().AnyAsync(participant => participant.SessionId == sessionId &&
+            participant.SubjectId == subjectId && participant.Role == role, cancellationToken);
 
-    public Task<Guid[]> GetSessionIdsAsync(string studentId, CancellationToken cancellationToken) =>
-        dbContext.Participants.AsNoTracking().Where(participant => participant.StudentSubjectId == studentId)
+    public Task<Guid[]> GetSessionIdsAsync(string subjectId, ParticipantRole role, CancellationToken cancellationToken) =>
+        dbContext.Participants.AsNoTracking().Where(participant => participant.SubjectId == subjectId && participant.Role == role)
             .Select(participant => participant.SessionId).ToArrayAsync(cancellationToken);
+
+    public Task<string[]> GetSubjectIdsAsync(Guid sessionId, ParticipantRole role, CancellationToken cancellationToken) =>
+        dbContext.Participants.AsNoTracking().Where(participant => participant.SessionId == sessionId && participant.Role == role)
+            .OrderBy(participant => participant.SubjectId).Select(participant => participant.SubjectId).ToArrayAsync(cancellationToken);
 }

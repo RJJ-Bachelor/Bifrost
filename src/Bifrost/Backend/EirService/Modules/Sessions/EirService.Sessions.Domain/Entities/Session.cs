@@ -10,18 +10,22 @@ public sealed class Session : AggregateRoot<Guid>
 
     public string Title { get; private set; } = null!;
     public SessionCode Code { get; private set; } = null!;
+    public SessionCode TeacherCode { get; private set; } = null!;
     public string CreatedByTeacherId { get; private set; } = null!;
     public string? CreatedByDisplayName { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public int CurrentGeneration { get; private set; }
     public DateTimeOffset? LastClearedAtUtc { get; private set; }
 
-    public static Session Create(string title, SessionCode code, string createdByTeacherId,
+    public static Session Create(string title, SessionCode code, SessionCode teacherCode, string createdByTeacherId,
         string? createdByDisplayName, DateTimeOffset now)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdByTeacherId);
         ArgumentNullException.ThrowIfNull(code);
+        ArgumentNullException.ThrowIfNull(teacherCode);
+        if (code == teacherCode)
+            throw new ArgumentException("Student and teacher codes must be different.", nameof(teacherCode));
 
         var trimmedTitle = title.Trim();
         
@@ -30,7 +34,7 @@ public sealed class Session : AggregateRoot<Guid>
 
         return new Session
         {
-            Id = Guid.NewGuid(), Title = trimmedTitle, Code = code,
+            Id = Guid.NewGuid(), Title = trimmedTitle, Code = code, TeacherCode = teacherCode,
             CreatedByTeacherId = createdByTeacherId,
             CreatedByDisplayName = createdByDisplayName,
             CreatedAtUtc = now.ToUniversalTime(), CurrentGeneration = 1
