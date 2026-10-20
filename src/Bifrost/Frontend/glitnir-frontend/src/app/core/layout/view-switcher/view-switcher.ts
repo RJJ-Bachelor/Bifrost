@@ -29,6 +29,6 @@ export class ViewSwitcher {
   );
 
   protected readonly label = computed(() =>
-    this.onTeacherSide() ? 'Skift til student' : 'Skift til underviser',
+    this.onTeacherSide() ? 'Skift til studerende' : 'Skift til underviser',
   );
 }
