@@ -4,14 +4,11 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
   padding: var(--space-4);
-  --card-title-color: var(--color-au-dark-blue);
-}
-
-:host(.card--teacher) {
-  --card-title-color: var(--color-au-dark-cyan);
+  --card-title-color: var(--color-primary-dark);
 }
 
 .card-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
