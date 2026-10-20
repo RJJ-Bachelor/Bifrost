@@ -37,6 +37,14 @@ export class SessionApi {
     );
   }
 
+  joinTeacherSession(code: string): Observable<Session> {
+    return this.http.post<Session>(
+      '/api/teachers/sessions/join',
+      { code },
+      { withCredentials: true },
+    );
+  }
+
   createSession(title: string): Observable<Session> {
     return this.http.post<Session>(
       '/api/teachers/sessions',

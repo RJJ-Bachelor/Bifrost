@@ -65,8 +65,15 @@ export class TeacherSessions {
   }
 
   protected onJoin(code: string): void {
-    console.log('TODO: teacher join endpoint mangler', code);
-    this.closeJoinDialog();
+    this.sessionApi.joinTeacherSession(code).subscribe({
+      next: () => {
+        this.closeJoinDialog();
+        this.sessions.reload();
+      },
+      error: () => {
+        this.joinError.set('Forkert kode – prøv igen');
+      },
+    });
   }
 
   protected onCreate(title: string): void {
