@@ -1,0 +1,74 @@
+.dialog {
+  padding: 0;
+  border: none;
+  background: transparent;
+  max-width: 480px;
+  width: calc(100% - var(--space-8));
+  max-height: calc(100vh - var(--space-8));
+  color: var(--color-grey-800);
+
+  &::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+}
+
+.dialog__content {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+}
+
+.dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.dialog__title {
+  margin: 0;
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-primary-dark);
+}
+
+.dialog__close {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.875rem;
+    height: 2px;
+    background-color: currentColor;
+    border-radius: 1px;
+  }
+
+  &::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+  }
+
+  &::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+  }
+
+  &:hover {
+    background-color: var(--color-grey-100);
+    color: var(--color-grey-800);
+  }
+}
