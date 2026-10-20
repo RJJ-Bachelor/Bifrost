@@ -9,6 +9,8 @@ import { Component, ElementRef, effect, input, output, viewChild } from '@angula
 export class Dialog {
   readonly open = input.required<boolean>();
   readonly title = input<string>();
+  readonly showClose = input(true);
+  readonly size = input<'sm' | 'md'>('md');
   readonly closed = output<void>();
 
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');

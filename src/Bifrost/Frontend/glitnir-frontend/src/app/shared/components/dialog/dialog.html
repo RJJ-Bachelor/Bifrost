@@ -1,21 +1,26 @@
 <dialog
   #dialogEl
   class="dialog"
+  [class.dialog--sm]="size() === 'sm'"
   (cancel)="onCancel($event)"
   (click)="onBackdropClick($event)"
 >
   <div class="dialog__content">
-    <header class="dialog__header">
-      @if (title()) {
-        <h2 class="dialog__title">{{ title() }}</h2>
-      }
-      <button
-        type="button"
-        class="dialog__close"
-        (click)="closed.emit()"
-        aria-label="Luk"
-      ></button>
-    </header>
+    @if (title() || showClose()) {
+      <header class="dialog__header">
+        @if (title()) {
+          <h2 class="dialog__title">{{ title() }}</h2>
+        }
+        @if (showClose()) {
+          <button
+            type="button"
+            class="dialog__close"
+            (click)="closed.emit()"
+            aria-label="Luk"
+          ></button>
+        }
+      </header>
+    }
     <div class="dialog__body">
       <ng-content />
     </div>

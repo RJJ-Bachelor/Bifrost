@@ -12,6 +12,10 @@
   }
 }
 
+.dialog--sm {
+  max-width: 360px;
+}
+
 .dialog__content {
   background: var(--color-white);
   border-radius: var(--radius-lg);
@@ -37,6 +41,7 @@
 
 .dialog__close {
   position: relative;
+  margin-left: auto;
   width: 2rem;
   height: 2rem;
   padding: 0;
