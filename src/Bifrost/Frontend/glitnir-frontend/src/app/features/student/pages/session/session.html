@@ -1,2 +1,15 @@
 <bifrost-topbar>
+  <span topbar-center>{{ sessionTitle() }}</span>
+  <button topbar-right class="topbar-btn" (click)="switchSession()">Skift session</button>
 </bifrost-topbar>
+
+<div class="page-container">
+  <bifrost-card title="Stil et spørgsmål"></bifrost-card>
+
+  <bifrost-card title="FAQ - Tjek her før du spørger..."></bifrost-card>
+
+  <div class="session-columns">
+    <bifrost-card title="Dine spørgsmål"></bifrost-card>
+    <bifrost-card title="FAQ-Arkivet"></bifrost-card>
+  </div>
+</div>
