@@ -273,3 +273,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Role-based visual themes are dynamically applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`.
 - Shared UI primitives (`Card`, `Dialog`, `ListRow`, `StatusDialog`) establish reusable layout and modal patterns across feature views.
 - Session creation and joining workflows integrate reactive form signals with explicit client-side validation schemas.
+
+---
+
+## Update 2026-10-20
+
+- The Angular frontend (`glitnir-frontend`) standardizes component selectors using the `bifrost-` prefix across all modules.
+- Student and teacher session views leverage Angular `httpResource` and `HttpClient` configured with `withCredentials: true` for cookie-backed backend communication.
+- Role-based visual themes are dynamically applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`.
+- Shared UI primitives (`Card`, `Dialog`, `ListRow`, `StatusDialog`) establish consistent reusable layout and modal patterns across features.
+- Session creation and join flows integrate reactive form signals with explicit client-side validation schemas.
