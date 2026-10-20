@@ -13,7 +13,9 @@ interface JoinFormModel {
 })
 export class SessionJoinForm {
   readonly error = input<string | null>(null);
+  readonly showCancel = input(false);
   readonly joined = output<string>();
+  readonly cancelled = output<void>();
 
   protected readonly model = signal<JoinFormModel>({ code: '' });
   protected readonly joinForm = form(this.model, (schemaPath) => {
@@ -24,7 +26,7 @@ export class SessionJoinForm {
     event.preventDefault();
     if (this.joinForm().invalid()) return;
 
-    this.joined.emit(this.model().code.trim());
+    this.joined.emit(this.model().code);
     this.model.set({ code: '' });
   }
 }
