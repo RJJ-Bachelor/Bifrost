@@ -28,16 +28,20 @@ namespace EirService.Participants.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("StudentSubjectId")
+                    b.Property<string>("SubjectId")
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Role")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTimeOffset>("JoinedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("SessionId", "StudentSubjectId");
+                    b.HasKey("SessionId", "SubjectId", "Role");
 
-                    b.HasIndex("StudentSubjectId");
+                    b.HasIndex("SubjectId", "Role");
 
                     b.ToTable("session_participants", "participants");
                 });

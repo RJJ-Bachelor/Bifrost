@@ -1,4 +1,7 @@
 using EirService.Participants.Application.Repositories;
+using EirService.Contracts.Participants.GetSessionTeacherIds;
+using EirService.Participants.Application.Features.Internal.GetSessionTeacherIds;
+using FastEndpoints;
 using EirService.Participants.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +21,7 @@ public static class DependencyInjection
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "participants")));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
+        services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
         return services;
     }
 }

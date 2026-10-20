@@ -3,6 +3,8 @@ using EirService.Sessions.Domain.Entities;
 using EirService.Sessions.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using EirService.Contracts.Sessions.FindSessionByCode;
+using EirService.Sessions.Domain.ValueObjects;
 
 namespace EirService.Sessions.Infrastructure.Repositories;
 
@@ -17,7 +19,7 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
             return true;
         }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
-            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_sessions_Code" })
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_sessions_Code" or "IX_sessions_TeacherCode" })
         {
             dbContext.ChangeTracker.Clear();
             return false;
@@ -29,8 +31,17 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Sessions.SingleOrDefaultAsync(session => session.Id == id, cancellationToken);
 
-    public Task<Session?> GetByCodeAsync(string code, CancellationToken cancellationToken) =>
-        dbContext.Sessions.AsNoTracking().SingleOrDefaultAsync(session => session.Code == new Domain.ValueObjects.SessionCode(code), cancellationToken);
+    public Task<Session?> GetByCodeAsync(string code, SessionCodeType codeType, CancellationToken cancellationToken)
+    {
+        var value = new SessionCode(code);
+        var sessions = dbContext.Sessions.AsNoTracking();
+        return codeType switch
+        {
+            SessionCodeType.Student => sessions.SingleOrDefaultAsync(session => session.Code == value, cancellationToken),
+            SessionCodeType.Teacher => sessions.SingleOrDefaultAsync(session => session.TeacherCode == value, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(codeType))
+        };
+    }
 
     public async Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken) =>
         await dbContext.Sessions.AsNoTracking().Where(session => session.CreatedByTeacherId == teacherId)

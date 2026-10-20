@@ -16,6 +16,7 @@ using EirService.Sessions.Application.Features.Student.GetStudentSession;
 using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Application.Features.Student.JoinSession;
+using EirService.Participants.Application.Features.Teacher.JoinSession;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
 using FastEndpoints;
@@ -54,6 +55,7 @@ public class Program
         builder.Services.AddTransient<IValidator<GetSessionQuery>, GetSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<JoinSessionCommand>, JoinSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));

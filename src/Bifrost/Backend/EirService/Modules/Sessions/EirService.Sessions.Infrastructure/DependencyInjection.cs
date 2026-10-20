@@ -1,4 +1,7 @@
 using EirService.Sessions.Application.Repositories;
+using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
+using FastEndpoints;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Sessions.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +24,7 @@ public static class DependencyInjection
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "sessions")));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ISessionRepository, SessionRepository>();
+        services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
         services.AddUnitOfWork<ISessionRepository, EirSessionDbContext>();
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirSessionDbContext>();

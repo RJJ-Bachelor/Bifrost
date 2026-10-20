@@ -38,11 +38,13 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             var queued = await repository.GetForSessionAsync(request.SessionId, request.Generation, cancellationToken);
             if (!queued.Any(other => other.Id != request.Id && other.Status == HelpRequestStatus.Pending))
             {
-                var session = await new GetHelpRequestSessionQuery(request.SessionId).ExecuteAsync(cancellationToken);
+                var sessions = scope.ServiceProvider.GetRequiredService<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>>();
+                var session = await sessions.ExecuteAsync(new GetHelpRequestSessionQuery(request.SessionId), cancellationToken);
                 if (session is not null && session.Generation == request.Generation)
-                    Notify(session.TeacherId, change.Change == "Created"
-                        ? "Køen er startet. Der er en ny hjælpeanmodning."
-                        : "Køen er opdateret. Der er en opfølgende besked.");
+                    foreach (var teacherId in session.TeacherIds)
+                        Notify(teacherId, change.Change == "Created"
+                            ? "Køen er startet. Der er en ny hjælpeanmodning."
+                            : "Køen er opdateret. Der er en opfølgende besked.");
             }
         }
         if (change.Change == "Started")
@@ -57,7 +59,8 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             Notify(request.StudentId, "Der er kommet svar på din hjælpeanmodning.");
         }
 
-        void Notify(string userId, string message) => notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+        // Each recipient needs a separate message id for downstream inbox deduplication.
+        void Notify(string userId, string message) => notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
             new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
                 request.Id, change.Change, request.Status.ToString()),
             MessageRoutes.Notifications, MessageRoutes.NotificationCreated));

@@ -23,6 +23,11 @@ using EirService.Sessions.Application.Features.Teacher.CreateSession;
 using EirService.Sessions.Application.Repositories;
 using EirService.Participants.Application.Repositories;
 using EirService.Participants.Application.Features.Student.JoinSession;
+using EirService.Participants.Application.Features.Teacher.JoinSession;
+using EirService.Contracts.Participants.GetSessionTeacherIds;
+using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Participants.Application.Features.Internal.GetSessionTeacherIds;
+using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -42,7 +47,7 @@ using Shared.Application.Messaging.Outbox;
 namespace EirService.Test;
 
 [Collection("FastEndpoints")]
-public sealed class CommandBusTests : IAsyncLifetime
+public sealed partial class CommandBusTests : IAsyncLifetime
 {
     private readonly List<string> _executionOrder = [];
     private RecordingLogger<CreateSessionCommandHandler> _logger = null!;
@@ -72,6 +77,7 @@ public sealed class CommandBusTests : IAsyncLifetime
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddHelpRequestsApplication();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
@@ -86,7 +92,10 @@ public sealed class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<ISessionRepository>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IUnitOfWork<ISessionRepository>>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                 JwtBearerDefaults.AuthenticationScheme, _ => { })

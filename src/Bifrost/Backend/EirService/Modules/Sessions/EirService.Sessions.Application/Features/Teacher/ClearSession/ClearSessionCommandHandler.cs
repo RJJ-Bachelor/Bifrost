@@ -1,6 +1,7 @@
 using EirService.Sessions.Application.Repositories;
 using FastEndpoints;
 using EirService.Contracts.Exceptions;
+using EirService.Contracts.Participants.IsSessionTeacher;
 using Shared.Application.Persistence;
 
 namespace EirService.Sessions.Application.Features.Teacher.ClearSession;
@@ -13,7 +14,8 @@ public sealed class ClearSessionCommandHandler(
     {
         var session = await repository.GetAsync(command.SessionId, cancellationToken);
 
-        if (session is null || session.CreatedByTeacherId != command.TeacherId)
+        if (session is null || (session.CreatedByTeacherId != command.TeacherId &&
+            !await new IsSessionTeacherQuery(session.Id, command.TeacherId).ExecuteAsync(cancellationToken)))
             throw new ResourceNotFoundException();
 
         if (session.CurrentGeneration != command.ExpectedGeneration)

@@ -11,13 +11,14 @@ public sealed class SessionDomainTests
     [Fact]
     public void ClearPreservesSessionMetadataAndRejectsStaleGeneration()
     {
-        var session = Session.Create("  Algorithms  ", new SessionCode("abcd2345"), "provider|opaque-subject", null, CreatedAt);
+        var session = Session.Create("  Algorithms  ", new SessionCode("abcd2345"), new SessionCode("efgh6789"), "provider|opaque-subject", null, CreatedAt);
         var id = session.Id;
         Assert.Empty(session.GetDomainEvents());
         session.Clear(1, CreatedAt.AddHours(1));
         Assert.Equal(id, session.Id);
         Assert.Equal("Algorithms", session.Title);
         Assert.Equal("ABCD2345", session.Code.Value);
+        Assert.Equal("EFGH6789", session.TeacherCode.Value);
         Assert.Equal("provider|opaque-subject", session.CreatedByTeacherId);
         Assert.Null(session.CreatedByDisplayName);
         Assert.Equal(CreatedAt, session.CreatedAtUtc);
@@ -38,7 +39,7 @@ public sealed class SessionDomainTests
     [Fact]
     public void DeleteRaisesDomainEventForTheWholeSessionAtItsCurrentGeneration()
     {
-        var session = Session.Create("Title", new SessionCode("ABCD2345"), "teacher", null, CreatedAt);
+        var session = Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt);
         session.Clear(1, CreatedAt.AddHours(1));
         session.ClearDomainEvents();
         var deletedAt = CreatedAt.AddHours(2).ToOffset(TimeSpan.FromHours(2));
@@ -57,15 +58,22 @@ public sealed class SessionDomainTests
     [InlineData("   ")]
     public void CreateRejectsEmptyTitleAndCreator(string? value)
     {
-        Assert.ThrowsAny<ArgumentException>(() => Session.Create(value!, new SessionCode("ABCD2345"), "teacher", null, CreatedAt));
-        Assert.ThrowsAny<ArgumentException>(() => Session.Create("Title", new SessionCode("ABCD2345"), value!, null, CreatedAt));
+        Assert.ThrowsAny<ArgumentException>(() => Session.Create(value!, new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt));
+        Assert.ThrowsAny<ArgumentException>(() => Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), value!, null, CreatedAt));
     }
 
     [Fact]
     public void TitleLengthIsValidatedAfterTrimming()
     {
-        Assert.Equal(200, Session.Create(" " + new string('x', 200) + " ", SessionCode.Generate(), "teacher", null, CreatedAt).Title.Length);
-        Assert.Throws<ArgumentException>(() => Session.Create(new string('x', 201), SessionCode.Generate(), "teacher", null, CreatedAt));
+        Assert.Equal(200, Session.Create(" " + new string('x', 200) + " ", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt).Title.Length);
+        Assert.Throws<ArgumentException>(() => Session.Create(new string('x', 201), new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt));
+    }
+
+    [Fact]
+    public void StudentAndTeacherCodesMustBeDifferent()
+    {
+        Assert.Throws<ArgumentException>(() => Session.Create("Title", new SessionCode("ABCD2345"),
+            new SessionCode("abcd2345"), "teacher", null, CreatedAt));
     }
 
     [Fact]

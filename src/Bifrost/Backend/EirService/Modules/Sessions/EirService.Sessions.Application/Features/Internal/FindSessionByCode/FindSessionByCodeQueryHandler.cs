@@ -13,6 +13,6 @@ public sealed class FindSessionByCodeQueryHandler(ISessionRepository repository)
     public async Task<StudentSessionSummary?> ExecuteAsync(FindSessionByCodeQuery query, CancellationToken cancellationToken)
     {
         if (!SessionCode.IsValid(query.Code)) return null;
-        return (await repository.GetByCodeAsync(new SessionCode(query.Code).Value, cancellationToken))?.ToStudentSummary();
+        return (await repository.GetByCodeAsync(new SessionCode(query.Code).Value, query.CodeType, cancellationToken))?.ToStudentSummary();
     }
 }
