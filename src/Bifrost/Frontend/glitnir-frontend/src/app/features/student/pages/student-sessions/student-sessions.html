@@ -2,24 +2,9 @@
 <div class="page-container">
   <bifrost-card title="Dine sessioner">
     @if (!sessions.isLoading() && !sessions.error() && !isEmpty()) {
-      <div card-header class="join-menu">
-        <button
-          class="btn"
-          [class.btn--primary]="!userOpenedJoin()"
-          [class.btn--secondary]="userOpenedJoin()"
-          (click)="toggleJoinForm()"
-        >
-          {{ userOpenedJoin() ? 'Annuller' : '+ Tilmeld via kode' }}
-        </button>
-        @if (userOpenedJoin()) {
-          <div class="join-menu__dropdown">
-            <bifrost-session-join-form
-              [error]="joinError()"
-              (joined)="onJoin($event)"
-            />
-          </div>
-        }
-      </div>
+      <button card-header class="btn btn--primary" (click)="openDialog()">
+        + Tilmeld via kode
+      </button>
     }
 
     @if (sessions.isLoading()) {
@@ -40,3 +25,16 @@
     }
   </bifrost-card>
 </div>
+
+<bifrost-dialog
+  [open]="userOpenedJoin()"
+  title="Tilmeld via kode"
+  (closed)="closeDialog()"
+>
+  <bifrost-session-join-form
+    [error]="joinError()"
+    [showCancel]="true"
+    (joined)="onJoin($event)"
+    (cancelled)="closeDialog()"
+  />
+</bifrost-dialog>

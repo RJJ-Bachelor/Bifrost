@@ -1,12 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
+import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { SessionList } from '../../../session/components/session-list/session-list';
 import { SessionJoinForm } from '../../../session/components/session-join-form/session-join-form';
 import { SessionApi } from '../../../session/services/session-api';
 
 @Component({
-  imports: [Topbar, Card, SessionList, SessionJoinForm],
+  imports: [Topbar, Card, Dialog, SessionList, SessionJoinForm],
   selector: 'bifrost-student-sessions',
   styleUrl: './student-sessions.scss',
   templateUrl: './student-sessions.html',
@@ -23,8 +24,13 @@ export class StudentSessions {
     () => this.sessions.value().length === 0,
   );
 
-  protected toggleJoinForm(): void {
-    this.userOpenedJoin.update((v) => !v);
+  protected openDialog(): void {
+    this.userOpenedJoin.set(true);
+    this.joinError.set(null);
+  }
+
+  protected closeDialog(): void {
+    this.userOpenedJoin.set(false);
     this.joinError.set(null);
   }
 
