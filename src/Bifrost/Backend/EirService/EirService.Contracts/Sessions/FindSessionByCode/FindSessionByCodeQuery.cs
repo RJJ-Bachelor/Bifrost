@@ -10,4 +10,4 @@ public enum SessionCodeType
 }
 
 public sealed record FindSessionByCodeQuery(string Code, SessionCodeType CodeType = SessionCodeType.Student)
-    : ICommand<StudentSessionSummary?>;
+    : ICommand<SessionSummary?>;

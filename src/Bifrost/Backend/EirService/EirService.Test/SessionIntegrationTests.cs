@@ -257,7 +257,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var body = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain("code", body, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("createdBy", body, StringComparison.OrdinalIgnoreCase);
-        var list = (await student.GetFromJsonAsync<StudentSessionSummary[]>("/api/students/sessions"))!;
+        var list = (await student.GetFromJsonAsync<SessionSummary[]>("/api/students/sessions"))!;
         Assert.Equal(session.Id, Assert.Single(list).Id);
         await using var scope = app.Services.CreateAsyncScope();
         Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Participants.CountAsync());
@@ -282,7 +282,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.Empty((await student.GetFromJsonAsync<HelpRequestResult[]>("/api/students/requests"))!);
         var after = (await teacher.GetFromJsonAsync<SessionResult>($"/api/teachers/sessions/{session.Id}"))!;
         Assert.Equal(session with { CurrentGeneration = 2, LastClearedAtUtc = clock.Now }, after);
-        var studentSession = (await student.GetFromJsonAsync<StudentSessionSummary>($"/api/students/sessions/{session.Id}"))!;
+        var studentSession = (await student.GetFromJsonAsync<SessionSummary>($"/api/students/sessions/{session.Id}"))!;
         Assert.Equal(2, studentSession.CurrentGeneration);
         using var stale = await student.PostAsJsonAsync($"/api/students/requests/{createdRequestIds[TestIds.From("old-request")]}/messages",
             new { Text = "Late follow-up" });

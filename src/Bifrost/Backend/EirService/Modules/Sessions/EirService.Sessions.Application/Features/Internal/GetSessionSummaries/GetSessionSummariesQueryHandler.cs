@@ -7,8 +7,8 @@ using FastEndpoints;
 namespace EirService.Sessions.Application.Features.Internal.GetSessionSummaries;
 
 public sealed class GetSessionSummariesQueryHandler(ISessionRepository repository)
-    : ICommandHandler<GetSessionSummariesQuery, IReadOnlyList<StudentSessionSummary>>
+    : ICommandHandler<GetSessionSummariesQuery, IReadOnlyList<SessionSummary>>
 {
-    public async Task<IReadOnlyList<StudentSessionSummary>> ExecuteAsync(GetSessionSummariesQuery query, CancellationToken cancellationToken) =>
-        (await repository.GetByIdsAsync(query.SessionIds, cancellationToken)).Select(session => session.ToStudentSummary()).ToArray();
+    public async Task<IReadOnlyList<SessionSummary>> ExecuteAsync(GetSessionSummariesQuery query, CancellationToken cancellationToken) =>
+        (await repository.GetByIdsAsync(query.SessionIds, cancellationToken)).Select(session => session.ToSummary()).ToArray();
 }

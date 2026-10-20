@@ -6,7 +6,7 @@ using EndpointTags = EirService.Api.Endpoints.Tags;
 
 namespace EirService.Api.Endpoints.Student.Participants.GetStudentSessions;
 
-internal sealed class GetStudentSessions : EndpointWithoutRequest<IReadOnlyList<StudentSessionSummary>>
+internal sealed class GetStudentSessions : EndpointWithoutRequest<IReadOnlyList<SessionSummary>>
 {
     public override void Configure()
     {
