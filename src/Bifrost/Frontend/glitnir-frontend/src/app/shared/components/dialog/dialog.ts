@@ -16,6 +16,8 @@ export class Dialog {
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialogEl');
 
   constructor() {
+    // Sync signal state to the native <dialog> DOM API.
+    // Pattern: https://dev.to/sridhar_natuva_2b5e2beef0/we-deleted-our-focus-trap-scroll-lock-and-toggle-logic-the-browser-already-does-it-42a
     effect(() => {
       const el = this.dialog().nativeElement;
       const shouldBeOpen = this.open();

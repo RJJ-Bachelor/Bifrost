@@ -2,7 +2,7 @@
 <div class="page-container">
   <bifrost-card title="Dine sessioner">
     <div card-header class="teacher-actions">
-      <button class="btn btn--primary">
+      <button class="btn btn--primary" (click)="openCreateDialog()">
         <span class="btn__label-long">Opret session</span>
         <span class="btn__label-short">Opret</span>
       </button>
@@ -41,3 +41,22 @@
     (cancelled)="closeJoinDialog()"
   />
 </bifrost-dialog>
+
+<bifrost-dialog
+  [open]="createDialogOpen()"
+  title="Opret session"
+  (closed)="closeCreateDialog()"
+>
+  <bifrost-session-create-form
+    [error]="createError()"
+    [showCancel]="true"
+    (created)="onCreate($event)"
+    (cancelled)="closeCreateDialog()"
+  />
+</bifrost-dialog>
+
+<bifrost-status-dialog
+  [open]="createSuccess()"
+  [message]="createSuccessMessage()"
+  (closed)="closeSuccessDialog()"
+/>

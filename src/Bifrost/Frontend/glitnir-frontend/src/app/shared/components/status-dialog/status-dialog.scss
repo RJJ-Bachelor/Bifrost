@@ -7,14 +7,19 @@
 }
 
 .status-icon {
-  margin-bottom: var(--space-5);
   width: 5rem;
   height: 5rem;
-  color: var(--color-primary);
+  margin-bottom: var(--space-5);
+  background-color: var(--color-primary);
+  mask-image: url('/check-circle.svg');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
 }
 
 .status--error .status-icon {
-  color: var(--color-red);
+  background-color: var(--color-red);
+  mask-image: url('/alert-circle.svg');
 }
 
 .status-title {
