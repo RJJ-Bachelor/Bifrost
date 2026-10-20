@@ -40,6 +40,20 @@ describe('SessionApi', () => {
     });
   });
 
+  describe('joinTeacherSession', () => {
+    it('posts the code to the teacher join endpoint', async () => {
+      const promise = firstValueFrom(service.joinTeacherSession('ABC123'));
+
+      const request = http.expectOne('/api/teachers/sessions/join');
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ code: 'ABC123' });
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(session);
+
+      expect(await promise).toEqual(session);
+    });
+  });
+
   describe('createSession', () => {
     it('posts the title to the teacher sessions endpoint', async () => {
       const promise = firstValueFrom(service.createSession('SWBAD-26'));
