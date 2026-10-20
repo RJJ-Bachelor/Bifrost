@@ -263,3 +263,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `SessionParticipant` aggregates and persistence models include an explicit `ParticipantRole` (`Student` or `Teacher`) for fine-grained permission boundaries.
 - Help request reservations are bound to the individual claiming teacher while remaining visible across all teachers joined to the session.
 - New cross-module query contracts (`GetSessionTeacherIdsQuery`, `IsSessionTeacherQuery`, `GetTeacherSessionIdsQuery`) enable decentralized authorization and role verification across `Sessions`, `Participants`, and `HelpRequests`.
+
+---
+
+## Update 2026-10-20
+
+- The Angular frontend standardises component selectors using the `bifrost-` prefix across all modules.
+- Student and teacher session views utilise Angular `httpResource` and `HttpClient` configured with `withCredentials: true` for cookie-backed API communication.
+- Role-based visual themes are dynamically applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`.
+- Shared UI primitives (`Card`, `Dialog`, `ListRow`, `StatusDialog`) establish reusable layout and modal patterns across feature views.
+- Session creation and joining workflows integrate reactive form signals with explicit client-side validation schemas.
