@@ -54,17 +54,3 @@
     display: inline;
   }
 }
-
-.btn__label-short {
-  display: none;
-}
-
-@media (max-width: 500px) {
-  .btn__label-long {
-    display: none;
-  }
-
-  .btn__label-short {
-    display: inline;
-  }
-}
