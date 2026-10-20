@@ -1,1 +1,43 @@
 <bifrost-topbar />
+<div class="page-container">
+  <bifrost-card title="Dine sessioner">
+    <div card-header class="teacher-actions">
+      <button class="btn btn--primary">
+        <span class="btn__label-long">Opret session</span>
+        <span class="btn__label-short">Opret</span>
+      </button>
+      <button class="btn btn--secondary" (click)="openJoinDialog()">
+        <span class="btn__label-long">Tilmeld via kode</span>
+        <span class="btn__label-short">Tilmeld</span>
+      </button>
+    </div>
+
+    @if (sessions.isLoading()) {
+      <p class="state-message">Indlæser sessioner...</p>
+    } @else if (sessions.error()) {
+      <p class="state-message">Kunne ikke hente sessioner.</p>
+    } @else {
+      @if (isEmpty()) {
+        <p class="state-message">
+          Du er endnu ikke tilknyttet nogen sessioner.<br />
+          Opret en ny session eller tilmeld dig via kode.
+        </p>
+      } @else {
+        <bifrost-session-list [sessions]="sessions.value()" />
+      }
+    }
+  </bifrost-card>
+</div>
+
+<bifrost-dialog
+  [open]="joinDialogOpen()"
+  title="Tilmeld via kode"
+  (closed)="closeJoinDialog()"
+>
+  <bifrost-session-join-form
+    [error]="joinError()"
+    [showCancel]="true"
+    (joined)="onJoin($event)"
+    (cancelled)="closeJoinDialog()"
+  />
+</bifrost-dialog>
