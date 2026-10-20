@@ -36,4 +36,12 @@ export class SessionApi {
       { withCredentials: true },
     );
   }
+
+  createSession(title: string): Observable<Session> {
+    return this.http.post<Session>(
+      '/api/teachers/sessions',
+      { title },
+      { withCredentials: true },
+    );
+  }
 }
