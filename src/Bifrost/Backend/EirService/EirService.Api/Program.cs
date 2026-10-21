@@ -1,4 +1,6 @@
 using Shared.Api.Authentication;
+using EirService.Api.Development;
+using EirService.Api.Endpoints.Test.Seed;
 using EirService.KnowledgeBase.Infrastructure;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
@@ -40,6 +42,7 @@ public class Program
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
         builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
+        if (builder.Environment.IsDevelopment()) builder.Services.AddScoped<DevelopmentDataSeeder>();
 
         // Add services to the container.
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
@@ -89,6 +92,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapDevelopmentSeedApi();
         }
 
         app.UseMiddleware<ValidationExceptionMiddleware>();

@@ -1,0 +1,25 @@
+info:
+  name: Get second student request
+  type: http
+  seq: 5
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/requests/{{secondHelpRequestId}}'
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("seedReady")) {
+          throw new Error("Run 'Seed FAQ demo' successfully first.");
+        }
+        await require("./lib/seed-student.cjs")(bru, req, "secondStudentCookie");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: Selects the seeded student cookie in Bruno, then uses the normal student endpoint through Heimdall. The teacher login is preserved.

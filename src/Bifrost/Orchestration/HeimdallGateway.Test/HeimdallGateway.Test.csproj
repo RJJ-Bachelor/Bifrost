@@ -15,5 +15,6 @@
     <Using Include="Xunit" />
     <ProjectReference Include="..\HeimdallGateway\HeimdallGateway.csproj" />
     <None Include="..\HeimdallGateway\appsettings.json" Link="gateway-appsettings.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\HeimdallGateway\appsettings.Development.json" Link="gateway-appsettings.Development.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

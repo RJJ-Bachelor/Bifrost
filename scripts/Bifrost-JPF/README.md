@@ -1,8 +1,19 @@
 # Bifrost i Bruno
 
 Åbn `scripts/Bifrost-JPF` som collection i Bruno, og vælg **Local**.
-De nye session-requests er almindelige GET- og POST-kald med URL og eventuel JSON-body.
-Der er ingen tests eller automatisk opsamling af session-værdier i de nye requests.
+De almindelige session-requests er GET- og POST-kald med URL og eventuel JSON-body.
+`Development/Seed FAQ demo` opsamler session-værdier automatisk til testforløbet.
+
+## Development
+
+Manuel seeding og FAQ-test ligger samlet i **Development** i denne collection:
+
+1. `Seed FAQ demo` opretter en ny session med studerende og HelpRequests.
+2. `Publish dummy generalization` sender det returnerede payload via Mimirs test-API.
+3. `Get teacher queue`, `Get first student request` og `Get second student request` viser resultatet.
+
+Kør først `Login/Teacher/Login` som normalt. Alle Development-kald bruger `gatewayUrl` og collectionens eksisterende cookie-login. Antallet af demostuderende sættes direkte som et tal i seed-kaldets JSON-body: `"studentCount": 6` (2–20). De to student-kald vælger hver sin demostuderende i Brunos cookiejar og bevarer teacher-login.
+Se [Development-vejledningen](Development/README.md) for opsætning og hele forløbet.
 
 ## Mapper
 
@@ -65,7 +76,7 @@ undervisere deler køen, mens hver reservation tilhører den underviser, der tog
 
 `teacherUsername` og `teacherPassword` følger det eksisterende setup.
 Et udfyldt password i Local har forrang; et tomt password bruger collectionens værdi.
-Alle Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `http://localhost:6004`.
+De almindelige Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `http://localhost:6004`.
 
 ## Session-variabler i Local
 
@@ -77,7 +88,7 @@ Alle Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `htt
 | `sessionGeneration` | Kopiér `currentGeneration` fra et session-svar; starter på 1 |
 | `helpRequestId` | Kopiér `id` fra CreateHelpRequest eller TakeNextHelpRequest |
 
-Variablerne udfyldes manuelt. Efter ClearSession opdateres `sessionGeneration` med den nye værdi fra svaret.
+Variablerne udfyldes manuelt ved normale kald. `Development/Seed FAQ demo` udfylder dem i det valgte miljø for testsessionen. Efter ClearSession opdateres `sessionGeneration` med den nye værdi fra svaret.
 
 ## Teacher
 

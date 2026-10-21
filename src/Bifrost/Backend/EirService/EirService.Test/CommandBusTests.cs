@@ -514,7 +514,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.Empty(_executionOrder);
     }
 
-    private sealed class RecordingRequestServices(List<string> executionOrder)
+    internal sealed class RecordingRequestServices(List<string> executionOrder)
         : IHelpRequestRepository, IUnitOfWork<IHelpRequestRepository>
     {
         public List<HelpRequest> Saved { get; } = [];

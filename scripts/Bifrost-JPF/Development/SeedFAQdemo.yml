@@ -1,0 +1,47 @@
+info:
+  name: Seed FAQ demo
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/development/seed'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "scenario": "faq-demo",
+        "studentCount": 6
+      }
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: bru.setVar("seedReady", false);
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          const data = res.body;
+          bru.setEnvVar("sessionId", data.session.id);
+          bru.setEnvVar("sessionCode", data.session.code);
+          bru.setEnvVar("sessionGeneration", String(data.session.currentGeneration));
+          bru.setEnvVar("helpRequestId", data.students[0].helpRequestId);
+          bru.setEnvVar("teacherSessionCode", data.session.teacherCode);
+          bru.setVar("generalizationPayload", JSON.stringify(data.generalization));
+          bru.setVar("firstHelpRequestId", data.students[0].helpRequestId);
+          bru.setVar("secondHelpRequestId", data.students[1].helpRequestId);
+          bru.setVar("firstStudentCookie", data.students[0].cookieHeader);
+          bru.setVar("secondStudentCookie", data.students[1].cookieHeader);
+          bru.setVar("seedReady", true);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '201'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: Run Login/Teacher/Login first. Reuses the existing gateway teacher cookie and creates a new demo session. Set studentCount directly in the JSON body (2-20, default 6). A failed HTTP response stays visible; session variables are updated only after HTTP 201.
