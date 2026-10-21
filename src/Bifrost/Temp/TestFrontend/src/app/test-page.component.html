@@ -65,28 +65,44 @@
         <div class="session-workspace">
           <app-student-help-requests *ngIf="!isTeacher" [view]="this" />
           <app-teacher-help-requests *ngIf="isTeacher" [view]="this" />
+          <section class="card faq-section" aria-labelledby="faq-title">
+            <div class="section-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div></div>
+            <p *ngIf="!faqs.length" class="hint">{{ isTeacher ? 'Generaliserede spørgsmål vises her og forrest i den fælles kø.' : 'Her vises fælles FAQ-svar fra underviserne.' }}</p>
+            <details *ngFor="let faq of faqs" class="faq-item">
+              <summary>{{ faq.question }} <span class="status">{{ faq.answer ? 'Besvaret' : 'Afventer svar' }}</span></summary>
+              <p class="hint">Fælles spørgsmål fra {{ faq.sourceCount }} hjælpeanmodninger.</p>
+              <p *ngIf="faq.answer" class="faq-answer">{{ faq.answer }}</p>
+              <button *ngIf="isTeacher" class="text-button" (click)="openRequest(faq.id)" [disabled]="busy">{{ faq.answer ? 'Se FAQ-samtale' : 'Åbn FAQ-opgave' }}</button>
+            </details>
+          </section>
         </div>
         <section class="card conversation-panel" aria-labelledby="conversation-title">
           <ng-container *ngIf="conversation as request; else noConversation">
             <div class="section-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">{{ request.displayNumber }}</h2></div><span class="status" [attr.data-status]="request.status">{{ requestStatusLabel(request) }}</span></div>
-            <p class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }}</p>
+            <p class="hint">{{ request.isFaq ? 'Fælles FAQ-spørgsmål' : (request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp') }}</p>
             <p *ngIf="isTeacher && request.assignedTeacherId" class="assignment-label" [class.own-assignment]="isAssignedTeacher">{{ assignmentLabel(request) }}</p>
             <p *ngIf="!canAct" class="alert info">Denne anmodning er fra før sessionen blev ryddet. Samtalen kan stadig læses.</p>
             <p *ngIf="isTeacher && request.status === 'Pending' && !request.assignedTeacherId" class="hint">Tag den næste anmodning i køen for at starte hjælp eller svare.</p>
             <p *ngIf="isTeacher && canAct && request.assignedTeacherId && !isAssignedTeacher && (request.status === 'Pending' || request.status === 'Active')" class="alert info">En anden underviser hjælper med denne anmodning. Du kan læse samtalen.</p>
+            <p *ngIf="request.status === 'AwaitingFaq'" class="alert info">Dit spørgsmål indgår i et fælles FAQ-spørgsmål. Du får besked, når en underviser har svaret. Din oprindelige køplads bevares.</p>
+            <p *ngIf="!request.isFaq && selectedFaq" class="hint">Fælles spørgsmål: {{ selectedFaq.question }}</p>
             <ol class="conversation">
               <li *ngFor="let message of request.messages" [class.teacher-message]="message.authorRole === 'Teacher'">
-                <div class="message-meta"><strong>{{ message.authorRole === 'Teacher' ? 'Underviser' : 'Studerende' }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
+                <div class="message-meta"><strong>{{ message.authorRole === 'Teacher' ? 'Underviser' : (message.authorRole === 'System' ? 'Generaliseret spørgsmål' : 'Studerende') }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
                 <p>{{ message.text }}</p>
               </li>
             </ol>
+            <div *ngIf="canRespondToFaq" class="faq-confirmation">
+              <p>Hjælper det fælles FAQ-svar dig?</p>
+              <div class="actions"><button (click)="respondToFaq(true)" [disabled]="busy">Ja, afslut min anmodning</button><button class="secondary" (click)="respondToFaq(false)" [disabled]="busy">Nej, tilbage i køen</button></div>
+            </div>
             <div class="actions" *ngIf="isTeacher && isAssignedTeacher && canAct && request.helpType === 'Physical'">
               <button *ngIf="request.status === 'Pending'" (click)="changeStatus('Start')" [disabled]="busy || !canStart">Start fysisk hjælp</button>
               <button *ngIf="request.status === 'Active'" (click)="changeStatus('Complete')" [disabled]="busy || !canComplete">Afslut fysisk hjælp</button>
             </div>
             <form *ngIf="(!isTeacher || request.helpType === 'Digital') && canSendMessage" #replyForm="ngForm" (ngSubmit)="sendMessage()" class="reply-form">
               <label for="reply-text">{{ isTeacher ? 'Dit svar' : 'Ny besked til underviseren' }}</label>
-              <p class="hint">{{ isTeacher ? 'Når du sender dit svar, afsluttes anmodningen.' : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
+              <p class="hint">{{ isTeacher ? (request.isFaq ? 'Svaret gemmes som FAQ og sendes til de tilknyttede studerende.' : 'Når du sender dit svar, afsluttes anmodningen.') : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
               <textarea id="reply-text" name="replyText" [(ngModel)]="replyText" rows="4" maxlength="4000" required [disabled]="busy" placeholder="Skriv din besked …"></textarea>
               <button type="submit" [disabled]="busy || replyForm.invalid || !replyText.trim()">{{ isTeacher ? 'Send svar og afslut' : 'Send besked' }}</button>
             </form>
@@ -96,6 +112,11 @@
           <ng-template #noConversation><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">Her vises din samtale</h2><p class="hint">{{ selectedRequestId && refreshing ? 'Henter samtalen …' : (isTeacher ? 'Tag næste anmodning, eller åbn en samtale fra køen.' : 'Opret en hjælpeanmodning, eller vælg en af dine samtaler.') }}</p></ng-template>
         </section>
       </div>
+      <details *ngIf="isTeacher" class="session-settings"><summary>Test af Mimir-generalisering</summary>
+        <p>Send JSON-dataene til Mimirs test-API: <code>POST /api/test/generalizations</code> (normalt port 6002).</p>
+        <pre *ngIf="canTestGeneralization" class="test-payload">{{ generalizationExample }}</pre>
+        <p *ngIf="!canTestGeneralization">Opret mindst to ledige anmodninger fra forskellige studenterprofiler for at få et eksempel.</p>
+      </details>
       <details *ngIf="isTeacher" class="session-settings"><summary>Sessionindstillinger</summary><p>Ryd køen og de aktuelle hjælpeanmodninger for alle undervisere. Alle deltagere forbliver tilmeldt.</p><button class="secondary danger" (click)="clearSession()" [disabled]="busy">Ryd session</button></details>
       <p class="live-note"><span class="live-dot" aria-hidden="true"></span>Opdateres automatisk <span *ngIf="refreshing">· Henter …</span></p>
     </ng-container>

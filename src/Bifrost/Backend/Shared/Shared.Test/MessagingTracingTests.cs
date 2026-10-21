@@ -142,6 +142,7 @@ public sealed class MessagingTracingTests : IDisposable
         Assert.Same(error, thrown);
         Assert.Same(subscription, Activity.Current);
         Assert.Equal(0, ((AcknowledgementChannel)(object)channel).Acknowledgements);
+        Assert.Equal(1, ((AcknowledgementChannel)(object)channel).Rejections);
         var process = Assert.Single(_completed);
         Assert.Equal(ActivityStatusCode.Error, process.Status);
         Assert.Equal(typeof(InvalidOperationException).FullName, process.GetTagItem("error.type"));
@@ -166,6 +167,7 @@ public sealed class MessagingTracingTests : IDisposable
 
         Assert.False(handlerCalled);
         Assert.Equal(0, ((AcknowledgementChannel)(object)channel).Acknowledgements);
+        Assert.Equal(1, ((AcknowledgementChannel)(object)channel).Rejections);
         Assert.Equal(ActivityStatusCode.Error, Assert.Single(_completed).Status);
     }
 
@@ -201,10 +203,19 @@ public sealed class MessagingTracingTests : IDisposable
     public class AcknowledgementChannel : DispatchProxy
     {
         public int Acknowledgements { get; private set; }
+        public int Rejections { get; private set; }
         public List<Activity?> AckActivities { get; } = [];
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod?.Name == nameof(IChannel.BasicNackAsync))
+            {
+                Assert.Equal(42UL, args?[0]);
+                Assert.Equal(false, args?[1]);
+                Assert.Equal(true, args?[2]);
+                Rejections++;
+                return ValueTask.CompletedTask;
+            }
             Assert.Equal(nameof(IChannel.BasicAckAsync), targetMethod?.Name);
             Assert.Equal(42UL, args?[0]);
             Assert.Equal(false, args?[1]);

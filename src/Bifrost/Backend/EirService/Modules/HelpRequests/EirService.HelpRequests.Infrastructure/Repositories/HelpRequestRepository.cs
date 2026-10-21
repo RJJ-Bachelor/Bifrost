@@ -24,14 +24,22 @@ public sealed class HelpRequestRepository(
     public async Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
         await dbContext.Requests.AsNoTracking().Include(request => request.Messages)
             .Where(request => request.SessionId == sessionId && request.Generation == generation)
-            .OrderByDescending(request => request.ReturnedToQueueAt.HasValue)
+            .OrderByDescending(request => request.StudentId == null)
+            .ThenByDescending(request => request.ReturnedToQueueAt.HasValue)
             .ThenByDescending(request => request.ReturnedToQueueAt)
             .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
+        await dbContext.Requests.Include(request => request.Messages).Where(request => ids.Contains(request.Id)).ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
+        await dbContext.Requests.Include(request => request.Messages)
+            .Where(request => request.FaqAnswerId == faqId && request.StudentId != null).ToArrayAsync(cancellationToken);
 
     public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>
         dbContext.Requests.AnyAsync(request => request.SessionId == sessionId && request.Generation == generation &&
             request.StudentId == studentId && (request.Status == HelpRequestStatus.Pending ||
-            request.Status == HelpRequestStatus.Active || request.Status == HelpRequestStatus.AwaitingConfirmation), cancellationToken);
+            request.Status == HelpRequestStatus.Active || request.Status == HelpRequestStatus.AwaitingFaq || request.Status == HelpRequestStatus.AwaitingConfirmation), cancellationToken);
 
     public async Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken)
     {
@@ -41,7 +49,7 @@ public sealed class HelpRequestRepository(
             SELECT r.*, r.xmin FROM helprequests."HelpRequest" AS r
             WHERE r."SessionId" = {sessionId} AND r."Generation" = {generation}
                 AND r."Status" = 'Pending' AND r."AssignedTeacherId" IS NULL
-            ORDER BY r."ReturnedToQueueAt" DESC NULLS LAST, r."QueuedAt", r."Id"
+            ORDER BY (r."StudentId" IS NULL) DESC, r."ReturnedToQueueAt" DESC NULLS LAST, r."QueuedAt", r."Id"
             LIMIT 1 FOR UPDATE SKIP LOCKED
             """).ToListAsync(cancellationToken);
         var request = candidates.SingleOrDefault();

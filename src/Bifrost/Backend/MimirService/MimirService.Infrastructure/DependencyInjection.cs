@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddOutbox<MimirRequestDbContext>();
         services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
+        services.AddScoped<IGeneralizedMessagePublisher, OutboxGeneralizedMessagePublisher>();
         services.AddHostedService<HelpRequestMessageSubscriber>();
         services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
         services.AddHostedService<SessionUpdatedMessageSubscriber>();
@@ -42,8 +43,7 @@ public static class DependencyInjection
         services.AddOptions<GeminiOptions>()
             .Bind(configuration.GetSection(GeminiOptions.SectionName))
             .Validate(o => !string.IsNullOrWhiteSpace(o.ApiKey), "Gemini:ApiKey is not configured.")
-            .Validate(o => o.Models.Length > 0, "Gemini:Models must contain at least one model.")
-            .ValidateOnStart();
+            .Validate(o => o.Models.Length > 0, "Gemini:Models must contain at least one model.");
 
 #pragma warning disable EXTEXP0001
         services.AddHttpClient<ILlmClient, GeminiLlmClient>(client =>

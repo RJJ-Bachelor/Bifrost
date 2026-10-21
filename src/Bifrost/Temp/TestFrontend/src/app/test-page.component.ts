@@ -7,7 +7,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, Subscription, catchError, debounceTime, finalize, forkJoin, interval, merge, of, throwError, timeout } from 'rxjs';
 import { NotificationService } from './notification.service';
 import {
-  ClearSessionResult, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
+  ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
   HelpType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
@@ -34,6 +34,7 @@ export class TestPageComponent {
   studentQueue: StudentQueue | null = null;
   teacherQueue: TeacherQueue | null = null;
   conversation: HelpRequest | null = null;
+  faqs: Faq[] = [];
   joinCode = this.route.snapshot.queryParamMap.get('code') ?? '';
   sessionTitle = '';
   showCreateSession = false;
@@ -53,6 +54,12 @@ export class TestPageComponent {
   private refreshQueued = false;
   private destroyed = false;
 
+  get generalizationExample() {
+    return JSON.stringify({ sessionId: this.sessionId, generation: this.session?.currentGeneration,
+      question: 'Hvordan løser vi det fælles problem?',
+      helpRequestIds: this.waitingRequests.filter(request => !request.isFaq).slice(0, 2).map(request => request.id) }, null, 2);
+  }
+  get canTestGeneralization() { return this.waitingRequests.filter(request => !request.isFaq).length >= 2; }
   get sessionCode() { return this.session && 'code' in this.session ? this.session.code : ''; }
   get teacherCode() { return this.session && 'teacherCode' in this.session ? this.session.teacherCode : ''; }
   get waitingRequests() { return (this.teacherQueue?.requests ?? []).filter(request => !request.assignedTeacherId); }
@@ -61,10 +68,14 @@ export class TestPageComponent {
   get myRequests() { return this.assignedRequests.filter(request => request.assignedTeacherId === this.identity?.userId); }
   get otherTeacherRequests() { return this.assignedRequests.filter(request => request.assignedTeacherId !== this.identity?.userId); }
   get hasOpenRequest() {
-    return this.requests.some(request => ['Pending', 'Active', 'AwaitingConfirmation'].includes(request.status));
+    return this.requests.some(request => ['Pending', 'Active', 'AwaitingFaq', 'AwaitingConfirmation'].includes(request.status));
   }
   get canAct() { return !!this.conversation && this.conversation.generation === this.session?.currentGeneration; }
   get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
+  get canRespondToFaq() {
+    return !this.isTeacher && this.canAct && this.conversation?.status === 'AwaitingConfirmation';
+  }
+  get selectedFaq() { return this.faqs.find(faq => faq.id === this.conversation?.faqAnswerId); }
   get canStart() {
     return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Pending';
   }
@@ -133,6 +144,7 @@ export class TestPageComponent {
     this.refreshSubscription = forkJoin({
       sessions: this.api.get<(SessionSummary | TeacherSession)[]>(this.role + '/sessions'),
       session: this.sessionId ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
+      faqs: this.sessionId ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
       queue: this.sessionId ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
       requests: this.sessionId && !this.isTeacher
         ? optional(this.api.get<HelpRequestSummary[]>('students/requests?sessionId=' + this.sessionId)) : of(null),
@@ -149,6 +161,7 @@ export class TestPageComponent {
         this.session = data.session;
         this.sessionUnavailable = !!this.sessionId && !data.session;
         this.requests = data.requests ?? [];
+        this.faqs = data.faqs ?? [];
         this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
         this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
         this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
@@ -221,6 +234,14 @@ export class TestPageComponent {
     });
   }
 
+  respondToFaq(accept: boolean) {
+    if (!this.canRespondToFaq) return;
+    this.execute(this.api.patch<HelpRequest>('students/requests/' + this.selectedRequestId + '/faq', { accept }), request => {
+      this.conversation = request;
+      this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.' : 'Du er tilbage i køen med din oprindelige køplads.';
+    });
+  }
+
   changeStatus(action: HelpRequestAction) {
     if (action === 'Start' && !this.canStart || action === 'Complete' && !this.canComplete || action === 'Cancel' && !this.canCancel) return;
     this.execute(this.api.patch<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/status', { action }), request => {
@@ -262,7 +283,7 @@ export class TestPageComponent {
   }
 
   statusLabel(status: string) {
-    return ({ Pending: 'Venter', Active: 'I gang', AwaitingConfirmation: 'Afventer dig', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
+    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'Afventer dig', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
   }
 
   private execute<T>(request: Observable<T>, success: (body: T) => void) {

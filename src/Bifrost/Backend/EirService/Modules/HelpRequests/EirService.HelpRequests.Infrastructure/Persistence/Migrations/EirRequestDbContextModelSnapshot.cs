@@ -72,7 +72,6 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<string>("StudentId")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -92,7 +91,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                     b.HasIndex("SessionId", "Generation", "StudentId")
                         .IsUnique()
                         .HasDatabaseName("IX_HelpRequest_OneOpenPerStudent")
-                        .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingConfirmation')");
+                        .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingFaq', 'AwaitingConfirmation')");
 
                     b.HasIndex("SessionId", "Generation", "ReturnedToQueueAt", "QueuedAt", "Id")
                         .IsDescending(false, false, true, false, false)

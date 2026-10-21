@@ -1,4 +1,5 @@
 using Shared.Api.Authentication;
+using MimirService.Api.Endpoints.Test;
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
 using Shared.Infrastructure.Persistence.Migrations;
@@ -34,6 +35,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapGeneralizationTestApi();
         }
 
         app.UseHttpsRedirection();

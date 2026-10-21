@@ -34,6 +34,9 @@ using EirService.Sessions.Domain.ValueObjects;
 using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Sessions.Infrastructure.Repositories;
+using EirService.KnowledgeBase.Infrastructure;
+using EirService.KnowledgeBase.Infrastructure.Persistence;
+using EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -119,6 +122,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddHelpRequestsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
         builder.Services.RemoveAll<IHostedService>();
         builder.Services.RemoveAll<IMessageBus>();
         builder.Services.AddSingleton<IMessageBus>(bus);
@@ -128,7 +132,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         {
             options.DisableAutoDiscovery = true;
             options.Assemblies = [typeof(Api.Program).Assembly, typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly];
+                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly, typeof(GetSessionFaqsQueryHandler).Assembly];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
@@ -157,6 +161,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
             await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAtStartupAsync();
             await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartupAsync();
             await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartupAsync();
+            await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Database.MigrateAtStartupAsync();
         }
         app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();
@@ -494,12 +499,12 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var session = await CreateAsync();
         using var clear = await ClearAsync(session.Id, 1);
         var logger = new RecordingLogger<GeneralizedMessageHandler>();
-        var handler = new GeneralizedMessageHandler(logger);
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"), new(TestIds.From("late"), session.Id, 1, "Old answer")), CancellationToken.None);
-        Assert.Contains("Discarded", Assert.Single(logger.Messages));
-        logger.Messages.Clear();
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("new"), new(TestIds.From("new"), session.Id, 2, "New answer")), CancellationToken.None);
-        Assert.Contains("New answer", Assert.Single(logger.Messages));
+        await using var scope = app.Services.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<GeneralizedMessageHandler>(scope.ServiceProvider, logger);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"),
+            new(TestIds.From("late"), session.Id, 1, "Old question", [Guid.NewGuid(), Guid.NewGuid()])), CancellationToken.None);
+        Assert.Contains("obsolete", Assert.Single(logger.Messages));
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.ToArrayAsync());
     }
 
     [PostgresFact]
@@ -1044,8 +1049,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var secondScope = app.Services.CreateAsyncScope();
         var first = (await firstScope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().GetAsync(id, CancellationToken.None))!;
         var second = (await secondScope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().GetAsync(id, CancellationToken.None))!;
-        first.AddStudentMessage(first.StudentId, new EirService.HelpRequests.Domain.ValueObjects.MessageText("First update"), clock.Now);
-        second.AddStudentMessage(second.StudentId, new EirService.HelpRequests.Domain.ValueObjects.MessageText("Second update"), clock.Now);
+        first.AddStudentMessage(first.StudentId!, new EirService.HelpRequests.Domain.ValueObjects.MessageText("First update"), clock.Now);
+        second.AddStudentMessage(second.StudentId!, new EirService.HelpRequests.Domain.ValueObjects.MessageText("Second update"), clock.Now);
         await firstScope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync();
         await Assert.ThrowsAsync<EirService.Contracts.Exceptions.OperationConflictException>(() =>
             secondScope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync());

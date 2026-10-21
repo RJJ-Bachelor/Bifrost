@@ -12,8 +12,9 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public Guid SessionId { get; private set; }
     public int Generation { get; private set; }
     public int RequestNumber { get; private set; }
-    public string DisplayNumber => $"BF-{RequestNumber:D3}";
-    public string StudentId { get; private set; } = null!;
+    public string DisplayNumber => $"{(IsFaq ? "FAQ" : "BF")}-{RequestNumber:D3}";
+    public string? StudentId { get; private set; }
+    public bool IsFaq => StudentId is null;
     public HelpType HelpType { get; private set; }
     public HelpRequestStatus Status { get; private set; }
     public string? AssignedTeacherId { get; private set; }
@@ -24,7 +25,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public DateTimeOffset? ClosedAt { get; private set; }
     public Guid? FaqAnswerId { get; private set; }
     public IReadOnlyCollection<HelpRequestMessage> Messages => messages.AsReadOnly();
-    public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or HelpRequestStatus.AwaitingConfirmation;
+    public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or HelpRequestStatus.AwaitingFaq or HelpRequestStatus.AwaitingConfirmation;
 
     public static HelpRequest Create(Guid sessionId, int generation, string studentId,
         HelpType helpType, MessageText question, DateTimeOffset now)
@@ -41,6 +42,40 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         request.AddMessage(studentId, AuthorRole.Student, question, now);
         request.Changed("Created", now);
         return request;
+    }
+
+    public static HelpRequest CreateFaq(Guid faqId, Guid sessionId, int generation, MessageText question, DateTimeOffset now)
+    {
+        if (faqId == Guid.Empty || sessionId == Guid.Empty || generation < 1)
+            throw new ArgumentException("A FAQ id, session and generation are required.");
+        var request = new HelpRequest
+        {
+            Id = faqId, SessionId = sessionId, Generation = generation, FaqAnswerId = faqId,
+            HelpType = HelpType.Digital, Status = HelpRequestStatus.Pending,
+            CreatedAt = now.ToUniversalTime(), QueuedAt = now.ToUniversalTime()
+        };
+        request.AddMessage("mimir", AuthorRole.System, question, now);
+        request.Changed("FaqCreated", now);
+        return request;
+    }
+
+    public bool CanLinkToFaq => !IsFaq && Status == HelpRequestStatus.Pending && AssignedTeacherId is null && FaqAnswerId is null;
+
+    public void LinkToFaq(Guid faqId, DateTimeOffset now)
+    {
+        Require(CanLinkToFaq && faqId != Guid.Empty, "Only unassigned waiting requests can join a FAQ.");
+        FaqAnswerId = faqId;
+        Status = HelpRequestStatus.AwaitingFaq;
+        Changed("FaqLinked", now);
+    }
+
+    public void SuggestFaq(Guid faqId, string teacherId, MessageText answer, DateTimeOffset now)
+    {
+        Require(!IsFaq && Status == HelpRequestStatus.AwaitingFaq && FaqAnswerId == faqId,
+            "The request is not awaiting this FAQ.");
+        AddMessage(teacherId, AuthorRole.Teacher, answer, now);
+        Status = HelpRequestStatus.AwaitingConfirmation;
+        Changed("FaqSuggested", now);
     }
 
     public void Reserve(string teacherId, DateTimeOffset now)
@@ -109,7 +144,6 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         }
     }
 
-    // Prepared transitions; FAQ suggestions and KnowledgeBase integration are not enabled yet.
     public void AcceptFaq(string studentId, DateTimeOffset now)
     {
         RequireFaqConfirmation(studentId);
@@ -148,7 +182,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         AssignedTeacherId = null;
         StartedAt = null;
         ClosedAt = null;
-        FaqAnswerId = null;
+        if (!IsFaq) FaqAnswerId = null;
     }
 
     private void Changed(string change, DateTimeOffset now) =>

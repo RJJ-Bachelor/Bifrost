@@ -29,7 +29,7 @@ export interface ClearSessionResult {
 }
 
 export type HelpType = 'Physical' | 'Digital';
-export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'Completed' | 'Cancelled';
+export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'Completed' | 'Cancelled' | 'AwaitingFaq';
 export type HelpRequestAction = 'Start' | 'Complete' | 'Cancel';
 
 export interface HelpRequestSummary {
@@ -48,7 +48,7 @@ export interface HelpRequestMessage {
   id: string;
   helpRequestId: string;
   authorId: string;
-  authorRole: 'Student' | 'Teacher';
+  authorRole: 'Student' | 'Teacher' | 'System';
   text: string;
   createdAt: string;
   sequenceNumber: number;
@@ -60,7 +60,8 @@ export interface HelpRequest {
   displayNumber: string;
   sessionId: string;
   generation: number;
-  studentId: string;
+  studentId: string | null;
+  isFaq: boolean;
   helpType: HelpType;
   status: HelpRequestStatus;
   assignedTeacherId: string | null;
@@ -90,6 +91,17 @@ export interface TeacherQueue {
   waitingCount: number;
   requests: HelpRequest[];
   activeRequests: HelpRequest[];
+}
+
+export interface Faq {
+  id: string;
+  sessionId: string;
+  generation: number;
+  question: string;
+  answer: string | null;
+  sourceCount: number;
+  createdAt: string;
+  answeredAt: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

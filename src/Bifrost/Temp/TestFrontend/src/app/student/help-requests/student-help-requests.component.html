@@ -1,5 +1,5 @@
 <section *ngIf="view.studentQueue as queue" class="queue-summary card">
-  <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : 'Du står ikke i ventekøen' }}</p></div>
+  <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : (queue.ownRequestId ? 'Din anmodning afventer hjælp eller et fælles svar' : 'Du står ikke i ventekøen') }}</p></div>
   <div class="queue-summary-side"><strong>{{ queue.waitingCount }}</strong><span>ventende</span><button *ngIf="queue.ownRequestId" class="text-button" (click)="view.openRequest(queue.ownRequestId)" [disabled]="view.busy">{{ queue.displayNumber }} →</button></div>
 </section>
 <section class="card">

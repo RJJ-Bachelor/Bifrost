@@ -545,6 +545,10 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.SessionId == sessionId && request.Generation == generation)
                 .OrderByDescending(request => request.ReturnedToQueueAt)
                 .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
+        public Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => ids.Contains(request.Id)).ToArray());
+        public Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => !request.IsFaq && request.FaqAnswerId == faqId).ToArray());
         public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>
             Task.FromResult(Saved.Any(request => request.SessionId == sessionId && request.Generation == generation && request.StudentId == studentId && request.IsOpen));
         public Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken) =>

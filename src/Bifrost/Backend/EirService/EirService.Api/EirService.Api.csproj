@@ -26,6 +26,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Modules/KnowledgeBase/EirService.KnowledgeBase.Infrastructure/EirService.KnowledgeBase.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Endpoints\Teacher\" />
   </ItemGroup>
 

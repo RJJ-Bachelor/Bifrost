@@ -163,6 +163,8 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
             catch (Exception exception)
             {
                 MessageBusTelemetry.RecordException(activity, exception);
+                // Failed consumers must release the delivery for retry, rather than leave it unacknowledged until reconnect.
+                await channel.BasicNackAsync(eventArgs.DeliveryTag, multiple: false, requeue: true, cancellationToken);
                 throw;
             }
         }

@@ -13,11 +13,11 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Requests.AnyAsync(existing => existing.Id == id, cancellationToken);
 
-    public async Task<bool> TryAddAsync(HelpRequest request, OutgoingMessage reply, CancellationToken cancellationToken)
+    public async Task<bool> TryAddAsync(HelpRequest request, OutgoingMessage? reply, CancellationToken cancellationToken)
     {
         if (await dbContext.Requests.AnyAsync(existing => existing.Id == request.Id, cancellationToken)) return false;
         dbContext.Requests.Add(request);
-        dbContext.Outbox.Add(OutboxMessage.Create(reply, timeProvider.GetUtcNow()));
+        if (reply is not null) dbContext.Outbox.Add(OutboxMessage.Create(reply, timeProvider.GetUtcNow()));
         try
         {
             await dbContext.SaveChangesAsync(cancellationToken);

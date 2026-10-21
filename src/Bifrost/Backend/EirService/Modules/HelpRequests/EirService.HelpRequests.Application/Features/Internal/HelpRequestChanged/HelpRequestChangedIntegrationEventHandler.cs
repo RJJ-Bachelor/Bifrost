@@ -47,12 +47,28 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
                             : "Køen er opdateret. Der er en opfølgende besked.");
             }
         }
+        if (change.Change == "FaqCreated")
+        {
+            await using var scope = scopeFactory.CreateAsyncScope();
+            var sessions = scope.ServiceProvider.GetRequiredService<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>>();
+            var session = await sessions.ExecuteAsync(new GetHelpRequestSessionQuery(request.SessionId), cancellationToken);
+            if (session is not null && session.Generation == request.Generation)
+                foreach (var teacherId in session.TeacherIds)
+                    Notify(teacherId, "Der er kommet et nyt generaliseret FAQ-spørgsmål i køen.");
+        }
+        if (change.Change == "FaqSuggested")
+            Notify(request.StudentId, "Der er kommet et fælles FAQ-svar. Bekræft om det hjælper dig.");
         if (change.Change == "Started")
             Notify(request.StudentId, $"Det er din tur til fysisk hjælp. {request.DisplayNumber}.");
         if (change.Change == "Answered")
         {
             var messages = request.Messages.OrderBy(message => message.SequenceNumber).ToArray();
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+            if (request.IsFaq)
+                notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+                    new FaqAnsweredMessage(request.Id, request.SessionId, request.Generation,
+                        messages[^1].Text.Value, request.AssignedTeacherId!, change.OccurredAt),
+                    MessageRoutes.Requests, MessageRoutes.FaqAnswered));
+            else notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,
                     messages[^2].Text.Value, messages[^1].Text.Value),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered));
@@ -60,9 +76,13 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         }
 
         // Each recipient needs a separate message id for downstream inbox deduplication.
-        void Notify(string userId, string message) => notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
-            new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
-                request.Id, change.Change, request.Status.ToString()),
-            MessageRoutes.Notifications, MessageRoutes.NotificationCreated));
+        void Notify(string? userId, string message)
+        {
+            if (userId is null) return;
+            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
+                new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
+                    request.Id, change.Change, request.Status.ToString()),
+                MessageRoutes.Notifications, MessageRoutes.NotificationCreated));
+        }
     }
 }

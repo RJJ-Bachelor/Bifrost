@@ -1,0 +1,109 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Text.Json;
+using RabbitMQ.Client;
+using EirService.HelpRequests.Infrastructure.Persistence;
+using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.KnowledgeBase.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using MimirService.Application.Services.Messaging;
+using MimirService.Infrastructure;
+using MimirService.Infrastructure.Persistence;
+using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
+using Shared.Infrastructure.Persistence.Outbox;
+using EirService.HelpRequests.Domain.Entities;
+
+namespace EirService.Test;
+
+public sealed partial class SessionIntegrationTests
+{
+    [OutboxBrokerFact]
+    public async Task DummyGeneralizationTravelsFromMimirOutboxThroughRabbitAndPersistsTheTeachersAnswer()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var second = await OtherStudentAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
+        var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["ConnectionStrings:mimir"] = connectionString,
+            ["ConnectionStrings:rabbitmq"] = Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")
+        }).Build();
+        var services = new ServiceCollection().AddLogging();
+        services.AddSingleton<IConfiguration>(configuration);
+        services.AddMimirInfrastructure(configuration);
+        await using var mimir = services.BuildServiceProvider();
+        var messageBus = mimir.GetRequiredService<IMessageBus>();
+        var prefix = "faq-test-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var answered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var deliveries = 0;
+            await using var generalized = await messageBus.SubscribeAsync<GeneralizedCreatedMessage>(prefix + "-created",
+                MessageRoutes.Requests, MessageRoutes.GeneralizedCreated, async (message, _) =>
+                {
+                    if (Interlocked.Increment(ref deliveries) == 1)
+                    {
+                        await using var scope = app.Services.CreateAsyncScope();
+                        await scope.ServiceProvider.GetRequiredService<FastEndpoints.ICommandHandler<EirService.Contracts.KnowledgeBase.RegisterGeneralization.RegisterGeneralizationCommand, bool>>()
+                            .ExecuteAsync(new(message.Payload.GeneralizationId, message.Payload.SessionId, message.Payload.Generation,
+                                message.Payload.Question, message.Payload.HelpRequestIds), CancellationToken.None);
+                        throw new IOException("Transient failure after persisting the canonical FAQ.");
+                    }
+                    await DeliverGeneralizationAsync(message.Payload);
+                    received.TrySetResult();
+                });
+            await using var answerSubscription = await messageBus.SubscribeAsync<FaqAnsweredMessage>(prefix + "-answered",
+                MessageRoutes.Requests, MessageRoutes.FaqAnswered, async (message, ct) =>
+                {
+                    await using var scope = app.Services.CreateAsyncScope();
+                    await scope.ServiceProvider.GetRequiredService<FaqAnsweredMessageHandler>().HandleAsync(message.Payload, ct);
+                    answered.TrySetResult();
+                });
+            await using var updates = await messageBus.SubscribeAsync<JsonElement>(prefix + "-updates", MessageRoutes.Requests,
+                MessageRoutes.HelpRequestUpdated, (_, _) => Task.CompletedTask);
+            await using var originals = await messageBus.SubscribeAsync<JsonElement>(prefix + "-originals", MessageRoutes.Requests,
+                MessageRoutes.HelpRequestCreated, (_, _) => Task.CompletedTask);
+            await using var notifications = await messageBus.SubscribeAsync<JsonElement>(prefix + "-notifications", MessageRoutes.Notifications,
+                MessageRoutes.NotificationCreated, (_, _) => Task.CompletedTask);
+            var payload = new GeneralizedCreatedMessage(Guid.NewGuid(), session.Id, 1, "Shared question", [firstId, secondId]);
+            await using (var scope = mimir.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
+                await db.Database.MigrateAsync();
+                await scope.ServiceProvider.GetRequiredService<IGeneralizedMessagePublisher>().PublishAsync(payload, CancellationToken.None);
+            }
+            var sender = ActivatorUtilities.CreateInstance<OutboxDispatcher<MimirRequestDbContext>>(mimir);
+            await sender.PublishPendingAsync(CancellationToken.None);
+            await received.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            Assert.Equal(2, deliveries);
+            using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+            Assert.Equal(payload.GeneralizationId, (await take.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
+            using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{payload.GeneralizationId}/messages", new { Text = "Shared answer" });
+            Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
+            var eirSender = new OutboxDispatcher<EirRequestDbContext>(app.Services.GetRequiredService<IServiceScopeFactory>(),
+                messageBus, clock, NullLogger<OutboxDispatcher<EirRequestDbContext>>.Instance);
+            await eirSender.PublishPendingAsync(CancellationToken.None);
+            await answered.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await using var verification = app.Services.CreateAsyncScope();
+            var faq = await verification.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.SingleAsync();
+            Assert.Equal("Shared answer", faq.Answer);
+            Assert.Equal(2, faq.HelpRequestIds.Count);
+        }
+        finally
+        {
+            // Bindings must not leak into other tests that deliberately publish without a bound route.
+            var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
+            await using var connection = await factory.CreateConnectionAsync();
+            await using var channel = await connection.CreateChannelAsync();
+            foreach (var suffix in new[] { "-created", "-answered", "-updates", "-originals", "-notifications" })
+                await channel.QueueDeleteAsync(prefix + suffix);
+        }
+    }
+}

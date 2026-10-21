@@ -22,12 +22,14 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
             entity.Property(request => request.Id).ValueGeneratedNever();
             // A BEFORE INSERT trigger allocates the number within the insert transaction.
             entity.Property(request => request.RequestNumber).HasDefaultValue(0).ValueGeneratedOnAdd();
-            entity.Property(request => request.StudentId).HasMaxLength(100).IsRequired();
+            entity.Property(request => request.StudentId).HasMaxLength(100);
             entity.Property(request => request.AssignedTeacherId).HasMaxLength(100);
             entity.Property(request => request.HelpType).HasConversion<string>().HasMaxLength(20);
             entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(30);
             entity.Property<uint>("xmin").IsRowVersion();
             entity.Ignore(request => request.IsOpen);
+            entity.Ignore(request => request.IsFaq);
+            entity.Ignore(request => request.CanLinkToFaq);
             entity.Ignore(request => request.DisplayNumber);
             entity.HasIndex(request => new { request.SessionId, request.Generation, request.RequestNumber }).IsUnique();
             entity.HasMany(request => request.Messages).WithOne().HasForeignKey(message => message.HelpRequestId).OnDelete(DeleteBehavior.Cascade);
@@ -38,7 +40,7 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
                 .HasFilter("\"Status\" = 'Pending'");
             entity.HasIndex(request => new { request.SessionId, request.Generation, request.StudentId })
                 .IsUnique().HasDatabaseName("IX_HelpRequest_OneOpenPerStudent")
-                .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingConfirmation')");
+                .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingFaq', 'AwaitingConfirmation')");
         });
         modelBuilder.SharedTypeEntity<Dictionary<string, object>>("HelpRequestNumberCounter", entity =>
         {

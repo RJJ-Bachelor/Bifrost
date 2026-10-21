@@ -167,3 +167,12 @@ form > button { margin-top: 15px; }
   .session-code { font-size: 19px; }
   .queue-summary-side { padding-left: 12px; }
 }
+
+.faq-item { border-top: 1px solid var(--border, #dce4e0); padding: 1rem 0; }
+.faq-item summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.faq-item summary .status { margin-left: .5rem; }
+.faq-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+.faq-queue-item { border-left: 4px solid var(--accent, #25785a); }
+.faq-confirmation { margin: 1rem 0; padding: 1rem; background: #eff8f2; border-radius: 12px; }
+
+.test-payload { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }

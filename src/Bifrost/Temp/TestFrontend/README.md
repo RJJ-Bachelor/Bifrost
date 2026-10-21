@@ -40,3 +40,9 @@ API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udvi
 ## Build
 
 `npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. Projektet har ingen Jasmine/Karma-opsætning.
+
+## Generalisering og FAQ
+
+Underviserkøen viser generaliserede FAQ-spørgsmål foran almindelige anmodninger. Tag opgaven og svar på samme måde som ved digital hjælp. De tilknyttede studerende får svaret i deres samtale og kan acceptere eller afvise; afvisning bevarer deres køplads. Begge roller kan se besvarede FAQ'er i sessionens fælles oversigt.
+
+Brug **Test af Mimir-generalisering** i underviserens session til at kopiere JSON-data fra de første to ledige spørgsmål. Send dataene til Mimirs Development-endpoint `POST /api/test/generalizations` (normalt port 6002). Se [EirServices testvejledning](../../Backend/EirService/README.md) for hele forløbet. Mimir udfører endnu ikke automatisk gruppering.
