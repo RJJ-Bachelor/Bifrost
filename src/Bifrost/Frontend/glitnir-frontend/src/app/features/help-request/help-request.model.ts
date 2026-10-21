@@ -17,3 +17,7 @@ export interface HelpRequest {
   displayNumber: string;
   status: HelpRequestStatus;
 }
+
+export interface SessionQueue {
+  ownRequestId: string | null;
+}
