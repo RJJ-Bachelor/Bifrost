@@ -4,7 +4,13 @@
 </bifrost-topbar>
 
 <div class="page-container">
-  <bifrost-card title="Stil et spørgsmål"></bifrost-card>
+  <bifrost-card title="Stil et spørgsmål">
+    <bifrost-help-type-toggle
+      card-header-center
+      [value]="helpType()"
+      (valueChange)="helpType.set($event)"
+    />
+  </bifrost-card>
 
   <bifrost-card title="FAQ - Tjek her før du spørger..."></bifrost-card>
 
