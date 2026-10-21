@@ -1,7 +1,7 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
-import { Service, inject } from '@angular/core';
+import { Service, inject, signal, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Session } from '../session.model';
+import { Session, SessionStatus } from '../session.model';
 
 @Service()
 export class SessionApi {
@@ -35,6 +35,17 @@ export class SessionApi {
       method: 'GET',
       withCredentials: true,
     }));
+  }
+
+  getSessionStatus(id: () => string): Signal<SessionStatus> {
+    // TODO(BF-J7): replace with real endpoint when available.
+    // return httpResource<SessionStatus>(() => ({
+    //   url: `/api/students/sessions/${id()}/status`,
+    //   method: 'GET',
+    //   withCredentials: true,
+    // }), { defaultValue: { waitingCount: 0, estimatedWaitMinutes: 0 } });
+
+    return signal({ waitingCount: 4, estimatedWaitMinutes: 10 });
   }
 
   joinSession(code: string): Observable<Session> {
