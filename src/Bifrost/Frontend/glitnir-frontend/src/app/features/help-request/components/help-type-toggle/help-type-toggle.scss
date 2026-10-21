@@ -1,0 +1,53 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  gap: 2px;
+  background-color: var(--color-grey-100);
+  border-radius: var(--radius-pill);
+}
+
+.toggle__option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &--active {
+    background-color: var(--color-white);
+    color: var(--color-primary-dark);
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.icon {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+
+  &--physical {
+    mask-image: url('/raised-hand-icon.svg');
+    -webkit-mask-image: url('/raised-hand-icon.svg');
+  }
+
+  &--digital {
+    mask-image: url('/chat-icon.svg');
+    -webkit-mask-image: url('/chat-icon.svg');
+  }
+}
