@@ -10,6 +10,11 @@
       [value]="helpType()"
       (valueChange)="helpType.set($event)"
     />
+    <bifrost-message-form
+      [submitting]="submitting()"
+      [error]="submitError()"
+      (submitted)="onQuestionSubmitted($event)"
+    />
   </bifrost-card>
 
   <bifrost-card title="FAQ - Tjek her før du spørger..."></bifrost-card>
