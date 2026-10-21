@@ -4,3 +4,8 @@ export interface Session {
   currentGeneration: number;
   lastClearedAtUtc: string | null;
 }
+
+export interface SessionStatus {
+  waitingCount: number;
+  estimatedWaitMinutes: number;
+}
