@@ -29,6 +29,14 @@ export class SessionApi {
     );
   }
 
+  getStudentSession(id: () => string): HttpResourceRef<Session | undefined> {
+    return httpResource<Session>(() => ({
+      url: `/api/students/sessions/${id()}`,
+      method: 'GET',
+      withCredentials: true,
+    }));
+  }
+
   joinSession(code: string): Observable<Session> {
     return this.http.post<Session>(
       '/api/students/sessions/join',
