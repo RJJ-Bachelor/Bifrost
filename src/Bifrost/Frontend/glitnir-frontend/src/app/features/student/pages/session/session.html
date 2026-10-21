@@ -31,7 +31,9 @@
     }
   </bifrost-card>
 
-  <bifrost-card title="FAQ - Tjek her før du spørger..."></bifrost-card>
+  <bifrost-card title="FAQ - Tjek her før du spørger...">
+    <bifrost-faq-list [items]="faq()" />
+  </bifrost-card>
 
   <div class="session-columns">
     <bifrost-card title="Dine spørgsmål"></bifrost-card>
