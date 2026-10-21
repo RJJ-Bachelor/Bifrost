@@ -24,12 +24,20 @@ export class Session {
 
   protected readonly session = this.sessionApi.getStudentSession(() => this.id());
   protected readonly sessionTitle = computed(() => this.session.value()?.title ?? '');
+  protected readonly queue = this.helpRequestApi.getStudentQueue(() => this.id());
+  protected readonly hasOpenRequest = computed(
+    () => this.queue.value().ownRequestId !== null,
+  );
   protected readonly helpType = signal<HelpType>('physical');
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
 
   protected switchSession(): void {
     this.router.navigateByUrl('/');
+  }
+
+  protected goToQueue(): void {
+    this.router.navigate(['queue'], { relativeTo: this.route });
   }
 
   protected onQuestionSubmitted(message: string): void {

@@ -5,16 +5,30 @@
 
 <div class="page-container">
   <bifrost-card title="Stil et spørgsmål">
-    <bifrost-help-type-toggle
-      card-header-center
-      [value]="helpType()"
-      (valueChange)="helpType.set($event)"
-    />
-    <bifrost-message-form
-      [submitting]="submitting()"
-      [error]="submitError()"
-      (submitted)="onQuestionSubmitted($event)"
-    />
+    <ng-container card-header-center>
+      @if (!hasOpenRequest()) {
+        <bifrost-help-type-toggle
+          [value]="helpType()"
+          (valueChange)="helpType.set($event)"
+        />
+      }
+    </ng-container>
+    @if (hasOpenRequest()) {
+      <div class="session-open-request">
+        <p class="session-open-request__message">
+          Du har allerede et spørgsmål i køen.
+        </p>
+        <button class="btn btn--primary" (click)="goToQueue()">
+          Gå til køsiden
+        </button>
+      </div>
+    } @else {
+      <bifrost-message-form
+        [submitting]="submitting()"
+        [error]="submitError()"
+        (submitted)="onQuestionSubmitted($event)"
+      />
+    }
   </bifrost-card>
 
   <bifrost-card title="FAQ - Tjek her før du spørger..."></bifrost-card>
