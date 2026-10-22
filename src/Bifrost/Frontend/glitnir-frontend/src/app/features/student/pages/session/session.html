@@ -39,9 +39,19 @@
     <bifrost-card title="Dine spørgsmål">
       <bifrost-question-list
         [items]="requests.value()"
-        (questionSelected)="goToQueue()"
+        (questionSelected)="onQuestionSelected($event)"
       />
     </bifrost-card>
     <bifrost-card title="FAQ-Arkivet"></bifrost-card>
   </div>
 </div>
+
+<bifrost-dialog
+  [open]="selectedRequest() !== null"
+  title="Samtale"
+  (closed)="closeRequestDialog()"
+>
+  <p class="state-message">
+    Samtale-visning kommer her.
+  </p>
+</bifrost-dialog>

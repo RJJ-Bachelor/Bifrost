@@ -2,17 +2,18 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
+import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpTypeToggle } from '../../../help-request/components/help-type-toggle/help-type-toggle';
 import { QuestionList } from '../../../help-request/components/question-list/question-list';
 import { MessageForm } from '../../../help-request/components/message-form/message-form';
-import { HelpType } from '../../../help-request/help-request.model';
+import { HelpRequest, HelpType } from '../../../help-request/help-request.model';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
 
 @Component({
-  imports: [Topbar, Card, HelpTypeToggle, MessageForm, FaqList, QuestionList],
+  imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, QuestionList],
   selector: 'bifrost-student-session',
   styleUrl: './session.scss',
   templateUrl: './session.html',
@@ -40,6 +41,7 @@ export class Session {
   protected readonly helpType = signal<HelpType>('physical');
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
+  protected readonly selectedRequest = signal<HelpRequest | null>(null);
 
   protected switchSession(): void {
     this.router.navigateByUrl('/');
@@ -47,6 +49,18 @@ export class Session {
 
   protected goToQueue(): void {
     this.router.navigate(['queue'], { relativeTo: this.route });
+  }
+
+  protected onQuestionSelected(request: HelpRequest): void {
+    if (request.status === 'completed' && request.helpType === 'digital') {
+      this.selectedRequest.set(request);
+      return;
+    }
+    this.goToQueue();
+  }
+
+  protected closeRequestDialog(): void {
+    this.selectedRequest.set(null);
   }
 
   protected onQuestionSubmitted(message: string): void {
