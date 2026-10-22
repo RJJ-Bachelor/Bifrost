@@ -1,3 +1,9 @@
+.session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .session-open-request {
   display: flex;
   flex-direction: column;

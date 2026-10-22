@@ -33,6 +33,7 @@ export class Session {
     () => this.id(),
     () => this.session.value()?.currentGeneration ?? 0,
   );
+  protected readonly status = this.sessionApi.getSessionStatus(() => this.id());
   protected readonly requests = this.helpRequestApi.getStudentRequests(() => this.id());
   protected readonly queue = this.helpRequestApi.getStudentQueue(() => this.id());
   protected readonly hasOpenRequest = computed(

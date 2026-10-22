@@ -13,6 +13,10 @@
         />
       }
     </ng-container>
+    <div card-header class="session-status">
+      <span class="badge">{{ status().waitingCount }} i kø</span>
+      <span class="badge">ca. {{ status().estimatedWaitMinutes }} min</span>
+    </div>
     @if (hasOpenRequest()) {
       <div class="session-open-request">
         <p class="session-open-request__message">
