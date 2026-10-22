@@ -13,10 +13,13 @@ public sealed class GeneralizeHelpRequestsCommandHandler(
         GeneralizeHelpRequestsCommand command, CancellationToken cancellationToken)
     {
         await validator.ValidateAndThrowAsync(command, cancellationToken);
+        
         var id = command.GeneralizationId ?? Guid.NewGuid();
         var ids = command.HelpRequestIds!.Order().ToArray();
+
         await publisher.PublishAsync(new GeneralizedCreatedMessage(id, command.SessionId,
             command.Generation, Question, ids), cancellationToken);
+        
         return new GeneralizeHelpRequestsResult(id, command.SessionId, command.Generation, Question, ids);
     }
 }

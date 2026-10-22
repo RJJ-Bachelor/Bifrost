@@ -14,7 +14,7 @@ public sealed class HelpRequestMessageHandler(ILogger<HelpRequestMessageHandler>
         var payload = message.Payload;
         if (await requestRepository.ExistsAsync(payload.HelpRequestId, cancellationToken)) return;
         var request = HelpRequest.Create(payload.HelpRequestId, payload.SessionId, payload.Generation, payload.Message);
-        // Automatic grouping is implemented later. A single question is not a generalization.
+        
         if (await requestRepository.TryAddAsync(request, null, cancellationToken))
             logger.LogInformation("Mimir stored help request {HelpRequestId} for session {SessionId} generation {Generation}.",
                 payload.HelpRequestId, payload.SessionId, payload.Generation);

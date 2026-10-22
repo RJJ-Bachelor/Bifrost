@@ -20,7 +20,7 @@ public static class HelpRequestMapping
         request.StudentId, request.IsFaq, request.HelpType, request.Status,
         request.AssignedTeacherId, request.CreatedAt, request.QueuedAt, request.ReturnedToQueueAt,
         request.StartedAt, request.ClosedAt, request.FaqAnswerId,
-        request.Messages.OrderBy(message => message.SequenceNumber).Select(message => new HelpRequestMessageResult(
+        request.Messages.Where(message => !message.IsRejected).OrderBy(message => message.SequenceNumber).Select(message => new HelpRequestMessageResult(
             message.Id, message.HelpRequestId, message.AuthorId, message.AuthorRole, message.MessageType, message.Text.Value,
             message.CreatedAt, message.SequenceNumber)).ToArray());
 }

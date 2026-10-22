@@ -56,6 +56,8 @@ public sealed partial class CommandBusTests
         Assert.Equal(expected, request.Status);
         Assert.Equal(accept ? faqId : (Guid?)null, request.FaqAnswerId);
         Assert.Equal(3, request.Messages.Count);
+        Assert.Equal(accept ? 3 : 1, result.Messages.Count);
+        Assert.Equal(accept ? 0 : 2, request.Messages.Count(message => message.IsRejected));
     }
 
     [Fact]

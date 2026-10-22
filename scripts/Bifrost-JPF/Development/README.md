@@ -16,6 +16,9 @@
 10. **EirService → Teacher → KnowledgeBase → GetTeacherFaqs** viser alle sessionens fællesspørgsmål. **EirService → Student → KnowledgeBase → GetStudentFaqs** viser de besvarede spørgsmål for den aktuelle elevcookie. Begge bruger `sessionId` fra Local; svaret kan først ses i KnowledgeBase, når svar-eventet er leveret.
 
 De almindelige accept-/afvisningskald findes under **EirService → Student → HelpRequests → RespondToFaq**.
+Efter RejectFaq udelades det afviste FAQ-spørgsmål og FAQ-svar fra både svaret,
+GetQueue og elevens/underviserens samtale. De oprindelige beskeder og køpladsen bevares.
+Den fælles FAQ i KnowledgeBase kan stadig læses; accepterede FAQ-svar bevares i samtalen.
 Her bruges `studentHelpRequestId`, som gemmes automatisk for den aktuelle elevs anmodning. Development-varianterne
 vælger både ID og cookie automatisk til demoen.
 

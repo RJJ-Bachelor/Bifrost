@@ -20,7 +20,6 @@ public sealed partial class SessionIntegrationTests
     {
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-        await db.GetService<IMigrator>().MigrateAsync("20261022145938_AddHelpRequestMessageType");
         var sessionId = Guid.NewGuid();
         var faqId = Guid.NewGuid();
         var now = clock.Now;
@@ -94,6 +93,7 @@ public sealed partial class SessionIntegrationTests
             .Select(message => new { message.Id, message.HelpRequestId, message.AuthorId, message.AuthorRole,
                 message.MessageType, message.Text, message.CreatedAt, message.SequenceNumber }).ToArrayAsync();
 
+        await db.GetService<IMigrator>().MigrateAsync("20261022145938_AddHelpRequestMessageType");
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();
 

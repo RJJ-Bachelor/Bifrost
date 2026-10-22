@@ -56,7 +56,36 @@ public sealed class FaqDomainTests
         Assert.Equal(HelpRequestStatus.Pending, request.Status);
         Assert.Equal(Now, request.QueuedAt);
         Assert.Null(request.FaqAnswerId);
+        Assert.False(request.Messages.Single(message => message.MessageType == HelpRequestMessageType.StudentQuestion).IsRejected);
+        Assert.All(request.Messages.Where(message => message.MessageType is HelpRequestMessageType.FaqQuestion or HelpRequestMessageType.FaqAnswer),
+            message => Assert.True(message.IsRejected));
         request.Reserve("teacher", Now.AddMinutes(4));
+    }
+
+    [Fact]
+    public void EachRejectedFaqKeepsTheOriginalMessagesAndStableSequenceNumbers()
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        request.AddStudentMessage("student", new MessageText("Additional details"), Now);
+        var originals = request.Messages.ToArray();
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var id = Guid.NewGuid();
+            request.LinkToFaq(id, new MessageText("Shared question"), Now.AddMinutes(attempt + 1));
+            request.SuggestFaq(id, "teacher", new MessageText("Shared answer"), Now.AddMinutes(attempt + 1));
+            Assert.Equal(2, request.Messages.Count(message => !message.IsRejected &&
+                message.MessageType is HelpRequestMessageType.FaqQuestion or HelpRequestMessageType.FaqAnswer));
+
+            request.RejectFaq("student", Now.AddMinutes(attempt + 1));
+
+            Assert.Equal(originals, request.Messages.Where(message => !message.IsRejected).ToArray());
+            Assert.Equal(Now, request.QueuedAt);
+        }
+        Assert.Equal(Enumerable.Range(1, 6), request.Messages.Select(message => message.SequenceNumber));
+        request.Reserve("teacher", Now.AddMinutes(3));
+        request.Answer("teacher", new MessageText("Individual answer"), Now.AddMinutes(4));
+        Assert.Equal(7, request.Messages.Last().SequenceNumber);
+        Assert.False(request.Messages.Last().IsRejected);
     }
 
     [Fact]

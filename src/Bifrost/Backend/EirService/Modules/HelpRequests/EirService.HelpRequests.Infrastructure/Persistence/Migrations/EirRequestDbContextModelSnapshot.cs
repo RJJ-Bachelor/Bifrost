@@ -121,6 +121,11 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("HelpRequestId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsRejected")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("MessageType")
                         .IsRequired()
                         .HasMaxLength(30)

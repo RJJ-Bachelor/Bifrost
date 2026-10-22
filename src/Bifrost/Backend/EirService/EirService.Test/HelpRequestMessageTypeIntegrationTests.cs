@@ -48,8 +48,10 @@ public sealed partial class SessionIntegrationTests
         foreach (var (client, route) in new[] { (student, "students"), (teacher, "teachers") })
         {
             var json = await client.GetFromJsonAsync<JsonElement>($"/api/{route}/requests/{firstId}");
-            Assert.Equal(new[] { "StudentQuestion", "FaqQuestion", "FaqAnswer", "TeacherAnswer", "FollowUpQuestion", "TeacherAnswer" },
+            Assert.Equal(new[] { "StudentQuestion", "TeacherAnswer", "FollowUpQuestion", "TeacherAnswer" },
                 json.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("messageType").GetString()));
+            Assert.Equal(new[] { 1, 4, 5, 6 },
+                json.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
         }
         await using var scope = app.Services.CreateAsyncScope();
         var outgoing = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox

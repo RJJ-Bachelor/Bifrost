@@ -166,6 +166,12 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public void RejectFaq(string studentId, DateTimeOffset now)
     {
         RequireFaqConfirmation(studentId);
+        var question = messages.Where(message => message.MessageType == HelpRequestMessageType.FaqQuestion)
+            .MaxBy(message => message.SequenceNumber);
+        Require(question is not null, "The FAQ question is missing from the conversation.");
+        foreach (var message in messages.Where(message => message.SequenceNumber >= question!.SequenceNumber &&
+            message.MessageType is HelpRequestMessageType.FaqQuestion or HelpRequestMessageType.FaqAnswer))
+            message.RejectFaq();
         Status = HelpRequestStatus.Pending;
         FaqAnswerId = null;
         AssignedTeacherId = null;
