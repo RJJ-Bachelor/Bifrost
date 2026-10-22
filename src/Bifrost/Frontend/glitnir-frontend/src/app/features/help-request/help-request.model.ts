@@ -16,6 +16,9 @@ export interface HelpRequest {
   id: string;
   displayNumber: string;
   status: HelpRequestStatus;
+  message: string;
+  helpType: HelpType;
+  requestNumber: number;
 }
 
 export interface SessionQueue {
