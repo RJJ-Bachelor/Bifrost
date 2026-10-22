@@ -1,0 +1,32 @@
+info:
+  name: RejectFaq
+  type: http
+  seq: 2
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/students/requests/{{studentHelpRequestId}}/faq'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "accept": false
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Rejects the shared FAQ answer and returns the student's original request to Pending,
+  preserving its queue timestamp and removing the FAQ link.
+  studentHelpRequestId is saved automatically when creating or fetching the student's source request. The student cookie must own it.
+  Requires AwaitingConfirmation; run AcceptFaq or RejectFaq for a request, not both.
+  For the seeded demo, use Development/Reject second student FAQ for automatic cookie selection.

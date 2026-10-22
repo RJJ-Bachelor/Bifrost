@@ -1,7 +1,7 @@
 info:
   name: Get second student request
   type: http
-  seq: 4
+  seq: 6
 http:
   method: GET
   url: '{{gatewayUrl}}/api/students/requests/{{faqDemoSecondHelpRequestId}}'

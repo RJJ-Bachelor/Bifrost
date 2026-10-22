@@ -32,7 +32,7 @@ public sealed class ApplyGeneralizationCommandHandler(
 
         var question = new MessageText(command.Question.Trim());
         if (targets.ExistingFaq is not null)
-            return targets.ExistingFaq.Messages.SingleOrDefault(message => message.SequenceNumber == 1)?.Text == question;
+            return targets.ExistingFaq.Messages.SingleOrDefault(message => message.MessageType == HelpRequestMessageType.FaqQuestion)?.Text == question;
 
         var now = clock.GetUtcNow();
         foreach (var request in targets.Sources.Where(request => request.CanLinkToFaq))

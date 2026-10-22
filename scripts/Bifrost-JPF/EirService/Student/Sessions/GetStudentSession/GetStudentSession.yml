@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{gatewayUrl}}/api/students/sessions/b18446ff-e426-48cb-9c65-fa4f9f34993e"
+  url: "{{gatewayUrl}}/api/students/sessions/{{sessionId}}"
 
 settings:
   encodeUrl: true

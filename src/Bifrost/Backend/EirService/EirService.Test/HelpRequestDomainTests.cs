@@ -43,6 +43,8 @@ public sealed class HelpRequestDomainTests
         Assert.Null(request.ClosedAt);
         Assert.Null(request.StartedAt);
         Assert.Equal(new[] { 1, 2, 3 }, request.Messages.Select(message => message.SequenceNumber));
+        Assert.Equal(new[] { HelpRequestMessageType.StudentQuestion, HelpRequestMessageType.TeacherAnswer,
+            HelpRequestMessageType.FollowUpQuestion }, request.Messages.Select(message => message.MessageType));
         Assert.All(request.Messages, message => Assert.Equal(request.Id, message.HelpRequestId));
     }
 

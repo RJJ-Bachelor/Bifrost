@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
+const { createRequire } = require('node:module');
 const { test } = require('node:test');
 const yaml = require('js-yaml');
 const Bru = require('@usebruno/js/src/bru');
@@ -9,6 +10,7 @@ const BrunoRequest = require('@usebruno/js/src/bruno-request');
 const BrunoResponse = require('@usebruno/js/src/bruno-response');
 
 const collectionPath = path.resolve(__dirname, '..');
+const requireFromCollection = createRequire(path.join(collectionPath, 'package.json'));
 const read = name => yaml.load(fs.readFileSync(path.join(collectionPath, name), 'utf8'));
 const seed = read('Development/SeedFAQdemo.yml');
 const publish = read('MimirService/PublishGeneralization.yml');
@@ -37,7 +39,7 @@ function createBru(runtimeVariables = {}, envVariables = {}) {
 
 function run(document, type, context) {
   const script = document.runtime.scripts.find(script => script.type === type);
-  return vm.runInNewContext(script.code, context, { filename: document.info.name + '/' + type });
+  return vm.runInNewContext(script.code, { require: requireFromCollection, ...context }, { filename: document.info.name + '/' + type });
 }
 
 function response(status, data) {
@@ -72,8 +74,8 @@ for (const activeEnvironment of [true, false]) {
     assert.equal(runtime.firstStudentCookie, seedData.students[0].cookieHeader);
     assert.equal(runtime.secondStudentCookie, seedData.students[1].cookieHeader);
     assert.equal(environment.generalizationId, seedData.generalization.generalizationId);
-    assert.equal(runtime.sessionId, undefined);
-    assert.equal(runtime.sessionGeneration, undefined);
+    assert.equal(runtime.sessionId, seedData.session.id);
+    assert.equal(runtime.sessionGeneration, String(seedData.session.currentGeneration));
     for (const [file, expectedId] of [
       ['Development/Getteacherqueue.yml', seedData.session.id],
       ['Development/Getfirststudentrequest.yml', seedData.students[0].helpRequestId],
@@ -161,4 +163,65 @@ test('an incomplete seed response cannot mark the demo ready or overwrite existi
 
   assert.equal(runtime.seedReady, false);
   assert.equal(runtime.faqDemoGeneralizationId, seedData.generalization.generalizationId);
+});
+
+test('demo reserves and answers the FAQ, then responds with each source student identity', async () => {
+  const runtime = {};
+  const bru = createBru(runtime);
+  seedSuccessfully(bru);
+  const take = read('Development/TakeNextFaq.yml');
+  const answer = read('Development/AnswerFaq.yml');
+  const requestFor = document => new BrunoRequest({
+    method: document.http.method, url: bru.interpolate(document.http.url),
+    headers: { 'Content-Type': 'application/json' }, data: document.http.body?.data
+  });
+
+  assert.throws(() => run(answer, 'before-request', { bru, req: requestFor(answer) }), /Take next FAQ/);
+  run(take, 'before-request', { bru });
+  run(take, 'after-response', { bru, res: response(200, { id: seedData.generalization.generalizationId, isFaq: true }) });
+  const answerRequest = requestFor(answer);
+  run(answer, 'before-request', { bru, req: answerRequest });
+  assert.equal(answerRequest.getUrl(), `http://localhost:6004/api/teachers/requests/${seedData.generalization.generalizationId}/messages`);
+  assert.ok(answerRequest.getBody().text.length > 0);
+
+  const cookies = [
+    { key: 'bifrost-teacher', value: 'teacher-cookie' },
+    { key: 'bifrost-anonymous-user', value: 'previous-student' }
+  ];
+  bru.cookies = { jar: () => ({
+    getCookies: async () => [...cookies],
+    deleteCookie: async (_url, key) => cookies.splice(cookies.findIndex(cookie => cookie.key === key), 1),
+    setCookie: async (_url, cookie) => cookies.push(cookie)
+  }) };
+  for (const [file, studentIndex, accept] of [
+    ['Development/AcceptFirstStudentFaq.yml', 0, true],
+    ['Development/RejectSecondStudentFaq.yml', 1, false]
+  ]) {
+    const document = read(file);
+    const req = requestFor(document);
+    const script = document.runtime.scripts.find(script => script.type === 'before-request');
+    await vm.runInNewContext('(async () => {\n' + script.code + '\n})()', { bru, req, require: requireFromCollection });
+
+    assert.equal(req.getUrl(), `http://localhost:6004/api/students/requests/${seedData.students[studentIndex].helpRequestId}/faq`);
+    assert.equal(req.getBody().accept, accept);
+    assert.equal(req.getHeader('Cookie'), seedData.students[studentIndex].cookieHeader);
+    assert.equal(cookies.find(cookie => cookie.key === 'bifrost-anonymous-user').value, studentIndex === 0 ? 'first' : 'second');
+    assert.equal(cookies.find(cookie => cookie.key === 'bifrost-teacher').value, 'teacher-cookie');
+  }
+  assert.equal(runtime.helpRequestId, seedData.students[0].helpRequestId);
+});
+
+test('demo cannot answer an ordinary reserved request and a fresh seed clears the reservation', () => {
+  const runtime = {};
+  const bru = createBru(runtime);
+  seedSuccessfully(bru);
+  const take = read('Development/TakeNextFaq.yml');
+  const answer = read('Development/AnswerFaq.yml');
+  run(take, 'before-request', { bru });
+  run(take, 'after-response', { bru, res: response(200, { id: seedData.students[0].helpRequestId, isFaq: false }) });
+
+  assert.throws(() => run(answer, 'before-request', { bru }), /Take next FAQ/);
+
+  seedSuccessfully(bru);
+  assert.equal(runtime.faqDemoTakenRequestId, null);
 });

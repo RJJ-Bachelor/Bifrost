@@ -19,7 +19,9 @@ http:
 runtime:
   scripts:
     - type: before-request
-      code: bru.setVar("seedReady", false);
+      code: |-
+        bru.setVar("seedReady", false);
+        bru.setVar("faqDemoTakenRequestId", null);
     - type: after-response
       code: |-
         if (res.status === 201) {
@@ -42,9 +44,10 @@ runtime:
             firstHelpRequestId: data.students[0].helpRequestId,
             secondHelpRequestId: data.students[1].helpRequestId
           };
-          for (const [name, value] of Object.entries(variables)) {
-            bru.setEnvVar(name, value);
-          }
+          require("./lib/response-variables.cjs").captureSession(bru, data.session, { reset: true });
+          require("./lib/response-variables.cjs").save(bru, {
+            ...variables, studentHelpRequestId: variables.helpRequestId, teacherHelpRequestId: ""
+          });
           bru.setVar("faqDemoSessionId", variables.sessionId);
           bru.setVar("faqDemoGeneration", data.session.currentGeneration);
           bru.setVar("faqDemoGeneralizationId", variables.generalizationId);

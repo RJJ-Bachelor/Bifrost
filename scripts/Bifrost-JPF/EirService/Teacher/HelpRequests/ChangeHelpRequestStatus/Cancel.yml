@@ -4,7 +4,7 @@ info:
   seq: 3
 http:
   method: PATCH
-  url: '{{gatewayUrl}}/api/teachers/requests/{{helpRequestId}}/status'
+  url: '{{gatewayUrl}}/api/teachers/requests/{{teacherHelpRequestId}}/status'
   auth: null
   body:
     type: json

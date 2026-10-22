@@ -57,6 +57,7 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
             entity.Property(message => message.Id).ValueGeneratedNever();
             entity.Property(message => message.AuthorId).HasMaxLength(100).IsRequired();
             entity.Property(message => message.AuthorRole).HasConversion<string>().HasMaxLength(20);
+            entity.Property(message => message.MessageType).HasConversion<string>().HasMaxLength(30);
             entity.Property(message => message.Text).HasConversion(text => text.Value, value => new MessageText(value))
                 .HasMaxLength(MessageText.MaxLength).IsRequired();
             entity.HasIndex(message => new { message.HelpRequestId, message.SequenceNumber }).IsUnique();

@@ -1,0 +1,22 @@
+info:
+  name: GetTeacherFaqs
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/faqs'
+  auth: null
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Lists pending and answered FAQ/generalization questions for the current session generation.
+  Requires teacher login and membership of this session.
+  Use HelpRequests/TakeNextHelpRequest to reserve the shared queue item, then
+  HelpRequests/AnswerHelpRequest with the returned item id as helpRequestId.

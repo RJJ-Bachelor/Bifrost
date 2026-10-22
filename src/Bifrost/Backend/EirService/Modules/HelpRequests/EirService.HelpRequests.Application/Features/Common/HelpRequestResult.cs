@@ -10,7 +10,8 @@ public sealed record HelpRequestResult(
     IReadOnlyList<HelpRequestMessageResult> Messages);
 
 public sealed record HelpRequestMessageResult(
-    Guid Id, Guid HelpRequestId, string AuthorId, AuthorRole AuthorRole, string Text, DateTimeOffset CreatedAt, int SequenceNumber);
+    Guid Id, Guid HelpRequestId, string AuthorId, AuthorRole AuthorRole, HelpRequestMessageType MessageType,
+    string Text, DateTimeOffset CreatedAt, int SequenceNumber);
 
 public static class HelpRequestMapping
 {
@@ -20,6 +21,6 @@ public static class HelpRequestMapping
         request.AssignedTeacherId, request.CreatedAt, request.QueuedAt, request.ReturnedToQueueAt,
         request.StartedAt, request.ClosedAt, request.FaqAnswerId,
         request.Messages.OrderBy(message => message.SequenceNumber).Select(message => new HelpRequestMessageResult(
-            message.Id, message.HelpRequestId, message.AuthorId, message.AuthorRole, message.Text.Value,
+            message.Id, message.HelpRequestId, message.AuthorId, message.AuthorRole, message.MessageType, message.Text.Value,
             message.CreatedAt, message.SequenceNumber)).ToArray());
 }

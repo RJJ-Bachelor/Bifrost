@@ -9,7 +9,15 @@
 3. Sæt `studentCount` direkte i JSON-bodyen til et tal mellem 2 og 20 (standard 6), og send **Development → Seed FAQ demo**. Forvent `201 Created`. Ved en fejl vises den almindelige HTTP-status og response body; sessionsvariabler ændres kun ved succes.
 4. Åbn den nye session i test-frontenden med samme underviser. Svaret indeholder session-id, studenterkode og underviserkode. En anden underviser kan joine med underviserkoden.
 5. Send **MimirService → Publish generalization (dummy data)**, når du vil sende et fælles spørgsmål om de to første HelpRequests via Mimir. JSON-bodyen kan redigeres direkte, og seed-kaldet har udfyldt ID'erne. Forvent `202 Accepted`. Beskeden leveres asynkront gennem den normale outbox og RabbitMQ.
-6. Brug **Get teacher queue** eller opdater køen i frontenden. En underviser kan tage og besvare FAQ'en. **Get first student request** og **Get second student request** viser det generaliserede spørgsmål som en systembesked fra `mimir` og senere underviserens svar. Genlevering med samme generaliserings-id tilføjer ikke spørgsmålet igen.
+6. Brug **Get teacher queue**, indtil FAQ'en står først med `isFaq: true` og uden en tildelt underviser. Genlevering med samme generaliserings-id tilføjer ikke spørgsmålet igen.
+7. Kør **Take next FAQ** én gang og derefter **Answer FAQ** med samme teacher-login. Svaret kan redigeres direkte i JSON-bodyen. Answer-kaldet kontrollerer, at det reserverede ID er demoens FAQ.
+8. **Get first student request** og **Get second student request** viser nu det generaliserede spørgsmål, underviserens svar og status `AwaitingConfirmation`.
+9. Kør **Accept first student FAQ** og **Reject second student FAQ**. Kaldene vælger hver sin elevcookie og oprindelige anmodning. Første elev afsluttes med `Completed`, mens den anden vender tilbage til `Pending` i køen. Et nyt svar på samme anmodning giver `409`.
+10. **EirService → Teacher → KnowledgeBase → GetTeacherFaqs** viser alle sessionens fællesspørgsmål. **EirService → Student → KnowledgeBase → GetStudentFaqs** viser de besvarede spørgsmål for den aktuelle elevcookie. Begge bruger `sessionId` fra Local; svaret kan først ses i KnowledgeBase, når svar-eventet er leveret.
+
+De almindelige accept-/afvisningskald findes under **EirService → Student → HelpRequests → RespondToFaq**.
+Her bruges `studentHelpRequestId`, som gemmes automatisk for den aktuelle elevs anmodning. Development-varianterne
+vælger både ID og cookie automatisk til demoen.
 
 Heimdall har to proxy-routes, som kun konfigureres i `Development`:
 
@@ -39,12 +47,16 @@ Hver seed-kørsel opretter en ny session med nye studenterdeltagere og én HelpR
 
 Seed-servicen genbruger de eksisterende commands til sessioner, tilmelding og HelpRequests. Validering og beskedpublicering følger det normale flow. Hvis et senere command fejler, kan tidligere oprettede data fra kørslen være gemt; de kan slettes via den normale sessionsfunktion.
 
-Ved `201` udfyldes `sessionId`, `sessionCode`, `teacherSessionCode`, `sessionGeneration`, `helpRequestId`, `generalizationId`, `firstHelpRequestId` og `secondHelpRequestId` i det valgte miljø. De øvrige EirService-kald kan derefter bruge testsessionen.
+Ved `201` udfyldes `sessionId`, `sessionCode`, `teacherSessionCode`, `sessionGeneration`, `studentHelpRequestId`, `helpRequestId`, `generalizationId`, `firstHelpRequestId` og `secondHelpRequestId` både i runtime og i det valgte miljø. `teacherHelpRequestId` sættes ved reservationen. De øvrige EirService-kald kan derefter bruge testsessionen.
 
 FAQ-demoen gemmer også sine ID'er og generation som særskilte `faqDemo…`-runtime-variabler.
-Publish-kaldet og de tre Development-læsekald bruger disse værdier, så de også virker, når
+Demo-kaldene bruger disse værdier, så de også virker, når
 miljøvariabler ikke følger med til næste request. Cookies og `seedReady` gemmes også i runtime.
-De normale EirService-kald bruger fortsat miljøets egne session-variabler.
+De normale EirService-kald opsamler også sessioner og anmodninger automatisk gennem
+collectionens fælles response-script. Sessionsskift og ClearSession rydder gamle anmodnings-ID'er.
+
+**Take next FAQ** gemmer det faktisk reserverede ID som `faqDemoTakenRequestId`.
+Et nyt seed nulstiller værdien. **Answer FAQ** kræver, at dette ID matcher demoens generalisering.
 
 Student-kaldene vælger den relevante demo-cookie i Brunos normale cookiejar med en lille helper, ligesom teacher-login gør. Et efterfølgende almindeligt student-kald bruger derfor den sidst valgte demostuderende. Teacher-cookien bevares. Ryd studenter-cookien i Bruno, hvis du vil have en ny anonym studenteridentitet.
 
@@ -72,4 +84,4 @@ Dette er et separat forløb fra FAQ-demoen og opdaterer session-variablerne i Lo
 Til manuelle kald i en eksisterende session bruges
 `EirService/Student/HelpRequests/CreateHelpRequest/CreateDigitalRequest`.
 
-Se [generaliseringsflow og modulansvar](../../../docs/eir-generalization.md) for handlernes placering og ansvar.
+Se [FAQ-endpoints og brug af ID'er](../README.md#faq-og-generalisering) for de almindelige student- og teacher-kald.

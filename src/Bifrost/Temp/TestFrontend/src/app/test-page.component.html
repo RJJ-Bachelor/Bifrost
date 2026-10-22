@@ -88,7 +88,7 @@
             <p *ngIf="!request.isFaq && selectedFaq" class="hint">Fælles spørgsmål: {{ selectedFaq.question }}</p>
             <ol class="conversation">
               <li *ngFor="let message of request.messages" [class.teacher-message]="message.authorRole === 'Teacher'">
-                <div class="message-meta"><strong>{{ message.authorRole === 'Teacher' ? 'Underviser' : (message.authorRole === 'System' ? 'Generaliseret spørgsmål' : 'Studerende') }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
+                <div class="message-meta"><strong>{{ messageTypeLabels[message.messageType] }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
                 <p>{{ message.text }}</p>
               </li>
             </ol>

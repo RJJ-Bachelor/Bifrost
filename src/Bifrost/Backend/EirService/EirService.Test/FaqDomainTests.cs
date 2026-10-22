@@ -40,6 +40,7 @@ public sealed class FaqDomainTests
         var generalization = request.Messages.Last();
         Assert.Equal("Shared question", generalization.Text.Value);
         Assert.Equal(AuthorRole.System, generalization.AuthorRole);
+        Assert.Equal(HelpRequestMessageType.FaqQuestion, generalization.MessageType);
         Assert.Equal("mimir", generalization.AuthorId);
         Assert.Equal(2, generalization.SequenceNumber);
         Assert.Equal(Now.AddMinutes(1), generalization.CreatedAt);
@@ -49,6 +50,7 @@ public sealed class FaqDomainTests
         Assert.Throws<HelpRequestRuleException>(() => request.Reserve("teacher", Now));
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("student", Now));
         request.SuggestFaq(faqId, "teacher", new MessageText("Answer"), Now.AddMinutes(2));
+        Assert.Equal(HelpRequestMessageType.FaqAnswer, request.Messages.Last().MessageType);
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("other-student", Now));
         request.RejectFaq("student", Now.AddMinutes(3));
         Assert.Equal(HelpRequestStatus.Pending, request.Status);
@@ -95,5 +97,7 @@ public sealed class FaqDomainTests
         request.Reserve("other-teacher", Now);
         request.Answer("other-teacher", new MessageText("Answer"), Now);
         Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(new[] { HelpRequestMessageType.FaqQuestion, HelpRequestMessageType.FaqAnswer },
+            request.Messages.Select(message => message.MessageType));
     }
 }

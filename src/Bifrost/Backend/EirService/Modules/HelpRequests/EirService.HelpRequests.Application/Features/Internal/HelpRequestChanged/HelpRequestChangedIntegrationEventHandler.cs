@@ -25,7 +25,7 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated));
         if (change.Change == "Created")
         {
-            var text = request.Messages.OrderBy(message => message.SequenceNumber).First().Text.Value;
+            var text = request.Messages.Single(message => message.MessageType == HelpRequestMessageType.StudentQuestion).Text.Value;
             notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
                 new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, text),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestCreated));
@@ -63,14 +63,16 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         if (change.Change == "Answered")
         {
             var messages = request.Messages.OrderBy(message => message.SequenceNumber).ToArray();
+            var answer = messages.Last(message => message.MessageType is HelpRequestMessageType.TeacherAnswer or HelpRequestMessageType.FaqAnswer);
             if (request.IsFaq)
                 notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                     new FaqAnsweredMessage(request.Id, request.SessionId, request.Generation,
-                        messages[^1].Text.Value, request.AssignedTeacherId!, change.OccurredAt),
+                        answer.Text.Value, request.AssignedTeacherId!, change.OccurredAt),
                     MessageRoutes.Requests, MessageRoutes.FaqAnswered));
             else notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,
-                    messages[^2].Text.Value, messages[^1].Text.Value),
+                    messages.Last(message => message.MessageType is HelpRequestMessageType.StudentQuestion or HelpRequestMessageType.FollowUpQuestion).Text.Value,
+                    answer.Text.Value),
                 MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered));
             Notify(request.StudentId, "Der er kommet svar på din hjælpeanmodning.");
         }

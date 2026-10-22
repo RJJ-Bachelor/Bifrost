@@ -44,11 +44,14 @@ export interface HelpRequestSummary {
   helpType: HelpType;
 }
 
+export type HelpRequestMessageType = 'StudentQuestion' | 'FollowUpQuestion' | 'FaqQuestion' | 'FaqAnswer' | 'TeacherAnswer';
+
 export interface HelpRequestMessage {
   id: string;
   helpRequestId: string;
   authorId: string;
   authorRole: 'Student' | 'Teacher' | 'System';
+  messageType: HelpRequestMessageType;
   text: string;
   createdAt: string;
   sequenceNumber: number;

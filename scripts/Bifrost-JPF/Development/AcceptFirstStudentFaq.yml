@@ -1,0 +1,37 @@
+info:
+  name: Accept first student FAQ
+  type: http
+  seq: 7
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/students/requests/{{faqDemoFirstHelpRequestId}}/faq'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "accept": true
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("seedReady")) {
+          throw new Error("Run 'Seed FAQ demo' successfully first.");
+        }
+        await require("./lib/seed-student.cjs")(bru, req, "firstStudentCookie");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Selects the first demo student's cookie and accepts the answer on their own source request.
+  Run Answer FAQ first. The resulting request status is Completed.
+  The teacher cookie is preserved. Repeating a response returns 409.

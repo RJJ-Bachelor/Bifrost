@@ -971,6 +971,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
         Assert.Equal("Completed", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
+        Assert.Equal(new[] { "StudentQuestion", "TeacherAnswer" }, conversation.GetProperty("messages")
+            .EnumerateArray().Select(message => message.GetProperty("messageType").GetString()));
         clock.Now = clock.Now.AddMinutes(1);
         using var followUp = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Follow-up" });
         Assert.Equal(HttpStatusCode.OK, followUp.StatusCode);
@@ -979,6 +981,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var saved = await db.Requests.Include(request => request.Messages).SingleAsync(request => request.Id == id);
         Assert.Equal(HelpRequestStatus.Pending, saved.Status);
         Assert.Equal(new[] { 1, 2, 3 }, saved.Messages.OrderBy(message => message.SequenceNumber).Select(message => message.SequenceNumber));
+        Assert.Equal(HelpRequestMessageType.FollowUpQuestion, saved.Messages.Single(message => message.SequenceNumber == 3).MessageType);
         Assert.Contains(await db.Outbox.ToArrayAsync(), message => message.RoutingKey == MessageRoutes.HelpRequestAnswered);
         Assert.Empty(bus.Messages);
 

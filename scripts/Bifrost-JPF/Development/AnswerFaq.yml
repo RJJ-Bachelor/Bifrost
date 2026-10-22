@@ -1,0 +1,40 @@
+info:
+  name: Answer FAQ
+  type: http
+  seq: 4
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/requests/{{faqDemoGeneralizationId}}/messages'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "text": "Sørg for, at løkkens betingelse kan blive falsk, og opdater variablen inde i løkken."
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("seedReady")) {
+          throw new Error("Run 'Seed FAQ demo' successfully first.");
+        }
+        if (bru.getVar("faqDemoTakenRequestId") !== bru.getVar("faqDemoGeneralizationId")) {
+          throw new Error("Wait until the FAQ appears first in Get teacher queue, then run Take next FAQ with this teacher before answering.");
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Answers the seeded shared FAQ through the ordinary teacher message endpoint.
+  Run Take next FAQ first with the same teacher login. Edit text directly in the body.
+  Both linked student requests move to AwaitingConfirmation and receive this answer.
+  The reusable answer appears in KnowledgeBase after asynchronous event delivery.

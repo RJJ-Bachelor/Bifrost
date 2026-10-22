@@ -10,3 +10,8 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Reserves the next waiting request for the current teacher. Shared FAQ questions have priority.
+  The collection automatically saves the returned id as teacherHelpRequestId for GetHelpRequest, answers and status changes.
+  A FAQ has isFaq=true; it is answered through the same AnswerHelpRequest endpoint.
+  An empty queue returns 204. Development/Take next FAQ handles the seeded demo ids automatically.

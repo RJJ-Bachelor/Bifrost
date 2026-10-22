@@ -39,7 +39,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
             HelpType = helpType, Status = HelpRequestStatus.Pending,
             CreatedAt = now.ToUniversalTime(), QueuedAt = now.ToUniversalTime()
         };
-        request.AddMessage(studentId, AuthorRole.Student, question, now);
+        request.AddMessage(studentId, AuthorRole.Student, HelpRequestMessageType.StudentQuestion, question, now);
         request.Changed("Created", now);
         return request;
     }
@@ -54,7 +54,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
             HelpType = HelpType.Digital, Status = HelpRequestStatus.Pending,
             CreatedAt = now.ToUniversalTime(), QueuedAt = now.ToUniversalTime()
         };
-        request.AddMessage("mimir", AuthorRole.System, question, now);
+        request.AddMessage("mimir", AuthorRole.System, HelpRequestMessageType.FaqQuestion, question, now);
         request.Changed("FaqCreated", now);
         return request;
     }
@@ -64,7 +64,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public void LinkToFaq(Guid faqId, MessageText question, DateTimeOffset now)
     {
         Require(CanLinkToFaq && faqId != Guid.Empty, "Only unassigned waiting requests can join a FAQ.");
-        AddMessage("mimir", AuthorRole.System, question, now);
+        AddMessage("mimir", AuthorRole.System, HelpRequestMessageType.FaqQuestion, question, now);
         FaqAnswerId = faqId;
         Status = HelpRequestStatus.AwaitingFaq;
         Changed("FaqLinked", now);
@@ -74,7 +74,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     {
         Require(!IsFaq && Status == HelpRequestStatus.AwaitingFaq && FaqAnswerId == faqId,
             "The request is not awaiting this FAQ.");
-        AddMessage(teacherId, AuthorRole.Teacher, answer, now);
+        AddMessage(teacherId, AuthorRole.Teacher, HelpRequestMessageType.FaqAnswer, answer, now);
         Status = HelpRequestStatus.AwaitingConfirmation;
         Changed("FaqSuggested", now);
     }
@@ -108,7 +108,8 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     {
         RequireTeacher(teacherId);
         Require(HelpType == HelpType.Digital && Status == HelpRequestStatus.Pending, "Only waiting digital help can receive an answer.");
-        AddMessage(teacherId, AuthorRole.Teacher, text, now);
+        AddMessage(teacherId, AuthorRole.Teacher,
+            IsFaq ? HelpRequestMessageType.FaqAnswer : HelpRequestMessageType.TeacherAnswer, text, now);
         StartedAt = now.ToUniversalTime();
         Close(HelpRequestStatus.Completed, now);
         Changed("Answered", now);
@@ -119,7 +120,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         Require(StudentId == studentId, "The request belongs to another student.");
         Require(Status is HelpRequestStatus.Pending or HelpRequestStatus.Completed, "A message cannot be added while help is active, paused or cancelled.");
         Require(Status == HelpRequestStatus.Completed || AssignedTeacherId is null, "The request has already been reserved.");
-        AddMessage(studentId, AuthorRole.Student, text, now);
+        AddMessage(studentId, AuthorRole.Student, HelpRequestMessageType.FollowUpQuestion, text, now);
         ResetForQueue();
         QueuedAt = now.ToUniversalTime();
         ReturnedToQueueAt = null;
@@ -168,8 +169,8 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     private void RequireTeacher(string teacherId) => Require(
         !string.IsNullOrWhiteSpace(teacherId) && AssignedTeacherId == teacherId, "Take the request before helping the student.");
 
-    private void AddMessage(string authorId, AuthorRole role, MessageText text, DateTimeOffset now) =>
-        messages.Add(new HelpRequestMessage(Id, authorId, role, text, now, messages.Count + 1));
+    private void AddMessage(string authorId, AuthorRole role, HelpRequestMessageType messageType, MessageText text, DateTimeOffset now) =>
+        messages.Add(new HelpRequestMessage(Id, authorId, role, messageType, text, now, messages.Count + 1));
 
     private void Close(HelpRequestStatus status, DateTimeOffset now)
     {

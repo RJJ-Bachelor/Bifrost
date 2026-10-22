@@ -8,7 +8,7 @@ import { Observable, Subscription, catchError, debounceTime, finalize, forkJoin,
 import { NotificationService } from './notification.service';
 import {
   ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
-  HelpType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
+  HelpType, HelpRequestMessageType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
 import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-help-requests.component';
@@ -20,6 +20,13 @@ import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-he
 })
 export class TestPageComponent {
   readonly api = inject(HeimdallService);
+  readonly messageTypeLabels: Record<HelpRequestMessageType, string> = {
+    StudentQuestion: 'Studerendes spørgsmål',
+    FollowUpQuestion: 'Opfølgende spørgsmål',
+    FaqQuestion: 'Generaliseret FAQ-spørgsmål',
+    FaqAnswer: 'Fælles FAQ-svar fra underviser',
+    TeacherAnswer: 'Svar fra underviser'
+  };
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
