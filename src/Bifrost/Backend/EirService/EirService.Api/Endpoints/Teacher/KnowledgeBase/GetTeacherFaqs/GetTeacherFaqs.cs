@@ -1,6 +1,6 @@
 using EirService.Api.Authentication;
 using EirService.KnowledgeBase.Application.Features.Common;
-using EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
+using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using FastEndpoints;
 using EndpointTags = EirService.Api.Endpoints.Tags;
 

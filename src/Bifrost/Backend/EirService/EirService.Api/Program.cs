@@ -1,9 +1,10 @@
 using Shared.Api.Authentication;
 using EirService.Api.Development;
 using EirService.Api.Endpoints.Test.Seed;
+using EirService.KnowledgeBase.Application;
 using EirService.KnowledgeBase.Infrastructure;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
-using EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
+using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using System.Text.Json.Serialization;
 using EirService.HelpRequests.Application;
 using EirService.Api.Middleware;
@@ -42,6 +43,7 @@ public class Program
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
         builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseApplication();
         if (builder.Environment.IsDevelopment()) builder.Services.AddScoped<DevelopmentDataSeeder>();
 
         // Add services to the container.

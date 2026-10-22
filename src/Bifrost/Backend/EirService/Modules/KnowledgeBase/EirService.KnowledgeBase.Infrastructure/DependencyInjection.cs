@@ -1,7 +1,3 @@
-using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
-using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
-using EirService.Contracts.KnowledgeBase.RegisterGeneralization;
-using FastEndpoints;
 using EirService.KnowledgeBase.Application.Repositories;
 using EirService.KnowledgeBase.Infrastructure.Messaging;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
@@ -9,6 +5,7 @@ using EirService.KnowledgeBase.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.UnitOfWork;
 
 namespace EirService.KnowledgeBase.Infrastructure;
@@ -22,9 +19,9 @@ public static class DependencyInjection
         services.AddDbContext<EirKnowledgeBaseDbContext>(options => options.UseNpgsql(connectionString,
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "knowledgebase")));
         services.AddScoped<IFaqRepository, FaqRepository>();
-        services.AddScoped<ICommandHandler<RegisterGeneralizationCommand, bool>, RegisterGeneralizationCommandHandler>();
         services.AddUnitOfWork<IFaqRepository, EirKnowledgeBaseDbContext>();
-        services.AddScoped<FaqAnsweredMessageHandler>();
+        services.AddRabbitMqMessageBus(configuration);
+        services.AddHostedService<RegisterGeneralizationMessageSubscriber>();
         services.AddHostedService<FaqAnsweredMessageSubscriber>();
         return services;
     }

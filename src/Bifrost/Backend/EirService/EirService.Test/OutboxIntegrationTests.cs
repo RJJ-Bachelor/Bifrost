@@ -34,7 +34,6 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
-using MimirService.Application.Services.Llm;
 
 namespace EirService.Test;
 

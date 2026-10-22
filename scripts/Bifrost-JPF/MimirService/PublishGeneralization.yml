@@ -1,0 +1,84 @@
+info:
+  name: Publish generalization (dummy data)
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/development/generalizations'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "generalizationId": "{{faqDemoGeneralizationId}}",
+        "sessionId": "{{faqDemoSessionId}}",
+        "generation": {{faqDemoGeneration}},
+        "question": "Hvordan sikrer jeg, at min løkke stopper?",
+        "helpRequestIds": [
+          "{{faqDemoFirstHelpRequestId}}",
+          "{{faqDemoSecondHelpRequestId}}"
+        ]
+      }
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        let payload;
+        try {
+          const raw = req.getBody({ raw: true });
+          payload = JSON.parse(bru.interpolate(typeof raw === "string" ? raw : JSON.stringify(raw)));
+        } catch {
+          throw new Error("The request body is not resolved JSON. Run Development/Seed FAQ demo first, or fill in the JSON body with valid values.");
+        }
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          throw new Error("Provide a JSON object containing the generalization fields.");
+        }
+        const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const validId = value => typeof value === "string" && guid.test(value) && value !== "00000000-0000-0000-0000-000000000000";
+        if (payload.generalizationId != null && !validId(payload.generalizationId)) {
+          throw new Error("generalizationId is missing or is not a GUID. Run Development/Seed FAQ demo again, or omit generalizationId to let Mimir generate it.");
+        }
+        if (!validId(payload.sessionId) || !Number.isInteger(payload.generation) || payload.generation < 1) {
+          throw new Error("Provide a valid sessionId and generation. Run Development/Seed FAQ demo first, or fill in your existing session values.");
+        }
+        const ids = Array.isArray(payload.helpRequestIds) ? [...new Set(payload.helpRequestIds)] : [];
+        if (ids.length < 2 || ids.length > 100 || ids.some(id => !validId(id) || id === payload.generalizationId)) {
+          throw new Error("Provide 2-100 distinct helpRequestIds from the current session. Run Development/Seed FAQ demo first, or fill in the source ids.");
+        }
+        if (typeof payload.question !== "string" || !payload.question.trim() || payload.question.trim().length > 4000) {
+          throw new Error("Provide a question containing 1-4000 characters.");
+        }
+        req.setBody(payload);
+    - type: after-response
+      code: |-
+        if (res.status === 202) {
+          const body = res.getBody();
+          const data = typeof body === "string" ? JSON.parse(body) : body;
+          bru.setVar("faqDemoGeneralizationId", data.generalizationId);
+          bru.setEnvVar("generalizationId", data.generalizationId);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '202'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Publishes dummy data through Mimir's POST /api/test/generalizations via Heimdall.
+  Run Login/Teacher/Login and Development/Seed FAQ demo first to fill all variables.
+  Edit the JSON body to use your own question and existing help request ids (2-100).
+  The requests must belong to the same session and its current generation.
+  The demo reads faqDemo runtime variables, populated by Seed FAQ demo even without an active environment.
+  You can omit generalizationId to generate a new id; HTTP 202 saves it for reuse.
+  Unresolved or invalid ids are rejected in Bruno before sending the request.
+  Reuse the same id and payload to test redelivery without duplicate Eir messages.
+  HTTP 202 confirms that Mimir stored the event in its outbox. Delivery is asynchronous.
+  Eir adds the question to eligible source conversations as a System message from mimir,
+  links them to the FAQ and adds a shared FAQ question to the teacher queue.
+  Inspect Development/Get teacher queue and the two student requests to see the result.
+  Only available when Heimdall and Mimir run in Development.

@@ -4,6 +4,10 @@ namespace EirService.KnowledgeBase.Domain.Entities;
 
 public sealed class FaqAnswer : AggregateRoot<Guid>
 {
+    public const int MinSourceCount = 2;
+    public const int MaxSourceCount = 100;
+    public const int MaxTextLength = 4000;
+
     private Guid[] helpRequestIds = [];
     private FaqAnswer() { }
     public Guid SessionId { get; private set; }
@@ -19,8 +23,9 @@ public sealed class FaqAnswer : AggregateRoot<Guid>
         IEnumerable<Guid> sourceIds, DateTimeOffset now)
     {
         var ids = sourceIds.Distinct().Order().ToArray();
-        if (id == Guid.Empty || sessionId == Guid.Empty || generation < 1 || ids.Length < 2 || ids.Contains(Guid.Empty))
-            throw new ArgumentException("A generalization requires a session, generation and at least two distinct help requests.");
+        if (id == Guid.Empty || sessionId == Guid.Empty || generation < 1 ||
+            ids.Length < MinSourceCount || ids.Length > MaxSourceCount || ids.Contains(Guid.Empty) || ids.Contains(id))
+            throw new ArgumentException("A generalization requires a session, generation and 2-100 distinct source help requests.");
         return new FaqAnswer
         {
             Id = id, SessionId = sessionId, Generation = generation, Question = Text(question),
@@ -44,7 +49,7 @@ public sealed class FaqAnswer : AggregateRoot<Guid>
 
     private static string Text(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length > 4000)
+        if (string.IsNullOrWhiteSpace(value) || value.Trim().Length > MaxTextLength)
             throw new ArgumentException("FAQ text must contain between 1 and 4000 characters.");
         return value.Trim();
     }

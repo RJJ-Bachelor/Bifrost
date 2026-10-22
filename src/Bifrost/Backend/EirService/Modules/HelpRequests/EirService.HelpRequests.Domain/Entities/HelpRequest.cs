@@ -61,9 +61,10 @@ public sealed class HelpRequest : AggregateRoot<Guid>
 
     public bool CanLinkToFaq => !IsFaq && Status == HelpRequestStatus.Pending && AssignedTeacherId is null && FaqAnswerId is null;
 
-    public void LinkToFaq(Guid faqId, DateTimeOffset now)
+    public void LinkToFaq(Guid faqId, MessageText question, DateTimeOffset now)
     {
         Require(CanLinkToFaq && faqId != Guid.Empty, "Only unassigned waiting requests can join a FAQ.");
+        AddMessage("mimir", AuthorRole.System, question, now);
         FaqAnswerId = faqId;
         Status = HelpRequestStatus.AwaitingFaq;
         Changed("FaqLinked", now);

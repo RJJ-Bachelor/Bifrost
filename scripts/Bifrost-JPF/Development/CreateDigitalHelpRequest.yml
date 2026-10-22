@@ -1,7 +1,7 @@
 info:
-  name: GeneralizeHelpRequest
+  name: Create digital help request (new session)
   type: http
-  seq: 1
+  seq: 5
 http:
   method: POST
   url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
@@ -31,3 +31,8 @@ runtime:
     - type: after-response
       code: |-
         if (res.status === 201) bru.setEnvVar("helpRequestId", res.body.id);
+docs: |-
+  Creates a fresh Eir session, joins as a student and sends one ordinary digital help request.
+  Mimir receives request.created and runs its normal generalization flow.
+  To publish a dummy generalization directly, use MimirService/Publish generalization (dummy data).
+  For manual requests in an existing session, use EirService/Student/HelpRequests/CreateHelpRequest/CreateDigitalRequest.

@@ -5,7 +5,7 @@ using EirService.KnowledgeBase.Application.Features.Common;
 using EirService.KnowledgeBase.Application.Repositories;
 using FastEndpoints;
 
-namespace EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
+namespace EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 
 public sealed class GetSessionFaqsQueryHandler(IFaqRepository repository) : ICommandHandler<GetSessionFaqsQuery, IReadOnlyList<FaqResult>>
 {

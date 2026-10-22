@@ -19,3 +19,9 @@ variables:
     value: '1'
   - name: helpRequestId
     value: ''
+  - name: generalizationId
+    value: ''
+  - name: firstHelpRequestId
+    value: ''
+  - name: secondHelpRequestId
+    value: ''

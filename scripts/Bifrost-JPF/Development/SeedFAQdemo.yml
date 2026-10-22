@@ -23,15 +23,33 @@ runtime:
     - type: after-response
       code: |-
         if (res.status === 201) {
-          const data = res.body;
-          bru.setEnvVar("sessionId", data.session.id);
-          bru.setEnvVar("sessionCode", data.session.code);
-          bru.setEnvVar("sessionGeneration", String(data.session.currentGeneration));
-          bru.setEnvVar("helpRequestId", data.students[0].helpRequestId);
-          bru.setEnvVar("teacherSessionCode", data.session.teacherCode);
-          bru.setVar("generalizationPayload", JSON.stringify(data.generalization));
-          bru.setVar("firstHelpRequestId", data.students[0].helpRequestId);
-          bru.setVar("secondHelpRequestId", data.students[1].helpRequestId);
+          const body = res.getBody();
+          const data = typeof body === "string" ? JSON.parse(body) : body;
+          const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const ids = [data?.session?.id, data?.generalization?.generalizationId,
+            data?.students?.[0]?.helpRequestId, data?.students?.[1]?.helpRequestId];
+          if (ids.some(id => typeof id !== "string" || !guid.test(id)) ||
+              !Number.isInteger(data.session.currentGeneration) || data.session.currentGeneration < 1) {
+            throw new Error("The seed response is missing valid session/generalization/help request ids. Check the seed response before publishing.");
+          }
+          const variables = {
+            sessionId: data.session.id,
+            sessionCode: data.session.code,
+            sessionGeneration: String(data.session.currentGeneration),
+            helpRequestId: data.students[0].helpRequestId,
+            teacherSessionCode: data.session.teacherCode,
+            generalizationId: data.generalization.generalizationId,
+            firstHelpRequestId: data.students[0].helpRequestId,
+            secondHelpRequestId: data.students[1].helpRequestId
+          };
+          for (const [name, value] of Object.entries(variables)) {
+            bru.setEnvVar(name, value);
+          }
+          bru.setVar("faqDemoSessionId", variables.sessionId);
+          bru.setVar("faqDemoGeneration", data.session.currentGeneration);
+          bru.setVar("faqDemoGeneralizationId", variables.generalizationId);
+          bru.setVar("faqDemoFirstHelpRequestId", variables.firstHelpRequestId);
+          bru.setVar("faqDemoSecondHelpRequestId", variables.secondHelpRequestId);
           bru.setVar("firstStudentCookie", data.students[0].cookieHeader);
           bru.setVar("secondStudentCookie", data.students[1].cookieHeader);
           bru.setVar("seedReady", true);

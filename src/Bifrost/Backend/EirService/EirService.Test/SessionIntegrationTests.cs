@@ -15,7 +15,7 @@ using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
-using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
+using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
@@ -35,8 +35,9 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Sessions.Infrastructure.Repositories;
 using EirService.KnowledgeBase.Infrastructure;
+using EirService.KnowledgeBase.Application;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
-using EirService.KnowledgeBase.Application.Features.GetSessionFaqs;
+using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -123,6 +124,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
         builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseApplication();
         builder.Services.RemoveAll<IHostedService>();
         builder.Services.RemoveAll<IMessageBus>();
         builder.Services.AddSingleton<IMessageBus>(bus);
@@ -498,9 +500,9 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     {
         var session = await CreateAsync();
         using var clear = await ClearAsync(session.Id, 1);
-        var logger = new RecordingLogger<GeneralizedMessageHandler>();
+        var logger = new RecordingLogger<RegisterGeneralizationMessageHandler>();
         await using var scope = app.Services.CreateAsyncScope();
-        var handler = ActivatorUtilities.CreateInstance<GeneralizedMessageHandler>(scope.ServiceProvider, logger);
+        var handler = ActivatorUtilities.CreateInstance<RegisterGeneralizationMessageHandler>(scope.ServiceProvider, logger);
         await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"),
             new(TestIds.From("late"), session.Id, 1, "Old question", [Guid.NewGuid(), Guid.NewGuid()])), CancellationToken.None);
         Assert.Contains("obsolete", Assert.Single(logger.Messages));

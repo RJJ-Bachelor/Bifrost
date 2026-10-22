@@ -2,8 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using RabbitMQ.Client;
+using EirService.Contracts.HelpRequests.ApplyGeneralization;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
+using FastEndpoints;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -16,6 +19,7 @@ using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using Shared.Infrastructure.Persistence.Outbox;
 using EirService.HelpRequests.Domain.Entities;
+using EirService.HelpRequests.Application.Features.Common;
 
 namespace EirService.Test;
 
@@ -51,9 +55,15 @@ public sealed partial class SessionIntegrationTests
                     if (Interlocked.Increment(ref deliveries) == 1)
                     {
                         await using var scope = app.Services.CreateAsyncScope();
-                        await scope.ServiceProvider.GetRequiredService<FastEndpoints.ICommandHandler<EirService.Contracts.KnowledgeBase.RegisterGeneralization.RegisterGeneralizationCommand, bool>>()
-                            .ExecuteAsync(new(message.Payload.GeneralizationId, message.Payload.SessionId, message.Payload.Generation,
-                                message.Payload.Question, message.Payload.HelpRequestIds), CancellationToken.None);
+                        var handler = ActivatorUtilities.CreateInstance<RegisterGeneralizationMessageHandler>(
+                            scope.ServiceProvider, new FailingApplyGeneralizationHandler());
+                        await Assert.ThrowsAsync<IOException>(() => handler.HandleAsync(message, CancellationToken.None));
+                        await using var verification = app.Services.CreateAsyncScope();
+                        var faq = await verification.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>()
+                            .Faqs.SingleAsync();
+                        Assert.Equal(message.Payload.GeneralizationId, faq.Id);
+                        Assert.False(await verification.ServiceProvider.GetRequiredService<EirRequestDbContext>()
+                            .Requests.AnyAsync(request => request.Id == message.Payload.GeneralizationId));
                         throw new IOException("Transient failure after persisting the canonical FAQ.");
                     }
                     await DeliverGeneralizationAsync(message.Payload);
@@ -83,6 +93,16 @@ public sealed partial class SessionIntegrationTests
             await sender.PublishPendingAsync(CancellationToken.None);
             await received.Task.WaitAsync(TimeSpan.FromSeconds(20));
             Assert.Equal(2, deliveries);
+            foreach (var (client, id) in new[] { (student, firstId), (second, secondId) })
+            {
+                var source = (await client.GetFromJsonAsync<HelpRequestResult>(
+                    $"/api/students/requests/{id}", FaqJsonOptions))!;
+                Assert.Equal(HelpRequestStatus.AwaitingFaq, source.Status);
+                Assert.Equal(payload.GeneralizationId, source.FaqAnswerId);
+                var question = Assert.Single(source.Messages, message => message.AuthorRole == AuthorRole.System);
+                Assert.Equal(payload.Question, question.Text);
+                Assert.Equal("mimir", question.AuthorId);
+            }
             using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
             Assert.Equal(payload.GeneralizationId, (await take.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
             using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{payload.GeneralizationId}/messages", new { Text = "Shared answer" });
@@ -105,5 +125,11 @@ public sealed partial class SessionIntegrationTests
             foreach (var suffix in new[] { "-created", "-answered", "-updates", "-originals", "-notifications" })
                 await channel.QueueDeleteAsync(prefix + suffix);
         }
+    }
+
+    private sealed class FailingApplyGeneralizationHandler : ICommandHandler<ApplyGeneralizationCommand, bool>
+    {
+        public Task<bool> ExecuteAsync(ApplyGeneralizationCommand command, CancellationToken cancellationToken) =>
+            throw new IOException("Simulated transient failure while applying the generalization to help requests.");
     }
 }

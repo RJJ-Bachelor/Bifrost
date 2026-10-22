@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "test": "bru run --env Local --sandbox=developer",
-    "validate": "node lib/validate.cjs"
+    "validate": "node lib/validate.cjs && node --test lib/generalization-demo.test.cjs"
   },
   "devDependencies": {
     "@usebruno/cli": "4.2.1",

@@ -2,11 +2,11 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using EirService.HelpRequests.Application.Features.Common;
-using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Common;
 using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -59,6 +59,19 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(2, queueJson.GetProperty("waitingCount").GetInt32());
         var linked = (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!;
         Assert.Equal(HelpRequestStatus.AwaitingFaq, linked.Status);
+        foreach (var (client, id) in new[] { (student, firstId), (second, secondId) })
+        {
+            var source = (await client.GetFromJsonAsync<HelpRequestResult>(
+                $"/api/students/requests/{id}", FaqJsonOptions))!;
+            Assert.Equal(payload.GeneralizationId, source.FaqAnswerId);
+            var question = Assert.Single(source.Messages, message => message.AuthorRole == AuthorRole.System);
+            Assert.Equal(payload.Question, question.Text);
+            Assert.Equal("mimir", question.AuthorId);
+            Assert.Equal(2, question.SequenceNumber);
+        }
+        var ordinary = (await third.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{ordinaryId}", FaqJsonOptions))!;
+        Assert.Null(ordinary.FaqAnswerId);
+        Assert.Single(ordinary.Messages);
         using var duplicateOpen = await student.PostAsJsonAsync($"/api/students/sessions/{session.Id}/requests", new { Message = "Another", HelpType = "Digital" });
         Assert.Equal(HttpStatusCode.Conflict, duplicateOpen.StatusCode);
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
@@ -143,7 +156,10 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(HttpStatusCode.OK, take.StatusCode);
         var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);
         await DeliverGeneralizationAsync(new GeneralizedCreatedMessage(Guid.NewGuid(), session.Id, 1, "Shared", [firstId, secondId]));
-        Assert.Equal(HelpRequestStatus.Pending, (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!.Status);
+        var reserved = (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!;
+        Assert.Equal(HelpRequestStatus.Pending, reserved.Status);
+        Assert.Null(reserved.FaqAnswerId);
+        Assert.Single(reserved.Messages);
         Assert.Equal(HelpRequestStatus.AwaitingFaq, (await second.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{secondId}", FaqJsonOptions))!.Status);
         var otherSession = await CreateAsync("Other");
         var invalid = new GeneralizedCreatedMessage(Guid.NewGuid(), otherSession.Id, 1, "Invalid", [firstId, secondId]);
@@ -152,10 +168,48 @@ public sealed partial class SessionIntegrationTests
         Assert.Null(await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.FindAsync(invalid.GeneralizationId));
     }
 
+    [PostgresFact]
+    public async Task ReusingAGeneralizationIdCannotReplaceItsQuestionOrCaptureDifferentSources()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var second = await OtherStudentAsync(session.Code);
+        using var third = await OtherStudentAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
+        var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);
+        var thirdId = await SubmitAsync(third, session.Id, HelpType.Digital);
+        var payload = new GeneralizedCreatedMessage(Guid.NewGuid(), session.Id, 1, "Shared question", [firstId, secondId]);
+        await DeliverGeneralizationAsync(payload);
+        int outboxCount;
+        await using (var scope = app.Services.CreateAsyncScope())
+            outboxCount = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync();
+
+        await DeliverGeneralizationAsync(payload with { Question = "A conflicting question" });
+        await DeliverGeneralizationAsync(payload with { HelpRequestIds = [firstId, thirdId] });
+
+        await using var verification = app.Services.CreateAsyncScope();
+        var faq = Assert.Single(await verification.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.ToArrayAsync());
+        Assert.Equal(payload.Question, faq.Question);
+        Assert.Equal(payload.HelpRequestIds.Order(), faq.HelpRequestIds);
+        var requests = verification.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+        Assert.Equal(outboxCount, await requests.Outbox.CountAsync());
+        Assert.Single(await requests.Requests.Where(request => request.Id == payload.GeneralizationId).ToArrayAsync());
+        foreach (var (client, id) in new[] { (student, firstId), (second, secondId) })
+        {
+            var source = (await client.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{id}", FaqJsonOptions))!;
+            Assert.Equal(payload.GeneralizationId, source.FaqAnswerId);
+            Assert.Equal(payload.Question, Assert.Single(source.Messages, message => message.AuthorRole == AuthorRole.System).Text);
+        }
+        var untouched = (await third.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{thirdId}", FaqJsonOptions))!;
+        Assert.Equal(HelpRequestStatus.Pending, untouched.Status);
+        Assert.Null(untouched.FaqAnswerId);
+        Assert.Single(untouched.Messages);
+    }
+
     private async Task DeliverGeneralizationAsync(GeneralizedCreatedMessage payload)
     {
         await using var scope = app.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<IGeneralizedMessageHandler>()
+        await scope.ServiceProvider.GetRequiredService<RegisterGeneralizationMessageHandler>()
             .HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(Guid.NewGuid(), payload), CancellationToken.None);
     }
 

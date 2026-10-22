@@ -38,6 +38,8 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Shared.Application.Messaging;
@@ -95,11 +97,11 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         builder.Services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
+        var dataProtection = new EphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
                 JwtBearerDefaults.AuthenticationScheme, _ => { })
-            .AddStudentCookie(builder.Configuration, options => options.DataProtectionProvider = new EphemeralDataProtectionProvider());
+            .AddStudentCookie(builder.Configuration, options => options.DataProtectionProvider = dataProtection);
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("Student", policy => policy
@@ -115,6 +117,12 @@ public sealed partial class CommandBusTests : IAsyncLifetime
                 .RequireAssertion(context => context.User.FindAll("scope")
                     .Any(claim => claim.Value.Split(' ').Contains("Bifrost"))));
         });
+
+        builder.Services.RemoveAll<IDataProtectionProvider>();
+        builder.Services.AddSingleton<IDataProtectionProvider>(dataProtection);
+        // This in-memory fixture needs no background services. DataProtection's key-ring
+        // warmup otherwise accesses the host key store even with an ephemeral provider.
+        builder.Services.RemoveAll<IHostedService>();
 
         // Exercise the endpoints and application slices with recorded infrastructure calls.
         _app = builder.Build();

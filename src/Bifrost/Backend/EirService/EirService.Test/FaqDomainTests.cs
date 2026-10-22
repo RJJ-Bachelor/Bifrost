@@ -22,11 +22,29 @@ public sealed class FaqDomainTests
     }
 
     [Fact]
+    public void GeneralizationCannotIncludeItselfOrMoreThanOneHundredSources()
+    {
+        var id = Guid.NewGuid();
+        Assert.Throws<ArgumentException>(() => FaqAnswer.Create(id, Guid.NewGuid(), 1, "Question", [id, Guid.NewGuid()], Now));
+        var sources = Enumerable.Range(0, 101).Select(_ => Guid.NewGuid()).ToArray();
+        Assert.Throws<ArgumentException>(() => FaqAnswer.Create(id, Guid.NewGuid(), 1, "Question", sources, Now));
+        Assert.Equal(100, FaqAnswer.Create(id, Guid.NewGuid(), 1, "Question", sources.Take(100), Now).HelpRequestIds.Count);
+    }
+
+    [Fact]
     public void LinkedRequestCannotBeTakenAndRejectionPreservesItsPosition()
     {
         var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
         var faqId = Guid.NewGuid();
-        request.LinkToFaq(faqId, Now.AddMinutes(1));
+        request.LinkToFaq(faqId, new MessageText("Shared question"), Now.AddMinutes(1));
+        var generalization = request.Messages.Last();
+        Assert.Equal("Shared question", generalization.Text.Value);
+        Assert.Equal(AuthorRole.System, generalization.AuthorRole);
+        Assert.Equal("mimir", generalization.AuthorId);
+        Assert.Equal(2, generalization.SequenceNumber);
+        Assert.Equal(Now.AddMinutes(1), generalization.CreatedAt);
+        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(faqId, new MessageText("Shared question"), Now));
+        Assert.Equal(2, request.Messages.Count);
         Assert.True(request.IsOpen);
         Assert.Throws<HelpRequestRuleException>(() => request.Reserve("teacher", Now));
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("student", Now));
@@ -37,6 +55,30 @@ public sealed class FaqDomainTests
         Assert.Equal(Now, request.QueuedAt);
         Assert.Null(request.FaqAnswerId);
         request.Reserve("teacher", Now.AddMinutes(4));
+    }
+
+    [Theory]
+    [InlineData("Reserved")]
+    [InlineData("Active")]
+    [InlineData("Completed")]
+    [InlineData("Cancelled")]
+    public void GeneralizationCannotChangeUnavailableRequests(string state)
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
+        if (state == "Cancelled") request.Cancel("student", AuthorRole.Student, Now);
+        else
+        {
+            request.Reserve("teacher", Now);
+            if (state != "Reserved") request.Start("teacher", Now);
+            if (state == "Completed") request.Complete("teacher", Now);
+        }
+        var status = request.Status;
+
+        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(Guid.NewGuid(), new MessageText("Shared question"), Now));
+
+        Assert.Equal(status, request.Status);
+        Assert.Null(request.FaqAnswerId);
+        Assert.Single(request.Messages);
     }
 
     [Fact]

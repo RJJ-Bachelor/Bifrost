@@ -6,11 +6,21 @@ De almindelige session-requests er GET- og POST-kald med URL og eventuel JSON-bo
 
 ## Development
 
-Manuel seeding og FAQ-test ligger samlet i **Development** i denne collection:
+FAQ-testen bruger **Development** til data og inspektion og **MimirService** til publicering:
 
-1. `Seed FAQ demo` opretter en ny session med studerende og HelpRequests.
-2. `Publish dummy generalization` sender det returnerede payload via Mimirs test-API.
-3. `Get teacher queue`, `Get first student request` og `Get second student request` viser resultatet.
+1. `Development/Seed FAQ demo` opretter en ny session med studerende og HelpRequests.
+2. `MimirService/Publish generalization (dummy data)` sender det redigerbare JSON-payload via Mimirs test-API.
+3. `Development/Get teacher queue`, `Get first student request` og `Get second student request` viser resultatet.
+
+Seed-kaldet udfylder session, generation,
+generaliserings-id og de to helprequest-id'er som `faqDemo…`-runtime-variabler og kopierer
+de almindelige variabler til det valgte miljø. Publish stopper i Bruno med en konkret fejl,
+hvis payloadets værdier mangler eller ikke kan opløses. Eir føjer det fælles spørgsmål til de tilknyttede
+samtaler som en systembesked fra `mimir` og opretter en FAQ i underviserens kø.
+**Development → Create digital help request (new session)** opretter en almindelig
+digital elevanmodning i en ny session og starter Mimirs normale behandling.
+Manuelle anmodninger i en eksisterende session ligger under
+`EirService/Student/HelpRequests/CreateHelpRequest`.
 
 Kør først `Login/Teacher/Login` som normalt. Alle Development-kald bruger `gatewayUrl` og collectionens eksisterende cookie-login. Antallet af demostuderende sættes direkte som et tal i seed-kaldets JSON-body: `"studentCount": 6` (2–20). De to student-kald vælger hver sin demostuderende i Brunos cookiejar og bevarer teacher-login.
 Se [Development-vejledningen](Development/README.md) for opsætning og hele forløbet.
