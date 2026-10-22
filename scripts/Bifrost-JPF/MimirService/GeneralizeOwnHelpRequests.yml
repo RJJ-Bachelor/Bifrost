@@ -1,0 +1,84 @@
+info:
+  name: Generalize own help requests
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/development/generalizations/from-help-requests'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "sessionId": "{{sessionId}}",
+        "generation": {{sessionGeneration}},
+        "helpRequestIds": [
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+        ]
+      }
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        let payload;
+        try {
+          const raw = req.getBody({ raw: true });
+          payload = JSON.parse(bru.interpolate(typeof raw === "string" ? raw : JSON.stringify(raw)));
+        } catch {
+          throw new Error("Provide resolved JSON with sessionId and a numeric generation. Run CreateSession/GetSession in Bruno, or enter your frontend session's id and currentGeneration directly in the body.");
+        }
+        if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+          throw new Error("Provide a JSON object with sessionId, generation and helpRequestIds.");
+        }
+        const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const validId = value => typeof value === "string" && guid.test(value) && value !== "00000000-0000-0000-0000-000000000000";
+        if (!validId(payload.sessionId) || !Number.isInteger(payload.generation) || payload.generation < 1) {
+          throw new Error("Provide your existing sessionId and its current positive integer generation. CreateSession/GetSession saves these automatically; for a frontend session, fill them in directly or fetch it in Bruno first.");
+        }
+        if (payload.generalizationId != null && !validId(payload.generalizationId)) {
+          throw new Error("generalizationId must be a nonempty GUID, or omit it to let Mimir create a new id.");
+        }
+        const ids = payload.helpRequestIds;
+        if (!Array.isArray(ids) || ids.length < 2 || ids.length > 100 ||
+            ids.some(id => !validId(id)) || new Set(ids.map(id => id.toLowerCase())).size !== ids.length) {
+          throw new Error("Provide 2-100 distinct, nonempty helpRequestIds from your own pending, unreserved requests in the same session and current generation.");
+        }
+        const examples = new Set(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]);
+        if (ids.some(id => examples.has(id.toLowerCase()))) {
+          throw new Error("Replace both example helpRequestIds in the JSON body with ids from your own HelpRequests. Seed FAQ demo is not required.");
+        }
+        if (payload.generalizationId && ids.some(id => id.toLowerCase() === payload.generalizationId.toLowerCase())) {
+          throw new Error("generalizationId must differ from every source helpRequestId.");
+        }
+        if (Object.hasOwn(payload, "question")) {
+          throw new Error("Remove question from the body. Mimir supplies the fixed text: Dette er et generaliseret spørgsmål.");
+        }
+        req.setBody(payload);
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '202'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Generaliserer dine egne HelpRequests fra Bruno eller test-frontenden. Seed FAQ demo er ikke nødvendig.
+  Kør Login/Teacher/Login. Opret mindst to anmodninger i samme session og dens aktuelle generation.
+  Erstat begge eksempel-GUID'er i helpRequestIds med dine egne ID'er direkte i JSON-bodyen.
+  CreateSession/GetSession gemmer sessionId og sessionGeneration automatisk i Bruno.
+  Ved data fra frontenden kan sessionId og generation også udfyldes direkte i JSON-bodyen.
+  Anmodningerne skal være Pending og uden en reserveret underviser.
+  Mimir bruger altid spørgsmålet "Dette er et generaliseret spørgsmål."; send ikke question i bodyen.
+  HTTP 202 bekræfter lagring i Mimirs outbox. Eir behandler eventet asynkront.
+  Ved 202 gemmes generalizationId, sessionId og sessionGeneration i runtime og det valgte miljø.
+  Et payload indsat fra frontenden vælger derfor også sessionen til næste GetQueue-kald.
+  Sessionsskift eller en ny generation rydder gamle anmodnings- og demo-ID'er.
+  Tilsæt eventuelt generalizationId med det returnerede ID for at teste genlevering med samme payload.
+  Brug de almindelige EirService/Teacher/HelpRequests-kald til kø, reservation og svar.
+  Brug Student/HelpRequests/RespondToFaq til AcceptFaq/RejectFaq med den oprindelige elevs ID og cookie.
+  Tilgængelig, når Heimdall og Mimir kører i Development.

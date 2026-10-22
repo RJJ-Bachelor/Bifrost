@@ -113,7 +113,7 @@
         </section>
       </div>
       <details *ngIf="isTeacher" class="session-settings"><summary>Test af Mimir-generalisering</summary>
-        <p>Send JSON-dataene til Mimirs test-API: <code>POST /api/test/generalizations</code> (normalt port 6002).</p>
+        <p>Kopiér JSON-dataene til Bruno-kaldet <strong>MimirService → Generalize own help requests</strong>, eller send dem til <code>POST /api/teachers/development/generalizations/from-help-requests</code> gennem Heimdall. Mimir bruger teksten “Dette er et generaliseret spørgsmål.”</p>
         <pre *ngIf="canTestGeneralization" class="test-payload">{{ generalizationExample }}</pre>
         <p *ngIf="!canTestGeneralization">Opret mindst to ledige anmodninger fra forskellige studenterprofiler for at få et eksempel.</p>
       </details>

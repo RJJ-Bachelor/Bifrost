@@ -63,7 +63,6 @@ export class TestPageComponent {
 
   get generalizationExample() {
     return JSON.stringify({ sessionId: this.sessionId, generation: this.session?.currentGeneration,
-      question: 'Hvordan løser vi det fælles problem?',
       helpRequestIds: this.waitingRequests.filter(request => !request.isFaq).slice(0, 2).map(request => request.id) }, null, 2);
   }
   get canTestGeneralization() { return this.waitingRequests.filter(request => !request.isFaq).length >= 2; }

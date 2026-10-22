@@ -56,7 +56,7 @@ function captureResponse(bru, req, res) {
   const method = req.getMethod().toUpperCase();
   const sessionRoute = route.match(/^\/api\/(students|teachers)\/sessions(?:\/(join|[0-9a-f-]+)(\/clear)?)?$/i);
   const helpRequestRoute = route.match(/^\/api\/(students|teachers)\/(?:requests\/[0-9a-f-]+(?:\/(?:messages|status|faq))?|sessions\/[0-9a-f-]+\/(?:requests|queue\/take-next))$/i);
-  const publish = route === '/api/teachers/development/generalizations' && method === 'POST';
+  const publish = /^\/api\/teachers\/development\/generalizations(?:\/from-help-requests)?$/.test(route) && method === 'POST';
   // The seed request validates its full payload and sets demo cookies itself.
   if (!sessionRoute && !helpRequestRoute && !publish) return;
   if (sessionRoute && method === 'DELETE') {
@@ -75,6 +75,9 @@ function captureResponse(bru, req, res) {
   const data = typeof body === 'string' ? JSON.parse(body) : body;
   if (publish) {
     if (!validId(data?.generalizationId)) throw new Error('Mimir did not return a valid generalizationId.');
+    if (route.endsWith('/from-help-requests') && data.sessionId != null && data.generation != null)
+      captureSession(bru, { id: data.sessionId, currentGeneration: data.generation });
+    // Capture the id after a session change clears the previous request context.
     save(bru, { generalizationId: data.generalizationId });
   } else if (helpRequestRoute) captureHelpRequest(bru, data, helpRequestRoute[1]);
   else if (sessionRoute && !Array.isArray(data)) {

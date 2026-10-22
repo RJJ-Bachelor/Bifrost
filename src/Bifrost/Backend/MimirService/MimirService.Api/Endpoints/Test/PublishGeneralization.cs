@@ -1,4 +1,5 @@
 using MimirService.Application.Services.Messaging;
+using MimirService.Api.Endpoints.Test.GeneralizeHelpRequests;
 using Shared.Application.Messaging.Contracts;
 
 namespace MimirService.Api.Endpoints.Test;
@@ -8,6 +9,7 @@ public static class PublishGeneralization
     public static void MapGeneralizationTestApi(this WebApplication app)
     {
         if (!app.Environment.IsDevelopment()) return;
+        app.MapGeneralizeHelpRequestsTestApi();
         app.MapPost("/api/test/generalizations", async (PublishGeneralizationRequest request,
             IGeneralizedMessagePublisher publisher, CancellationToken cancellationToken) =>
         {
@@ -23,6 +25,3 @@ public static class PublishGeneralization
         }).AllowAnonymous().WithName("PublishTestGeneralization").WithTags("Test");
     }
 }
-
-public sealed record PublishGeneralizationRequest(Guid SessionId, int Generation, string Question,
-    Guid[] HelpRequestIds, Guid? GeneralizationId = null);

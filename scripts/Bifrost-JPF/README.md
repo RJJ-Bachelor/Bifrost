@@ -20,6 +20,15 @@ Listekald vælger ikke automatisk et vilkårligt element.
 
 ## Development
 
+Til dine egne data bruges **MimirService → Generalize own help requests** uden seed.
+Opret mindst to HelpRequests i samme session fra Bruno eller test-frontenden, og indsæt
+deres ID'er direkte i requestens JSON-body. `sessionId` og `sessionGeneration` følger
+de almindelige sessionsvariabler, eller de kan indsættes direkte fra frontenden.
+Ved `202` gemmes payloadets session og generation automatisk til næste køkald.
+Mimir sender det faste spørgsmål
+"Dette er et generaliseret spørgsmål." gennem den normale outbox og RabbitMQ.
+Se [forløbet med egne data](Development/README.md#generalisering-af-egne-helprequests).
+
 FAQ-testen bruger **Development** til data og inspektion og **MimirService** til publicering:
 
 1. `Development/Seed FAQ demo` opretter en ny session med studerende og HelpRequests.
@@ -116,15 +125,19 @@ De almindelige Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som norma
 
 | Variabel | Værdi |
 |---|---|
-| `sessionId` | Kopiér `id` fra CreateSession eller GetSessions |
-| `sessionCode` | Kopiér `code` fra CreateSession eller GetSession som teacher |
-| `teacherSessionCode` | Kopiér `teacherCode` fra CreateSession eller GetSession som teacher |
-| `sessionGeneration` | Kopiér `currentGeneration` fra et session-svar; starter på 1 |
-| `helpRequestId` | Kopiér `id` fra CreateHelpRequest eller TakeNextHelpRequest |
-| `generalizationId` | ID'et for det fælles FAQ-spørgsmål; udfyldes af seed/publish |
+| `sessionId` | Gemmes automatisk fra CreateSession, JoinSession og GetSession |
+| `sessionCode` | Gemmes fra CreateSession/GetSession som teacher og studentens JoinSession |
+| `teacherSessionCode` | Gemmes fra CreateSession/GetSession som teacher og underviserens JoinSession |
+| `sessionGeneration` | Gemmes fra session-svar og opdateres efter ClearSession |
+| `studentHelpRequestId` / `helpRequestId` | Elevens anmodning; gemmes fra elevens oprette-, læse- og ændringskald |
+| `teacherHelpRequestId` | Gemmes fra underviserens læse-, reservations- og ændringskald |
+| `generalizationId` | ID'et for det fælles FAQ-spørgsmål; gemmes fra seed, begge Mimir-testkald og FAQ-svar |
 | `firstHelpRequestId` / `secondHelpRequestId` | De to oprindelige elevanmodninger fra seed |
 
-Variablerne udfyldes manuelt ved normale kald. `Development/Seed FAQ demo` udfylder dem i det valgte miljø for testsessionen. Efter ClearSession opdateres `sessionGeneration` med den nye værdi fra svaret.
+Variablerne udfyldes automatisk i runtime og det valgte miljø ved vellykkede kald.
+For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID i URL'en
+én gang; svaret vælger sessionen og generationen til de efterfølgende kald. Et vellykket
+**Generalize own help requests** vælger også automatisk sessionen fra det indsendte payload.
 
 ## Teacher
 

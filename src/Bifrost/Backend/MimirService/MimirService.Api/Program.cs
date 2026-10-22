@@ -1,4 +1,5 @@
 using Shared.Api.Authentication;
+using MimirService.Application;
 using MimirService.Api.Endpoints.Test;
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
@@ -13,6 +14,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
         builder.Services.AddMimirInfrastructure(builder.Configuration);
+        if (builder.Environment.IsDevelopment()) builder.Services.AddMimirDevelopmentFeatures();
 
         // Add services to the container.
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);

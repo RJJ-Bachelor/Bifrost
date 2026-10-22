@@ -254,8 +254,10 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     [Theory]
     [InlineData("/api/teachers/development/seed", "eir", "/api/test/seed", false, HttpStatusCode.OK)]
     [InlineData("/api/teachers/development/generalizations", "mimir", "/api/test/generalizations", false, HttpStatusCode.OK)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", "mimir", "/api/test/generalizations/from-help-requests", false, HttpStatusCode.OK)]
     [InlineData("/api/teachers/development/seed", "eir", "/api/test/seed", true, HttpStatusCode.Unauthorized)]
     [InlineData("/api/teachers/development/generalizations", "mimir", "/api/test/generalizations", true, HttpStatusCode.Unauthorized)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", "mimir", "/api/test/generalizations/from-help-requests", true, HttpStatusCode.Unauthorized)]
     public async Task DevelopmentCallsUseExistingTeacherCookie(string route, string service, string targetPath,
         bool expired, HttpStatusCode expected)
     {
@@ -276,8 +278,10 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     [Theory]
     [InlineData("/api/teachers/development/seed", false)]
     [InlineData("/api/teachers/development/generalizations", false)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", false)]
     [InlineData("/api/teachers/development/seed", true)]
     [InlineData("/api/teachers/development/generalizations", true)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", true)]
     public async Task DevelopmentCallsRequireTeacherLogin(string route, bool student)
     {
         if (student)
@@ -391,7 +395,11 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         app.MapGet("/api/students/{**path}", Identity).RequireAuthorization("Student");
         app.MapGet("/api/teachers/{**path}", Identity).RequireAuthorization("Teacher");
         if (name == "eir") app.MapPost("/api/test/seed", Identity).RequireAuthorization("Teacher");
-        if (name == "mimir") app.MapPost("/api/test/generalizations", Identity).RequireAuthorization("Teacher");
+        if (name == "mimir")
+        {
+            app.MapPost("/api/test/generalizations", Identity).RequireAuthorization("Teacher");
+            app.MapPost("/api/test/generalizations/from-help-requests", Identity).RequireAuthorization("Teacher");
+        }
         app.MapGet("/api/monitoring/alive", () => "Alive").AllowAnonymous();
         await app.StartAsync();
         return app;

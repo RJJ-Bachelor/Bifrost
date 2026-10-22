@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MimirService.Api.Endpoints.Test;
+using MimirService.Application;
 using MimirService.Application.Services.Messaging;
 using Shared.Application.Messaging.Contracts;
 
@@ -23,6 +24,7 @@ public sealed class GeneralizationTestApiTests
         builder.WebHost.UseTestServer();
         var publisher = new RecordingPublisher();
         builder.Services.AddSingleton<IGeneralizedMessagePublisher>(publisher);
+        builder.Services.AddMimirDevelopmentFeatures();
         await using var app = builder.Build();
         app.MapGeneralizationTestApi();
         await app.StartAsync();

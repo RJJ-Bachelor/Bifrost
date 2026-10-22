@@ -19,14 +19,15 @@ De almindelige accept-/afvisningskald findes under **EirService → Student → 
 Her bruges `studentHelpRequestId`, som gemmes automatisk for den aktuelle elevs anmodning. Development-varianterne
 vælger både ID og cookie automatisk til demoen.
 
-Heimdall har to proxy-routes, som kun konfigureres i `Development`:
+Heimdall har tre proxy-routes, som kun konfigureres i `Development`:
 
 | Bruno-kald | Gateway-route | Service-route |
 |---|---|---|
 | Seed FAQ demo | `POST /api/teachers/development/seed` | Eir: `POST /api/test/seed` |
 | MimirService/Publish generalization (dummy data) | `POST /api/teachers/development/generalizations` | Mimir: `POST /api/test/generalizations` |
+| MimirService/Generalize own help requests | `POST /api/teachers/development/generalizations/from-help-requests` | Mimir: `POST /api/test/generalizations/from-help-requests` |
 
-Begge kræver Teacher-login. Heimdall videresender access token fra teacher-cookien som ved de øvrige underviserkald. Kø- og student-kald bruger de eksisterende routes. Eir og Mimir registrerer kun deres test-endpoints i `Development`.
+Alle kræver Teacher-login. Heimdall videresender access token fra teacher-cookien som ved de øvrige underviserkald. Kø- og student-kald bruger de eksisterende routes. Eir og Mimir registrerer kun deres test-endpoints i `Development`.
 
 Hvis Heimdall allerede kører, skal den indlæse den opdaterede Development-konfiguration. Genstart Heimdall, hvis testkaldene stadig svarer `404`. `401` betyder, at teacher-login mangler eller er udløbet; kør Login igen.
 
@@ -60,7 +61,7 @@ Et nyt seed nulstiller værdien. **Answer FAQ** kræver, at dette ID matcher dem
 
 Student-kaldene vælger den relevante demo-cookie i Brunos normale cookiejar med en lille helper, ligesom teacher-login gør. Et efterfølgende almindeligt student-kald bruger derfor den sidst valgte demostuderende. Teacher-cookien bevares. Ryd studenter-cookien i Bruno, hvis du vil have en ny anonym studenteridentitet.
 
-Demostuderende i Bruno har egne identiteter. En studerende i browseren kan joine med studenterkoden og oprette egne spørgsmål, hvis du vil teste accept/afvisning i UI'et. Brug da disse HelpRequest-id'er i Mimir-payloadet.
+Demostuderende i Bruno har egne identiteter. En studerende i browseren kan joine med studenterkoden og oprette egne spørgsmål, hvis du vil teste accept/afvisning i UI'et. Brug da **MimirService → Generalize own help requests** som beskrevet nedenfor.
 
 I **MimirService → Publish generalization (dummy data)** redigeres payloadet direkte som JSON.
 Samme generaliserings-id og payload kan sendes igen for at teste genlevering. Kør seed-kaldet
@@ -74,6 +75,39 @@ Hvis `generalizationId` tidligere gav en GUID-/JSON-fejl, genindlæs collectione
 kør **Seed FAQ demo** igen før Publish. Publish kontrollerer nu det opløste JSON-payload
 og stopper i Bruno med en konkret besked, hvis ID'er eller andre nødvendige værdier mangler.
 Der skal ikke kopieres GUID'er manuelt i det seedede forløb.
+
+## Generalisering af egne HelpRequests
+
+Dette forløb kræver ikke Seed FAQ demo og bruger dine eksisterende anmodninger:
+
+1. Log ind som underviser i Bruno. Opret en session og mindst to HelpRequests gennem
+   de almindelige Bruno-kald eller test-frontenden. Alle anmodninger skal høre til samme
+   session og dens **aktuelle generation**, være `Pending` og uden en reserveret underviser.
+2. Ved Bruno-oprettelse gemmes `sessionId` og `sessionGeneration` automatisk. For en
+   frontend-session kan du indsætte `sessionId` og `generation` direkte i næste kalds
+   JSON-body. Alternativt kan **EirService → Teacher → Sessions → GetSession** kaldes
+   med sessionens konkrete ID i URL'en for at gemme den aktuelle generation i Bruno.
+3. Åbn **MimirService → Generalize own help requests**, og erstat begge eksempel-GUID'er
+   i `helpRequestIds` med dine egne ID'er direkte i JSON-bodyen. Der kræves 2–100
+   forskellige ID'er. Send kaldet; Mimir bruger altid teksten **"Dette er et generaliseret spørgsmål."**.
+4. `202 Accepted` betyder, at eventet er gemt i Mimirs outbox; levering til Eir sker
+   asynkront. Svarets `generalizationId`, `sessionId` og generation gemmes automatisk
+   i runtime og det valgte miljø. Næste køkald bruger dermed også en session indsat
+   fra frontenden, selv om Bruno tidligere havde en anden session valgt.
+5. Brug **EirService → Teacher → HelpRequests → GetQueue** og derefter
+   **TakeNextHelpRequest**, når FAQ'en er den næste ureserverede anmodning. Kontrollér
+   `isFaq: true`, før du besvarer den med **AnswerHelpRequest**. Kaldet bruger automatisk
+   ID'et på den faktiske reservation som `teacherHelpRequestId`.
+6. Åbn de oprindelige elevanmodninger i test-frontenden eller Bruno. Underviserens FAQ-svar
+   giver `AwaitingConfirmation`. Eleven kan nu acceptere eller afvise i frontenden eller
+   gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**. Brug den
+   oprindelige elevs cookie og `studentHelpRequestId`; en FAQ-reservation bevarer dette ID.
+
+Bodyen indeholder `sessionId`, `generation` og `helpRequestIds`; der sendes ikke `question`.
+Du kan tilføje `generalizationId` med ID'et fra svaret og sende samme payload igen for at
+teste genlevering. Udelad feltet for en ny generalisering. Ved samme session og generation
+bevares elevens ID og seed-demoens `faqDemo…`-variabler. Sessionsskift eller en ny generation
+rydder gamle anmodnings- og demo-ID'er, før det nye `generalizationId` gemmes.
 
 ## Almindeligt Mimir-flow
 
