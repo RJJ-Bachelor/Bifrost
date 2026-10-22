@@ -34,12 +34,11 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
-using MimirService.Application.Services.Llm;
 
 namespace EirService.Test;
 
 [Collection("FastEndpoints")]
-public sealed class OutboxIntegrationTests : IAsyncLifetime
+public sealed partial class OutboxIntegrationTests : IAsyncLifetime
 {
     private string? adminConnectionString;
     private string databaseName = null!;
@@ -98,7 +97,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     }
 
     private static OutgoingMessage Reply(Guid id, Guid sessionId, int generation) =>
-        new(id, new GeneralizedCreatedMessage(id, sessionId, generation, "Generalized answer"),
+        new(id, new GeneralizedCreatedMessage(id, sessionId, generation, "Generalized question", [TestIds.From("source-a"), TestIds.From("source-b")]),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
 
     private sealed class StubLlmClient : ILlmClient
@@ -209,7 +208,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
     }
 
     [PostgresFact]
-    public async Task MimirCommitsReplyWithRequestAndIgnoresRedelivery()
+    public async Task MimirStoresRequestWithoutInventingASingleQuestionGeneralization()
     {
         await using var services = BuildServices("mimir");
         var sessionId = Guid.NewGuid();
@@ -225,18 +224,8 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
         await using var verification = services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<MimirRequestDbContext>();
         Assert.Single(await saved.Requests.ToArrayAsync());
-        var outgoing = Assert.Single(await saved.Outbox.ToArrayAsync());
-        Assert.Equal(TestIds.From("request-1"), outgoing.MessageId);
-        Assert.Equal(typeof(GeneralizedCreatedMessage).FullName, outgoing.MessageType);
-        var payload = JsonSerializer.Deserialize<GeneralizedCreatedMessage>(outgoing.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-        Assert.Equal(sessionId, payload.SessionId);
-        Assert.Equal(3, payload.Generation);
+        Assert.Empty(await saved.Outbox.ToArrayAsync());
         Assert.Empty(bus.Messages);
-        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<MimirRequestDbContext>>(services);
-        await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal(MessageRoutes.GeneralizedCreated, Assert.Single(bus.Messages).RoutingKey);
-        await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Single(bus.Messages);
     }
 
     [PostgresFact]
@@ -473,7 +462,7 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             [
                 new(TestIds.From("request"), new HelpRequestCreatedMessage(TestIds.From("request"), sessionId, 4, "Help"), exchange, MessageRoutes.HelpRequestCreated),
                 new(TestIds.From("request"), new NotificationCreatedMessage("student", "Help", sessionId, 4), exchange, MessageRoutes.NotificationCreated),
-                new(TestIds.From("request"), new GeneralizedCreatedMessage(TestIds.From("request"), sessionId, 4, "Answer"), exchange, MessageRoutes.GeneralizedCreated),
+                new(TestIds.From("request"), new GeneralizedCreatedMessage(TestIds.From("request"), sessionId, 4, "Question", [TestIds.From("source-a"), TestIds.From("source-b")]), exchange, MessageRoutes.GeneralizedCreated),
                 new(clearedEvent.EventId, clearedEvent, exchange, MessageRoutes.SessionUpdated)
             ];
             await TestHelpRequests.SaveWithOutboxAsync(db, TestHelpRequests.Create(TestIds.From("request"), "student", "Help"), messages);
@@ -499,7 +488,12 @@ public sealed class OutboxIntegrationTests : IAsyncLifetime
             await dispatcher.PublishPendingAsync(CancellationToken.None);
             Assert.Equal(new HelpRequestCreatedMessage(TestIds.From("request"), sessionId, 4, "Help"), (await help.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(new NotificationCreatedMessage("student", "Help", sessionId, 4), (await notification.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
-            Assert.Equal(new GeneralizedCreatedMessage(TestIds.From("request"), sessionId, 4, "Answer"), (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
+            var received = (await generalized.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload;
+            Assert.Equal(TestIds.From("request"), received.GeneralizationId);
+            Assert.Equal(sessionId, received.SessionId);
+            Assert.Equal(4, received.Generation);
+            Assert.Equal("Question", received.Question);
+            Assert.Equal(new[] { TestIds.From("source-a"), TestIds.From("source-b") }, received.HelpRequestIds);
             Assert.Equal(TestIds.From("request"), help.Task.Result.Id);
             Assert.Equal(clearedEvent, (await cleared.Task.WaitAsync(TimeSpan.FromSeconds(15))).Payload);
             Assert.Equal(clearedEvent.EventId, cleared.Task.Result.Id);

@@ -43,6 +43,8 @@ public sealed class HelpRequestDomainTests
         Assert.Null(request.ClosedAt);
         Assert.Null(request.StartedAt);
         Assert.Equal(new[] { 1, 2, 3 }, request.Messages.Select(message => message.SequenceNumber));
+        Assert.Equal(new[] { HelpRequestMessageType.StudentQuestion, HelpRequestMessageType.TeacherAnswer,
+            HelpRequestMessageType.FollowUpQuestion }, request.Messages.Select(message => message.MessageType));
         Assert.All(request.Messages, message => Assert.Equal(request.Id, message.HelpRequestId));
     }
 
@@ -98,14 +100,16 @@ public sealed class HelpRequestDomainTests
     {
         var request = Create(HelpType.Digital);
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("student", Now));
-        typeof(HelpRequest).GetProperty(nameof(HelpRequest.Status))!.SetValue(request, HelpRequestStatus.AwaitingConfirmation);
-        typeof(HelpRequest).GetProperty(nameof(HelpRequest.FaqAnswerId))!.SetValue(request, Guid.NewGuid());
+        var faqId = Guid.NewGuid();
+        request.LinkToFaq(faqId, new MessageText("Shared question"), Now);
+        request.SuggestFaq(faqId, "teacher", new MessageText("Shared answer"), Now.AddMinutes(1));
         Assert.Throws<HelpRequestRuleException>(() => request.RejectFaq("other", Now));
         request.RejectFaq("student", Now.AddMinutes(2));
         Assert.Equal(Now, request.QueuedAt);
         Assert.Equal(HelpRequestStatus.Pending, request.Status);
-        typeof(HelpRequest).GetProperty(nameof(HelpRequest.Status))!.SetValue(request, HelpRequestStatus.AwaitingConfirmation);
-        typeof(HelpRequest).GetProperty(nameof(HelpRequest.FaqAnswerId))!.SetValue(request, Guid.NewGuid());
+        var secondFaqId = Guid.NewGuid();
+        request.LinkToFaq(secondFaqId, new MessageText("Another shared question"), Now.AddMinutes(2));
+        request.SuggestFaq(secondFaqId, "teacher", new MessageText("Another shared answer"), Now.AddMinutes(3));
         request.AcceptFaq("student", Now.AddMinutes(3));
         Assert.Equal(HelpRequestStatus.Completed, request.Status);
     }

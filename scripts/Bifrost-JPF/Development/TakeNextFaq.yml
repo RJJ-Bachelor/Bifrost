@@ -1,0 +1,37 @@
+info:
+  name: Take next FAQ
+  type: http
+  seq: 3
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{faqDemoSessionId}}/queue/take-next'
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("seedReady")) {
+          throw new Error("Run 'Seed FAQ demo' successfully first.");
+        }
+        bru.setVar("faqDemoTakenRequestId", null);
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const body = res.getBody();
+          const data = typeof body === "string" ? JSON.parse(body) : body;
+          bru.setVar("faqDemoTakenRequestId", data.id);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Uses the ordinary teacher take-next endpoint for the seeded session.
+  First publish the generalization and refresh Get teacher queue until the FAQ appears first.
+  Run this request once. Its response shows the reserved request and its assigned teacher.
+  Answer FAQ checks that the reserved item is the seeded generalization.
+  An empty queue returns 204; another teacher may already have reserved the FAQ.

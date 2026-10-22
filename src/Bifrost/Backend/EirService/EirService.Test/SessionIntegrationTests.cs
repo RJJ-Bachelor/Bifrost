@@ -1,3 +1,4 @@
+using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.Sessions.Domain.DomainEvents;
@@ -15,7 +16,7 @@ using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
-using EirService.HelpRequests.Application.Features.Internal.GeneralizedMessage;
+using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
@@ -34,6 +35,10 @@ using EirService.Sessions.Domain.ValueObjects;
 using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Sessions.Infrastructure.Repositories;
+using EirService.KnowledgeBase.Infrastructure;
+using EirService.KnowledgeBase.Application;
+using EirService.KnowledgeBase.Infrastructure.Persistence;
+using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -119,6 +124,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddHelpRequestsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseApplication();
         builder.Services.RemoveAll<IHostedService>();
         builder.Services.RemoveAll<IMessageBus>();
         builder.Services.AddSingleton<IMessageBus>(bus);
@@ -128,7 +135,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         {
             options.DisableAutoDiscovery = true;
             options.Assemblies = [typeof(Api.Program).Assembly, typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly];
+                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly, typeof(GetSessionFaqsQueryHandler).Assembly];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
@@ -157,6 +164,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
             await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAtStartupAsync();
             await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartupAsync();
             await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartupAsync();
+            await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Database.MigrateAtStartupAsync();
         }
         app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();
@@ -493,13 +501,13 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     {
         var session = await CreateAsync();
         using var clear = await ClearAsync(session.Id, 1);
-        var logger = new RecordingLogger<GeneralizedMessageHandler>();
-        var handler = new GeneralizedMessageHandler(logger);
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"), new(TestIds.From("late"), session.Id, 1, "Old answer")), CancellationToken.None);
-        Assert.Contains("Discarded", Assert.Single(logger.Messages));
-        logger.Messages.Clear();
-        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("new"), new(TestIds.From("new"), session.Id, 2, "New answer")), CancellationToken.None);
-        Assert.Contains("New answer", Assert.Single(logger.Messages));
+        var logger = new RecordingLogger<RegisterGeneralizationMessageHandler>();
+        await using var scope = app.Services.CreateAsyncScope();
+        var handler = ActivatorUtilities.CreateInstance<RegisterGeneralizationMessageHandler>(scope.ServiceProvider, logger);
+        await handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(TestIds.From("late"),
+            new(TestIds.From("late"), session.Id, 1, "Old question", [Guid.NewGuid(), Guid.NewGuid()])), CancellationToken.None);
+        Assert.Contains("obsolete", Assert.Single(logger.Messages));
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.ToArrayAsync());
     }
 
     [PostgresFact]
@@ -802,7 +810,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
         var first = Assert.Single(await ReadNotificationsAsync());
         Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
-            session.Id, 1, firstId, "Created", "Pending"), first.Message);
+            session.Id, 1, firstId, "Created", "Pending", NotificationEventType.HelpRequestCreated), first.Message);
         Assert.NotEqual(firstId, first.Id);
 
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
@@ -840,7 +848,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var notification = Assert.Single(await ReadNotificationsAsync());
         Assert.Contains(notification.Message.HelpRequestId, ids.Select(id => (Guid?)id));
         Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
-            session.Id, 1, notification.Message.HelpRequestId, "Created", "Pending"), notification.Message);
+            session.Id, 1, notification.Message.HelpRequestId, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
     }
 
     [PostgresFact]
@@ -960,10 +968,12 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var studentId = (await answer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("studentId").GetString();
         var answered = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
         Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.",
-            session.Id, 1, id, "Answered", "Completed"), answered.Message);
+            session.Id, 1, id, "Answered", "Completed", NotificationEventType.HelpRequestAnswered), answered.Message);
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
         Assert.Equal("Completed", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
+        Assert.Equal(new[] { "StudentQuestion", "TeacherAnswer" }, conversation.GetProperty("messages")
+            .EnumerateArray().Select(message => message.GetProperty("messageType").GetString()));
         clock.Now = clock.Now.AddMinutes(1);
         using var followUp = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Follow-up" });
         Assert.Equal(HttpStatusCode.OK, followUp.StatusCode);
@@ -972,6 +982,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var saved = await db.Requests.Include(request => request.Messages).SingleAsync(request => request.Id == id);
         Assert.Equal(HelpRequestStatus.Pending, saved.Status);
         Assert.Equal(new[] { 1, 2, 3 }, saved.Messages.OrderBy(message => message.SequenceNumber).Select(message => message.SequenceNumber));
+        Assert.Equal(HelpRequestMessageType.FollowUpQuestion, saved.Messages.Single(message => message.SequenceNumber == 3).MessageType);
         Assert.Contains(await db.Outbox.ToArrayAsync(), message => message.RoutingKey == MessageRoutes.HelpRequestAnswered);
         Assert.Empty(bus.Messages);
 
@@ -1044,8 +1055,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var secondScope = app.Services.CreateAsyncScope();
         var first = (await firstScope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().GetAsync(id, CancellationToken.None))!;
         var second = (await secondScope.ServiceProvider.GetRequiredService<IHelpRequestRepository>().GetAsync(id, CancellationToken.None))!;
-        first.AddStudentMessage(first.StudentId, new EirService.HelpRequests.Domain.ValueObjects.MessageText("First update"), clock.Now);
-        second.AddStudentMessage(second.StudentId, new EirService.HelpRequests.Domain.ValueObjects.MessageText("Second update"), clock.Now);
+        first.AddStudentMessage(first.StudentId!, new EirService.HelpRequests.Domain.ValueObjects.MessageText("First update"), clock.Now);
+        second.AddStudentMessage(second.StudentId!, new EirService.HelpRequests.Domain.ValueObjects.MessageText("Second update"), clock.Now);
         await firstScope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync();
         await Assert.ThrowsAsync<EirService.Contracts.Exceptions.OperationConflictException>(() =>
             secondScope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync());
@@ -1215,7 +1226,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     private static async Task<Guid> SubmitAsync(HttpClient client, Guid sessionId, HelpType helpType)
     {
         using var response = await client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests", new { Message = "Question", HelpType = helpType.ToString() });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.Created,
+            $"Creating a help request returned {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
 

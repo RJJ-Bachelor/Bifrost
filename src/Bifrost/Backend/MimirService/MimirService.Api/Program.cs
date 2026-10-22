@@ -1,4 +1,6 @@
 using Shared.Api.Authentication;
+using MimirService.Application;
+using MimirService.Api.Endpoints.Test;
 using MimirService.Infrastructure;
 using MimirService.Infrastructure.Persistence;
 using Shared.Infrastructure.Persistence.Migrations;
@@ -12,6 +14,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
         builder.Services.AddMimirInfrastructure(builder.Configuration);
+        if (builder.Environment.IsDevelopment()) builder.Services.AddMimirDevelopmentFeatures();
 
         // Add services to the container.
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
@@ -34,9 +37,10 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapGeneralizationTestApi();
         }
 
-        app.UseHttpsRedirection();
+        if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();
 
         app.UseAuthentication();
         app.UseAuthorization();

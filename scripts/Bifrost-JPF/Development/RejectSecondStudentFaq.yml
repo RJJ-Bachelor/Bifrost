@@ -1,0 +1,37 @@
+info:
+  name: Reject second student FAQ
+  type: http
+  seq: 8
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/students/requests/{{faqDemoSecondHelpRequestId}}/faq'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "accept": false
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar("seedReady")) {
+          throw new Error("Run 'Seed FAQ demo' successfully first.");
+        }
+        await require("./lib/seed-student.cjs")(bru, req, "secondStudentCookie");
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Selects the second demo student's cookie and rejects the answer on their own source request.
+  Run Answer FAQ first. The request returns to Pending, preserving its queue timestamp.
+  The teacher cookie is preserved. Repeating a response returns 409.

@@ -43,6 +43,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
         builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "gateway-appsettings.json"))
+            .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "gateway-appsettings.Development.json"))
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Authentication:StudentCookie:KeyRingPath"] = keyRingPath,
@@ -250,6 +251,48 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             Assert.Equal("teacher|opaque-id", (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
     }
 
+    [Theory]
+    [InlineData("/api/teachers/development/seed", "eir", "/api/test/seed", false, HttpStatusCode.OK)]
+    [InlineData("/api/teachers/development/generalizations", "mimir", "/api/test/generalizations", false, HttpStatusCode.OK)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", "mimir", "/api/test/generalizations/from-help-requests", false, HttpStatusCode.OK)]
+    [InlineData("/api/teachers/development/seed", "eir", "/api/test/seed", true, HttpStatusCode.Unauthorized)]
+    [InlineData("/api/teachers/development/generalizations", "mimir", "/api/test/generalizations", true, HttpStatusCode.Unauthorized)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", "mimir", "/api/test/generalizations/from-help-requests", true, HttpStatusCode.Unauthorized)]
+    public async Task DevelopmentCallsUseExistingTeacherCookie(string route, string service, string targetPath,
+        bool expired, HttpStatusCode expected)
+    {
+        using var login = await client.PostAsync("/test/teacher-login?expired=" + expired.ToString().ToLowerInvariant(), null);
+        client.DefaultRequestHeaders.Add("Cookie", Assert.Single(login.Headers.GetValues("Set-Cookie")).Split(';')[0]);
+        using var response = await client.PostAsJsonAsync(route, new { scenario = "faq-demo", studentCount = 2 });
+        Assert.Equal(expected, response.StatusCode);
+        if (expected == HttpStatusCode.OK)
+        {
+            var identity = (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+            Assert.Equal(service, identity.Service);
+            Assert.Equal(targetPath, identity.Path);
+            Assert.Equal("teacher|opaque-id", identity.UserId);
+            Assert.StartsWith("Bearer ", identity.Authorization);
+        }
+    }
+
+    [Theory]
+    [InlineData("/api/teachers/development/seed", false)]
+    [InlineData("/api/teachers/development/generalizations", false)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", false)]
+    [InlineData("/api/teachers/development/seed", true)]
+    [InlineData("/api/teachers/development/generalizations", true)]
+    [InlineData("/api/teachers/development/generalizations/from-help-requests", true)]
+    public async Task DevelopmentCallsRequireTeacherLogin(string route, bool student)
+    {
+        if (student)
+        {
+            using var first = await client.GetAsync("/api/students/me");
+            client.DefaultRequestHeaders.Add("Cookie", StudentCookie(first));
+        }
+        using var response = await client.PostAsJsonAsync(route, new { });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     [Fact]
     public async Task MonitoringDoesNotIssueStudentCookie()
     {
@@ -348,9 +391,15 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             context.User.FindAll("role").Select(claim => claim.Value).ToArray(),
             context.Request.Cookies[StudentCookieHandler.CookieName], context.Request.Cookies["another-cookie"],
             context.Request.Headers["X-Bifrost-User-Id"].FirstOrDefault(), context.Request.Headers["X-Bifrost-Roles"].FirstOrDefault(),
-            context.Request.Headers.Authorization.ToString());
+            context.Request.Headers.Authorization.ToString(), context.Request.Path.ToString());
         app.MapGet("/api/students/{**path}", Identity).RequireAuthorization("Student");
         app.MapGet("/api/teachers/{**path}", Identity).RequireAuthorization("Teacher");
+        if (name == "eir") app.MapPost("/api/test/seed", Identity).RequireAuthorization("Teacher");
+        if (name == "mimir")
+        {
+            app.MapPost("/api/test/generalizations", Identity).RequireAuthorization("Teacher");
+            app.MapPost("/api/test/generalizations/from-help-requests", Identity).RequireAuthorization("Teacher");
+        }
         app.MapGet("/api/monitoring/alive", () => "Alive").AllowAnonymous();
         await app.StartAsync();
         return app;
@@ -388,7 +437,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     }
 
     private sealed record ReceivedIdentity(string Service, string UserId, string[] Roles, string? Cookie,
-        string? OtherCookie, string? SpoofedUserId, string? SpoofedRoles, string? Authorization);
+        string? OtherCookie, string? SpoofedUserId, string? SpoofedRoles, string? Authorization, string Path);
 
     private sealed class TestServiceClientFactory(Dictionary<string, WebApplication> services) : IForwarderHttpClientFactory
     {

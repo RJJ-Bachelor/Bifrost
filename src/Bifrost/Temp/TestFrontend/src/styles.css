@@ -114,6 +114,7 @@ form > button { margin-top: 15px; }
 .status[data-status="Active"] { background: #e3f1ec; color: #286249; }
 .status[data-status="Completed"] { background: #e7edf6; color: var(--blue); }
 .status[data-status="Cancelled"] { background: #f5e9e9; color: #995050; }
+.status[data-status="AwaitingConfirmation"] { background: #eaf4ef; color: #2c6651; white-space: normal; }
 .queue-item { display: grid; grid-template-columns: 24px minmax(0, 1fr) 20px; gap: 12px; align-items: start; }
 .queue-position { color: var(--muted); font-size: 13px; padding-top: 2px; }
 .queue-item-content { display: flex; flex-direction: column; gap: 7px; }
@@ -167,3 +168,16 @@ form > button { margin-top: 15px; }
   .session-code { font-size: 19px; }
   .queue-summary-side { padding-left: 12px; }
 }
+
+.faq-item { border-top: 1px solid var(--border, #dce4e0); padding: 1rem 0; }
+.faq-item summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.faq-item summary .status { margin-left: .5rem; }
+.faq-answer { white-space: pre-wrap; overflow-wrap: anywhere; }
+.faq-queue-item { border-left: 4px solid var(--accent, #25785a); }
+.faq-confirmation, .faq-response-notice { background: #eff8f2; border: 1px solid #cee4d8; border-left: 4px solid #2c6651; border-radius: 3px; }
+.faq-confirmation { margin: 20px 0; padding: 20px; }
+.faq-response-link { border-top: 1px solid #cee4d8; padding-top: 16px; margin-top: 16px; }
+.faq-response-link p { overflow-wrap: anywhere; }
+.faq-response-prompt { color: #2c6651; font-size: 13px; font-weight: 600; }
+
+.test-payload { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }

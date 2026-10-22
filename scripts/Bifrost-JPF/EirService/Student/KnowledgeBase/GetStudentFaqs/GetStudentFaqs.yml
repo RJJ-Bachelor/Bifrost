@@ -1,0 +1,21 @@
+info:
+  name: GetStudentFaqs
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/faqs'
+  auth: null
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Lists answered FAQ/generalization questions for the session's current generation.
+  Uses the current student cookie; the student must have joined the session.
+  The list can be empty before a teacher answers or while the answer event is being delivered.

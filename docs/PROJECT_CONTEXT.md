@@ -283,3 +283,15 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Role-based visual themes are dynamically applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`.
 - Shared UI primitives (`Card`, `Dialog`, `ListRow`, `StatusDialog`) establish consistent reusable layout and modal patterns across features.
 - Session creation and join flows integrate reactive form signals with explicit client-side validation schemas.
+
+---
+
+## Update 2026-10-22
+
+- The `EirService` now includes a `KnowledgeBase` module, which manages generalized FAQ answers and their associations with source help requests.
+- Help requests now support a `FaqAnswerId` and a `HelpRequestMessageType` enum, enabling the system to distinguish between original student questions, follow-up questions, and system-generated FAQ content.
+- A new `FaqAnswer` aggregate root in the `KnowledgeBase` domain tracks generalized questions, their answers, and the set of source help request IDs, ensuring that answers are recorded only once per generalization.
+- The `EirService` messaging infrastructure now includes a `RegisterGeneralizationMessageHandler` that validates and persists FAQ generalizations, and a `FaqAnsweredMessageHandler` that records teacher answers to these generalizations.
+- Help requests can now be linked to a FAQ generalization, transitioning them to an `AwaitingFaq` status, and students can accept or reject these answers, which triggers a return to the queue for rejected requests while preserving their original queue timestamp.
+- The `GnaService` notification system has been extended with a `NotificationEventType` to categorize notifications (e.g., `FaqCreated`, `FaqAnswered`), allowing the frontend to display context-specific titles and navigation targets.
+- Database migrations have been implemented to backfill `MessageType` for existing help request messages and to suppress redundant notifications for physical help requests that were previously affected by FAQ-related state changes.

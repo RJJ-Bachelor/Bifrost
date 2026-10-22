@@ -4,7 +4,7 @@ info:
   seq: 1
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/teachers/requests/{{helpRequestId}}/messages'
+  url: '{{gatewayUrl}}/api/teachers/requests/{{teacherHelpRequestId}}/messages'
   auth: null
   body:
     type: json
@@ -16,3 +16,9 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Answers a reserved digital help request or shared FAQ through the same endpoint.
+  Run TakeNextHelpRequest first; it automatically sets teacherHelpRequestId to the reserved id.
+  For a shared FAQ, this id is the generalizationId. Each linked student receives the answer
+  and can accept or reject it through Student/HelpRequests/RespondToFaq.
+  The current teacher must own the reservation. Development/Answer FAQ handles the seeded demo.

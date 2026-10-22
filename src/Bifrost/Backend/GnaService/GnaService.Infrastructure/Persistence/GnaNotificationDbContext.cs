@@ -46,6 +46,7 @@ public sealed class GnaNotificationDbContext(
                 .IsRequired();
             entity.Property(notification => notification.CreatedAt)
                 .IsRequired();
+            entity.Property(notification => notification.EventType).HasConversion<string>().HasMaxLength(40);
         });
     }
 }

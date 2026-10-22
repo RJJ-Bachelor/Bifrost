@@ -7,7 +7,7 @@ public sealed class HelpRequestMessage : Entity<Guid>
 {
     private HelpRequestMessage() { }
 
-    internal HelpRequestMessage(Guid helpRequestId, string authorId, AuthorRole authorRole,
+    internal HelpRequestMessage(Guid helpRequestId, string authorId, AuthorRole authorRole, HelpRequestMessageType messageType,
         MessageText text, DateTimeOffset now, int sequenceNumber)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -15,6 +15,7 @@ public sealed class HelpRequestMessage : Entity<Guid>
         HelpRequestId = helpRequestId;
         AuthorId = authorId;
         AuthorRole = authorRole;
+        MessageType = messageType;
         Text = text;
         CreatedAt = now.ToUniversalTime();
         SequenceNumber = sequenceNumber;
@@ -23,7 +24,16 @@ public sealed class HelpRequestMessage : Entity<Guid>
     public Guid HelpRequestId { get; private set; }
     public string AuthorId { get; private set; } = null!;
     public AuthorRole AuthorRole { get; private set; }
+    public HelpRequestMessageType MessageType { get; private set; }
     public MessageText Text { get; private set; } = null!;
     public DateTimeOffset CreatedAt { get; private set; }
     public int SequenceNumber { get; private set; }
+    public bool IsRejected { get; private set; }
+
+    internal void RejectFaq()
+    {
+        if (MessageType is not (HelpRequestMessageType.FaqQuestion or HelpRequestMessageType.FaqAnswer))
+            throw new HelpRequestRuleException("Only FAQ messages can be rejected.");
+        IsRejected = true;
+    }
 }

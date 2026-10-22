@@ -18,7 +18,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("helprequests")
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -72,7 +72,6 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<string>("StudentId")
-                        .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
@@ -92,7 +91,7 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
                     b.HasIndex("SessionId", "Generation", "StudentId")
                         .IsUnique()
                         .HasDatabaseName("IX_HelpRequest_OneOpenPerStudent")
-                        .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingConfirmation')");
+                        .HasFilter("\"Status\" IN ('Pending', 'Active', 'AwaitingFaq', 'AwaitingConfirmation')");
 
                     b.HasIndex("SessionId", "Generation", "ReturnedToQueueAt", "QueuedAt", "Id")
                         .IsDescending(false, false, true, false, false)
@@ -121,6 +120,16 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("HelpRequestId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("IsRejected")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<int>("SequenceNumber")
                         .HasColumnType("integer");

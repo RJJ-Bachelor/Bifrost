@@ -186,6 +186,7 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(new[] { "colleague", "provider|opaque-teacher" }, notifications.Select(item => item.Message.UserId).Order());
         Assert.Equal(2, notifications.Select(item => item.Id).Distinct().Count());
         Assert.Single(notifications.Select(item => item.Message.HelpRequestId).Distinct());
+        Assert.All(notifications, item => Assert.Equal(Shared.Domain.Notifications.NotificationEventType.HelpRequestCreated, item.Message.EventType));
     }
 
     [PostgresFact]

@@ -13,6 +13,10 @@ config:
         password: ''
       bypassProxy: ''
 request:
+  scripts:
+    - type: after-response
+      code: |-
+        require("./lib/response-variables.cjs").captureResponse(bru, req, res);
   variables:
     - name: gatewayUrl
       value: http://localhost:6004

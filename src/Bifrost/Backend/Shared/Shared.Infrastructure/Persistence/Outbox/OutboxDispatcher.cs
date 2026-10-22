@@ -30,6 +30,7 @@ public sealed class OutboxDispatcher<TDbContext>(
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var pending = await dbContext.Set<OutboxMessage>().Where(message => message.PublishedAtUtc == null)
             .OrderBy(message => message.LastAttemptAtUtc ?? message.CreatedAtUtc).ThenBy(message => message.Id).Take(50).ToListAsync(cancellationToken);
+        var published = 0;
         foreach (var message in pending)
         {
             var previousActivity = Activity.Current;
@@ -43,6 +44,7 @@ public sealed class OutboxDispatcher<TDbContext>(
                 message.MarkPublished(timeProvider.GetUtcNow());
                 // A crash after publish can deliver the same MessageId again. Consumers must be idempotent.
                 await dbContext.SaveChangesAsync(cancellationToken);
+                published++;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
@@ -55,5 +57,7 @@ public sealed class OutboxDispatcher<TDbContext>(
             }
             finally { Activity.Current = previousActivity; }
         }
+        if (published > 0)
+            logger.LogInformation("Published {MessageCount} outbox messages from {DbContext}.", published, typeof(TDbContext).Name);
     }
 }

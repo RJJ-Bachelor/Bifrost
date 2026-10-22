@@ -1,0 +1,31 @@
+info:
+  name: AcceptFaq
+  type: http
+  seq: 1
+http:
+  method: PATCH
+  url: '{{gatewayUrl}}/api/students/requests/{{studentHelpRequestId}}/faq'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "accept": true
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Accepts the shared FAQ answer and completes the student's original help request.
+  studentHelpRequestId is saved automatically when creating or fetching the student's source request. The student cookie must own it.
+  Requires AwaitingConfirmation after the teacher has answered the shared FAQ.
+  For the seeded demo, use Development/Accept first student FAQ for automatic cookie selection.

@@ -1,0 +1,68 @@
+info:
+  name: Seed FAQ demo
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/development/seed'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "scenario": "faq-demo",
+        "studentCount": 6
+      }
+  auth: null
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar("seedReady", false);
+        bru.setVar("faqDemoTakenRequestId", null);
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          const body = res.getBody();
+          const data = typeof body === "string" ? JSON.parse(body) : body;
+          const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          const ids = [data?.session?.id, data?.generalization?.generalizationId,
+            data?.students?.[0]?.helpRequestId, data?.students?.[1]?.helpRequestId];
+          if (ids.some(id => typeof id !== "string" || !guid.test(id)) ||
+              !Number.isInteger(data.session.currentGeneration) || data.session.currentGeneration < 1) {
+            throw new Error("The seed response is missing valid session/generalization/help request ids. Check the seed response before publishing.");
+          }
+          const variables = {
+            sessionId: data.session.id,
+            sessionCode: data.session.code,
+            sessionGeneration: String(data.session.currentGeneration),
+            helpRequestId: data.students[0].helpRequestId,
+            teacherSessionCode: data.session.teacherCode,
+            generalizationId: data.generalization.generalizationId,
+            firstHelpRequestId: data.students[0].helpRequestId,
+            secondHelpRequestId: data.students[1].helpRequestId
+          };
+          require("./lib/response-variables.cjs").captureSession(bru, data.session, { reset: true });
+          require("./lib/response-variables.cjs").save(bru, {
+            ...variables, studentHelpRequestId: variables.helpRequestId, teacherHelpRequestId: ""
+          });
+          bru.setVar("faqDemoSessionId", variables.sessionId);
+          bru.setVar("faqDemoGeneration", data.session.currentGeneration);
+          bru.setVar("faqDemoGeneralizationId", variables.generalizationId);
+          bru.setVar("faqDemoFirstHelpRequestId", variables.firstHelpRequestId);
+          bru.setVar("faqDemoSecondHelpRequestId", variables.secondHelpRequestId);
+          bru.setVar("firstStudentCookie", data.students[0].cookieHeader);
+          bru.setVar("secondStudentCookie", data.students[1].cookieHeader);
+          bru.setVar("seedReady", true);
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '201'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: Run Login/Teacher/Login first. Reuses the existing gateway teacher cookie and creates a new demo session. Set studentCount directly in the JSON body (2-20, default 6). A failed HTTP response stays visible; session variables are updated only after HTTP 201.

@@ -1,4 +1,10 @@
 using Shared.Api.Authentication;
+using EirService.Api.Development;
+using EirService.Api.Endpoints.Test.Seed;
+using EirService.KnowledgeBase.Application;
+using EirService.KnowledgeBase.Infrastructure;
+using EirService.KnowledgeBase.Infrastructure.Persistence;
+using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using System.Text.Json.Serialization;
 using EirService.HelpRequests.Application;
 using EirService.Api.Middleware;
@@ -36,6 +42,9 @@ public class Program
         builder.Services.AddHelpRequestsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
+        builder.Services.AddKnowledgeBaseApplication();
+        if (builder.Environment.IsDevelopment()) builder.Services.AddScoped<DevelopmentDataSeeder>();
 
         // Add services to the container.
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
@@ -45,7 +54,8 @@ public class Program
             [
                 typeof(CreateSessionCommandHandler).Assembly,
                 typeof(CreateHelpRequestCommandHandler).Assembly,
-                typeof(JoinSessionCommandHandler).Assembly
+                typeof(JoinSessionCommandHandler).Assembly,
+                typeof(GetSessionFaqsQueryHandler).Assembly
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
@@ -75,6 +85,7 @@ public class Program
             scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Database.MigrateAtStartup();
             scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartup();
             scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartup();
+            scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Database.MigrateAtStartup();
         }
 
         app.MapDefaultEndpoints();
@@ -83,6 +94,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
+            app.MapDevelopmentSeedApi();
         }
 
         app.UseMiddleware<ValidationExceptionMiddleware>();

@@ -8,12 +8,12 @@ var rabbitmqPassword = builder.AddParameter("rabbitmq-password", "guest", secret
 
 var rabbitmq = builder
     .AddRabbitMQ("rabbitmq", rabbitmqUsername, rabbitmqPassword, port: 5001)
-    .WithDataVolume()
+    //.WithDataVolume()
     .WithManagementPlugin(port: 5002);
 
 // Postgres
 var postgres = builder.AddPostgres("postgres", port: 5000)
-    .WithDataVolume()
+    //.WithDataVolume()
     .WithInitFiles("./postgres/init");
 
 var eirDatabase = postgres.AddDatabase("eir");

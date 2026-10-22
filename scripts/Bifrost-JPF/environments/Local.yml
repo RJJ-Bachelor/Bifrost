@@ -19,3 +19,13 @@ variables:
     value: '1'
   - name: helpRequestId
     value: ''
+  - name: studentHelpRequestId
+    value: ''
+  - name: teacherHelpRequestId
+    value: ''
+  - name: generalizationId
+    value: ''
+  - name: firstHelpRequestId
+    value: ''
+  - name: secondHelpRequestId
+    value: ''

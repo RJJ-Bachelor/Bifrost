@@ -4,7 +4,7 @@ info:
   seq: 1
 http:
   method: POST
-  url: '{{gatewayUrl}}/api/students/requests/{{helpRequestId}}/messages'
+  url: '{{gatewayUrl}}/api/students/requests/{{studentHelpRequestId}}/messages'
   auth: null
   body:
     type: json

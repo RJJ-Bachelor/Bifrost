@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,11 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FastEndpoints.Messaging" Version="8.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Features\" />
+    <ProjectReference Include="../EirService.KnowledgeBase.Domain/EirService.KnowledgeBase.Domain.csproj" />
+    <ProjectReference Include="../../../../Shared/Shared.Application/Shared.Application.csproj" />
+    <ProjectReference Include="../../../EirService.Contracts/EirService.Contracts.csproj" />
   </ItemGroup>
-
 </Project>

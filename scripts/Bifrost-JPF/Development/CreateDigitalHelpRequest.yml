@@ -1,7 +1,7 @@
 info:
-  name: GeneralizeHelpRequest
+  name: Create digital help request (new session)
   type: http
-  seq: 1
+  seq: 9
 http:
   method: POST
   url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
@@ -24,10 +24,13 @@ runtime:
         // A new session per run, because a student can only have one open request per session.
         await bru.runRequest("Login/Teacher/Login");
         const session = (await bru.runRequest("EirService/Teacher/Sessions/CreateSession/CreateSession")).data;
-        bru.setEnvVar("sessionId", session.id);
-        bru.setEnvVar("sessionCode", session.code);
-        bru.setEnvVar("sessionGeneration", String(session.currentGeneration));
+        require("./lib/response-variables.cjs").captureSession(bru, session);
         await bru.runRequest("EirService/Student/Participants/JoinSession/JoinSession");
     - type: after-response
       code: |-
-        if (res.status === 201) bru.setEnvVar("helpRequestId", res.body.id);
+        if (res.status === 201) require("./lib/response-variables.cjs").captureHelpRequest(bru, res.getBody(), "students");
+docs: |-
+  Creates a fresh Eir session, joins as a student and sends one ordinary digital help request.
+  Mimir receives request.created and runs its normal generalization flow.
+  To publish a dummy generalization directly, use MimirService/Publish generalization (dummy data).
+  For manual requests in an existing session, use EirService/Student/HelpRequests/CreateHelpRequest/CreateDigitalRequest.

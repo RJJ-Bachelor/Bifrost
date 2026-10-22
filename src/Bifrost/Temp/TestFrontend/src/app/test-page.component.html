@@ -65,18 +65,43 @@
         <div class="session-workspace">
           <app-student-help-requests *ngIf="!isTeacher" [view]="this" />
           <app-teacher-help-requests *ngIf="isTeacher" [view]="this" />
+          <section class="card faq-section" aria-labelledby="faq-title">
+            <div class="section-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div></div>
+            <p *ngIf="!isTeacher && faqs.length" class="hint">Du kan læse alle fælles FAQ-svar her. Er din anmodning allerede besvaret, kræver det ingen handling. Kun ubesvarede digitale anmodninger får et FAQ-svar til accept eller afvisning i deres egen samtale.</p>
+            <p *ngIf="!faqs.length" class="hint">{{ isTeacher ? 'Generaliserede spørgsmål vises her og forrest i den fælles kø.' : 'Her vises fælles FAQ-svar fra underviserne.' }}</p>
+            <details *ngFor="let faq of faqs" class="faq-item">
+              <summary>{{ faq.question }} <span class="status">{{ faq.answer ? 'Besvaret' : 'Afventer svar' }}</span></summary>
+              <p class="hint">Fælles spørgsmål fra {{ faq.sourceCount }} hjælpeanmodninger.</p>
+              <p *ngIf="faq.answer" class="faq-answer">{{ faq.answer }}</p>
+              <button *ngIf="isTeacher" class="text-button" (click)="openRequest(faq.id)" [disabled]="busy">{{ faq.answer ? 'Se FAQ-samtale' : 'Åbn FAQ-opgave' }}</button>
+            </details>
+          </section>
         </div>
         <section class="card conversation-panel" aria-labelledby="conversation-title">
           <ng-container *ngIf="conversation as request; else noConversation">
             <div class="section-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">{{ request.displayNumber }}</h2></div><span class="status" [attr.data-status]="request.status">{{ requestStatusLabel(request) }}</span></div>
-            <p class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }}</p>
+            <p class="hint">{{ request.isFaq ? 'Fælles FAQ-spørgsmål' : (request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp') }}</p>
             <p *ngIf="isTeacher && request.assignedTeacherId" class="assignment-label" [class.own-assignment]="isAssignedTeacher">{{ assignmentLabel(request) }}</p>
             <p *ngIf="!canAct" class="alert info">Denne anmodning er fra før sessionen blev ryddet. Samtalen kan stadig læses.</p>
             <p *ngIf="isTeacher && request.status === 'Pending' && !request.assignedTeacherId" class="hint">Tag den næste anmodning i køen for at starte hjælp eller svare.</p>
             <p *ngIf="isTeacher && canAct && request.assignedTeacherId && !isAssignedTeacher && (request.status === 'Pending' || request.status === 'Active')" class="alert info">En anden underviser hjælper med denne anmodning. Du kan læse samtalen.</p>
+            <p *ngIf="request.status === 'AwaitingFaq'" class="alert info">{{ isTeacher ? 'Anmodningen afventer svar på det fælles FAQ-spørgsmål. Den studerende kan acceptere eller afvise svaret, når FAQ-opgaven er besvaret.' : 'Dit spørgsmål indgår i et fælles FAQ-spørgsmål. Når underviseren har svaret, vises Acceptér FAQ-svar og Afvis FAQ-svar her. Din oprindelige køplads bevares.' }}</p>
+            <p *ngIf="!request.isFaq && selectedFaq" class="hint">Fælles spørgsmål: {{ selectedFaq.question }}</p>
+            <div *ngIf="!isTeacher && canAct && request.helpType === 'Digital' && request.status === 'Completed'" class="alert info">
+              <p>Din anmodning er besvaret og afsluttet. Du kan læse nye fælles FAQ-svar i oversigten uden at acceptere eller afvise dem.</p>
+              <button type="button" class="text-button" (click)="showSessionFaqs()">Se fælles FAQ-svar →</button>
+            </div>
+            <section *ngIf="canRespondToFaq" class="faq-confirmation" aria-labelledby="faq-confirmation-title">
+              <p class="eyebrow">FÆLLES FAQ-SVAR</p>
+              <h3 id="faq-confirmation-title">Løser svaret dit spørgsmål?</h3>
+              <p *ngIf="faqQuestion"><strong>{{ faqQuestion }}</strong></p>
+              <p *ngIf="faqAnswer" class="faq-answer">{{ faqAnswer }}</p>
+              <p class="hint">Acceptér for at afslutte din anmodning. Afvis, hvis du stadig har brug for hjælp; så vender du tilbage til køen med din oprindelige køplads.</p>
+              <div class="actions"><button type="button" (click)="respondToFaq(true)" [disabled]="busy">Acceptér FAQ-svar</button><button type="button" class="secondary" (click)="respondToFaq(false)" [disabled]="busy">Afvis FAQ-svar – tilbage i køen</button></div>
+            </section>
             <ol class="conversation">
               <li *ngFor="let message of request.messages" [class.teacher-message]="message.authorRole === 'Teacher'">
-                <div class="message-meta"><strong>{{ message.authorRole === 'Teacher' ? 'Underviser' : 'Studerende' }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
+                <div class="message-meta"><strong>{{ messageTypeLabels[message.messageType] }}</strong><time>{{ message.createdAt | date:'dd.MM HH:mm' }}</time></div>
                 <p>{{ message.text }}</p>
               </li>
             </ol>
@@ -86,7 +111,7 @@
             </div>
             <form *ngIf="(!isTeacher || request.helpType === 'Digital') && canSendMessage" #replyForm="ngForm" (ngSubmit)="sendMessage()" class="reply-form">
               <label for="reply-text">{{ isTeacher ? 'Dit svar' : 'Ny besked til underviseren' }}</label>
-              <p class="hint">{{ isTeacher ? 'Når du sender dit svar, afsluttes anmodningen.' : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
+              <p class="hint">{{ isTeacher ? (request.isFaq ? 'Svaret gemmes som FAQ og sendes til de tilknyttede studerende.' : 'Når du sender dit svar, afsluttes anmodningen.') : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
               <textarea id="reply-text" name="replyText" [(ngModel)]="replyText" rows="4" maxlength="4000" required [disabled]="busy" placeholder="Skriv din besked …"></textarea>
               <button type="submit" [disabled]="busy || replyForm.invalid || !replyText.trim()">{{ isTeacher ? 'Send svar og afslut' : 'Send besked' }}</button>
             </form>
@@ -96,6 +121,14 @@
           <ng-template #noConversation><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">Her vises din samtale</h2><p class="hint">{{ selectedRequestId && refreshing ? 'Henter samtalen …' : (isTeacher ? 'Tag næste anmodning, eller åbn en samtale fra køen.' : 'Opret en hjælpeanmodning, eller vælg en af dine samtaler.') }}</p></ng-template>
         </section>
       </div>
+      <details *ngIf="isTeacher" class="session-settings"><summary>Test af Mimir-generalisering</summary>
+        <p>Kopiér JSON-dataene til Bruno-kaldet <strong>MimirService → Generalize own help requests</strong>, eller send dem til <code>POST /api/teachers/development/generalizations/from-help-requests</code> gennem Heimdall. Mimir bruger teksten “Dette er et generaliseret spørgsmål.”</p>
+        <p>Fysiske spørgsmål kan indgå som kilder og fortsætter i køen til fysisk hjælp. Kun ubesvarede digitale anmodninger får FAQ-spørgsmålet, svaret og besked om at acceptere eller afvise. Allerede besvarede spørgsmål og deres opfølgninger fortsætter deres eget forløb; det fælles svar kan læses i oversigten.</p>
+        <pre *ngIf="canTestGeneralization" class="test-payload">{{ generalizationExample }}</pre>
+        <button type="button" *ngIf="canTestGeneralization" (click)="generalizeHelpRequests()" [disabled]="busy || !!pendingGeneralizationId">Generaliser de to viste spørgsmål</button>
+        <p *ngIf="pendingGeneralizationId" class="hint">Generaliseringen er sendt. Afventer FAQ i køen …</p>
+        <p *ngIf="!canTestGeneralization">Opret mindst to ledige anmodninger fra forskellige studenterprofiler for at få et eksempel.</p>
+      </details>
       <details *ngIf="isTeacher" class="session-settings"><summary>Sessionindstillinger</summary><p>Ryd køen og de aktuelle hjælpeanmodninger for alle undervisere. Alle deltagere forbliver tilmeldt.</p><button class="secondary danger" (click)="clearSession()" [disabled]="busy">Ryd session</button></details>
       <p class="live-note"><span class="live-dot" aria-hidden="true"></span>Opdateres automatisk <span *ngIf="refreshing">· Henter …</span></p>
     </ng-container>

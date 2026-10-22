@@ -1,6 +1,7 @@
 using EirService.Contracts.Participants.IsSessionParticipant;
 using EirService.Contracts.Sessions.GetSessionGenerations;
 using EirService.HelpRequests.Application.Repositories;
+using EirService.HelpRequests.Domain.Entities;
 using FastEndpoints;
 using EirService.Contracts.Exceptions;
 
@@ -20,8 +21,8 @@ public sealed class GetHelpRequestsQueryHandler(IHelpRequestRepository repositor
         var generations = ids.Length == 0 ? new Dictionary<Guid, int>() :
             await new GetSessionGenerationsQuery(ids).ExecuteAsync(cancellationToken);
         return scoped.Where(request => generations.TryGetValue(request.SessionId, out var current) && request.Generation == current)
-            .Select(request => new HelpRequestResult(request.Id, request.StudentId,
-                request.Messages.OrderBy(message => message.SequenceNumber).First().Text.Value,
+            .Select(request => new HelpRequestResult(request.Id, request.StudentId!,
+                request.Messages.Single(message => message.MessageType == HelpRequestMessageType.StudentQuestion).Text.Value,
                 request.SessionId, request.Generation, request.Status.ToString(), request.HelpType.ToString(),
                 request.RequestNumber, request.DisplayNumber)).ToArray();
     }

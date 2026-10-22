@@ -1,3 +1,4 @@
 namespace Shared.Application.Messaging.Contracts;
 
-public sealed record GeneralizedCreatedMessage(Guid HelpRequestId, Guid SessionId, int Generation, string Message);
+public sealed record GeneralizedCreatedMessage(
+    Guid GeneralizationId, Guid SessionId, int Generation, string Question, Guid[] HelpRequestIds);

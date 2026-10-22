@@ -1,6 +1,8 @@
 using EirService.Sessions.Application.Repositories;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Contracts.Sessions.GetSessionGenerations;
 using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
+using EirService.Sessions.Application.Features.Internal.GetSessionGenerations;
 using FastEndpoints;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Sessions.Infrastructure.Repositories;
@@ -25,6 +27,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
+        services.AddScoped<ICommandHandler<GetSessionGenerationsQuery, IReadOnlyDictionary<Guid, int>>, GetSessionGenerationsQueryHandler>();
         services.AddUnitOfWork<ISessionRepository, EirSessionDbContext>();
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirSessionDbContext>();

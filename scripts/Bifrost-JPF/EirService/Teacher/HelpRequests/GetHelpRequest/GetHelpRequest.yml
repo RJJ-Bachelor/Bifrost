@@ -4,9 +4,14 @@ info:
   seq: 1
 http:
   method: GET
-  url: '{{gatewayUrl}}/api/teachers/requests/{{helpRequestId}}'
+  url: '{{gatewayUrl}}/api/teachers/requests/{{teacherHelpRequestId}}'
   auth: null
 settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Returns a help request conversation or a shared FAQ queue item.
+  Uses teacherHelpRequestId saved by TakeNextHelpRequest or a previous teacher request.
+  Every message includes messageType (StudentQuestion, FollowUpQuestion, FaqQuestion, FaqAnswer or TeacherAnswer).
+  KnowledgeBase/GetTeacherFaqs lists the shared questions for the session.
