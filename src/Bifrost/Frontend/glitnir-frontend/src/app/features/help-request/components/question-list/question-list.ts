@@ -25,8 +25,10 @@ const OPEN_STATUSES: HelpRequestStatus[] = [
 export class QuestionList {
   readonly items = input.required<HelpRequest[]>();
 
-  protected readonly sorted = computed(() =>
-    [...this.items()].sort((a, b) => b.requestNumber - a.requestNumber),
+  protected readonly visible = computed(() =>
+    [...this.items()]
+      .filter((item) => item.status !== 'cancelled')
+      .sort((a, b) => b.requestNumber - a.requestNumber),
   );
 
   readonly questionSelected = output<HelpRequest>();
@@ -35,7 +37,16 @@ export class QuestionList {
     return STATUS_LABELS[status];
   }
 
+  protected isClickable(item: HelpRequest): boolean {
+    if (OPEN_STATUSES.includes(item.status)) return true;
+    return item.status === 'completed' && item.helpType === 'digital';
+  }
+
   protected isOpen(status: HelpRequestStatus): boolean {
     return OPEN_STATUSES.includes(status);
+  }
+
+  protected isDigitalCompleted(item: HelpRequest): boolean {
+    return item.status === 'completed' && item.helpType === 'digital';
   }
 }

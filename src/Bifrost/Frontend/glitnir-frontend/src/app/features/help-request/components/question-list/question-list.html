@@ -1,21 +1,20 @@
-@if (items().length === 0) {
+@if (visible().length === 0) {
   <p class="state-message">Du har ikke stillet nogen spørgsmål endnu.</p>
 } @else {
   <div class="question-list">
-    @for (item of sorted(); track item.id) {
+    @for (item of visible(); track item.id) {
       <bifrost-list-row
-        [muted]="!isOpen(item.status)"
+        [muted]="!isClickable(item)"
         (click)="questionSelected.emit(item)"
       >
-        <span left>{{ item.message }}</span>
+        <span left class="question-list__message">{{ item.message }}</span>
         <span right class="question-list__badge">
           {{ label(item.status) }}
         </span>
         @if (isOpen(item.status)) {
-          <span
-            right
-            class="question-list__chevron"
-          ></span>
+          <span right class="question-list__icon question-list__icon--chevron"></span>
+        } @else if (isDigitalCompleted(item)) {
+          <span right class="question-list__icon question-list__icon--chat"></span>
         }
       </bifrost-list-row>
     }
