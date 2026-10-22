@@ -9,3 +9,8 @@ export interface SessionStatus {
   waitingCount: number;
   estimatedWaitMinutes: number;
 }
+
+export interface SessionGeneration {
+  generation: number;
+  title: string;
+}
