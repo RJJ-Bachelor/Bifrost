@@ -8,7 +8,7 @@
         (click)="questionSelected.emit(item)"
       >
         <span left class="question-list__message">{{ item.message }}</span>
-        <span right class="question-list__badge">
+        <span right class="badge" [class.badge--muted]="!isClickable(item)">
           {{ label(item.status) }}
         </span>
         @if (isOpen(item.status)) {
