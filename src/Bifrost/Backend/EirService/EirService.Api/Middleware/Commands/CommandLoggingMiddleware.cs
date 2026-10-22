@@ -11,11 +11,11 @@ public sealed class CommandLoggingMiddleware<TCommand, TResult>(
         CommandDelegate<TResult> next,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation("Executing command {CommandName}", typeof(TCommand).Name);
+        logger.LogDebug("Executing command {CommandName}", typeof(TCommand).Name);
 
         var result = await next();
 
-        logger.LogInformation("Executed command {CommandName}", typeof(TCommand).Name);
+        logger.LogDebug("Executed command {CommandName}", typeof(TCommand).Name);
         return result;
     }
 }

@@ -38,7 +38,7 @@ using EirService.Participants.Infrastructure.Persistence;
 namespace EirService.Test;
 
 [Collection("FastEndpoints")]
-public sealed class OutboxIntegrationTests : IAsyncLifetime
+public sealed partial class OutboxIntegrationTests : IAsyncLifetime
 {
     private string? adminConnectionString;
     private string databaseName = null!;

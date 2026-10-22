@@ -21,7 +21,7 @@ public sealed class NotificationUnitOfWork(GnaNotificationDbContext dbContext, T
             { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_notifications" })
         {
             dbContext.ChangeTracker.Clear();
-            logger.LogInformation("Ignored a concurrently received duplicate notification.");
+            logger.LogDebug("Ignored a concurrently received duplicate notification.");
         }
     }
 }

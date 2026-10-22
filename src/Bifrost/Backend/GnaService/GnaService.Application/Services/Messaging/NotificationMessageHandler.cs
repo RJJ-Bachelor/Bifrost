@@ -18,7 +18,7 @@ public sealed class NotificationMessageHandler(
         MessageEnvelope<NotificationCreatedMessage> message,
         CancellationToken cancellationToken)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "Gna received notification {MessageId} for user {UserId}: {Messages}",
             message.Id,
             message.Payload.UserId,
@@ -40,7 +40,7 @@ public sealed class NotificationMessageHandler(
         if (await notificationRepository.TryAddAsync(notification, cancellationToken))
             await unitOfWork.SaveChangesAsync(cancellationToken);
         else
-            logger.LogInformation("Ignored duplicate notification {NotificationId}.", message.Id);
+            logger.LogDebug("Ignored duplicate notification {NotificationId}.", message.Id);
     }
 
     // Messages already queued before EventType was introduced still carry their original change.
