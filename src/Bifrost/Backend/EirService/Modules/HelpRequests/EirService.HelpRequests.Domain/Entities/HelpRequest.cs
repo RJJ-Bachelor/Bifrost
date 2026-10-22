@@ -59,11 +59,21 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         return request;
     }
 
-    public bool CanLinkToFaq => !IsFaq && Status == HelpRequestStatus.Pending && AssignedTeacherId is null && FaqAnswerId is null;
+    public bool CanLinkToFaq => !IsFaq && HelpType == HelpType.Digital &&
+        Status == HelpRequestStatus.Pending && AssignedTeacherId is null && FaqAnswerId is null &&
+        !messages.Any(message => message.MessageType == HelpRequestMessageType.TeacherAnswer) &&
+        !HasFollowUpAfterFaqAnswer();
+
+    // A delayed generalization answers the original question, not a reopened follow-up.
+    // Rejecting a FAQ alone still leaves the original question awaiting help.
+    private bool HasFollowUpAfterFaqAnswer() => messages.Any(answer =>
+        answer.MessageType == HelpRequestMessageType.FaqAnswer && messages.Any(followUp =>
+            followUp.MessageType == HelpRequestMessageType.FollowUpQuestion &&
+            followUp.SequenceNumber > answer.SequenceNumber));
 
     public void LinkToFaq(Guid faqId, MessageText question, DateTimeOffset now)
     {
-        Require(CanLinkToFaq && faqId != Guid.Empty, "Only unassigned waiting requests can join a FAQ.");
+        Require(CanLinkToFaq && faqId != Guid.Empty, "Only unassigned waiting digital requests can join a FAQ.");
         AddMessage("mimir", AuthorRole.System, HelpRequestMessageType.FaqQuestion, question, now);
         FaqAnswerId = faqId;
         Status = HelpRequestStatus.AwaitingFaq;
@@ -72,7 +82,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
 
     public void SuggestFaq(Guid faqId, string teacherId, MessageText answer, DateTimeOffset now)
     {
-        Require(!IsFaq && Status == HelpRequestStatus.AwaitingFaq && FaqAnswerId == faqId,
+        Require(!IsFaq && HelpType == HelpType.Digital && Status == HelpRequestStatus.AwaitingFaq && FaqAnswerId == faqId,
             "The request is not awaiting this FAQ.");
         AddMessage(teacherId, AuthorRole.Teacher, HelpRequestMessageType.FaqAnswer, answer, now);
         Status = HelpRequestStatus.AwaitingConfirmation;
@@ -163,7 +173,8 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     }
 
     private void RequireFaqConfirmation(string studentId) => Require(
-        StudentId == studentId && Status == HelpRequestStatus.AwaitingConfirmation && FaqAnswerId is not null,
+        StudentId == studentId && HelpType == HelpType.Digital &&
+        Status == HelpRequestStatus.AwaitingConfirmation && FaqAnswerId is not null,
         "There is no FAQ answer awaiting this student's confirmation.");
 
     private void RequireTeacher(string teacherId) => Require(

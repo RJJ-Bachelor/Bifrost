@@ -37,7 +37,8 @@ public sealed class DevelopmentDataSeeder(StudentIdentityCookie studentCookies, 
             var studentId = Guid.NewGuid().ToString("N");
             await new JoinSessionCommand(session.Code, studentId).ExecuteAsync(cancellationToken);
             var question = Questions[index % Questions.Length];
-            var helpType = index % 2 == 0 ? HelpType.Physical : HelpType.Digital;
+            // Both FAQ demo sources need a digital answer so accept/reject can be exercised.
+            var helpType = index >= 2 && index % 2 == 0 ? HelpType.Physical : HelpType.Digital;
             var request = await new CreateHelpRequestCommand(session.Id, studentId, question, helpType).ExecuteAsync(cancellationToken);
             students.Add(new SeededStudent(studentId, request.Id, request.DisplayNumber, helpType.ToString(), question,
                 $"{StudentCookieHandler.CookieName}={studentCookies.Protect(studentId)}"));

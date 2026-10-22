@@ -1,6 +1,7 @@
 using Shared.Domain.Primitives;
 using GnaService.Domain.ValueObjects;
 using GnaService.Domain.DomainEvents;
+using Shared.Domain.Notifications;
 
 namespace GnaService.Domain.Entities;
 
@@ -19,7 +20,8 @@ public sealed class Notification : AggregateRoot<Guid>
         int? generation,
         Guid? helpRequestId,
         string? change,
-        string? status)
+        string? status,
+        NotificationEventType eventType)
     {
         Id = id;
         UserId = userId;
@@ -30,6 +32,7 @@ public sealed class Notification : AggregateRoot<Guid>
         HelpRequestId = helpRequestId;
         Change = change;
         Status = status;
+        EventType = eventType;
     }
 
 
@@ -49,6 +52,8 @@ public sealed class Notification : AggregateRoot<Guid>
 
     public string? Status { get; private set; }
 
+    public NotificationEventType EventType { get; private set; }
+
     public static Notification Create(
         Guid id,
         string userId,
@@ -58,7 +63,8 @@ public sealed class Notification : AggregateRoot<Guid>
         int? generation = null,
         Guid? helpRequestId = null,
         string? change = null,
-        string? status = null)
+        string? status = null,
+        NotificationEventType eventType = NotificationEventType.Unknown)
     {
         if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
 
@@ -66,7 +72,7 @@ public sealed class Notification : AggregateRoot<Guid>
             id,
             UserId.Create(userId),
             NotificationMessages.Create(messages), now ?? DateTimeOffset.UtcNow,
-            sessionId, generation, helpRequestId, change, status);
+            sessionId, generation, helpRequestId, change, status, eventType);
         notification.RaiseDomainEvent(new NotificationCreatedDomainEvent(notification));
         return notification;
     }

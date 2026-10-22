@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
+using Shared.Domain.Notifications;
 
 namespace EirService.Test;
 
@@ -30,7 +31,7 @@ public sealed partial class SessionIntegrationTests
         await JoinAsync(session.Code);
         using var second = await OtherStudentAsync(session.Code);
         using var third = await OtherStudentAsync(session.Code);
-        var firstId = await SubmitAsync(student, session.Id, HelpType.Physical);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
         clock.Now = clock.Now.AddMinutes(1);
         var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);
         clock.Now = clock.Now.AddMinutes(1);
@@ -53,6 +54,13 @@ public sealed partial class SessionIntegrationTests
         var notices = (await ReadNotificationsAsync()).Where(item => item.Message.Change == "FaqCreated").ToArray();
         Assert.Equal(new[] { "colleague", "provider|opaque-teacher" }, notices.Select(item => item.Message.UserId).Order());
         Assert.Equal(2, notices.Select(item => item.Id).Distinct().Count());
+        Assert.All(notices, item =>
+        {
+            Assert.Equal(NotificationEventType.FaqCreated, item.Message.EventType);
+            Assert.Equal(session.Id, item.Message.SessionId);
+            Assert.Equal(1, item.Message.Generation);
+            Assert.Equal(payload.GeneralizationId, item.Message.HelpRequestId);
+        });
         using var queue = await teacher.GetAsync($"/api/teachers/sessions/{session.Id}/queue");
         var queueJson = await queue.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(payload.GeneralizationId, queueJson.GetProperty("requests")[0].GetProperty("id").GetGuid());
@@ -85,6 +93,18 @@ public sealed partial class SessionIntegrationTests
         var suggested = (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!;
         Assert.Equal(HelpRequestStatus.AwaitingConfirmation, suggested.Status);
         Assert.Equal("Check the loop condition.", suggested.Messages.Last().Text);
+        var answerNotices = (await ReadNotificationsAsync()).Where(item => item.Message.EventType == NotificationEventType.FaqAnswered).ToArray();
+        Assert.Equal(new[] { firstId, secondId }.Order(), answerNotices.Select(item => item.Message.HelpRequestId!.Value).Order());
+        Assert.Equal(2, answerNotices.Select(item => item.Id).Distinct().Count());
+        foreach (var (client, id) in new[] { (student, firstId), (second, secondId) })
+        {
+            var source = (await client.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{id}", FaqJsonOptions))!;
+            var notice = Assert.Single(answerNotices, item => item.Message.HelpRequestId == id).Message;
+            Assert.Equal(source.StudentId, notice.UserId);
+            Assert.Equal(session.Id, notice.SessionId);
+            Assert.Equal(1, notice.Generation);
+            Assert.Equal("AwaitingConfirmation", notice.Status);
+        }
         await PersistFaqAnswerFromOutboxAsync();
         var faqs = (await student.GetFromJsonAsync<FaqResult[]>($"/api/students/sessions/{session.Id}/faqs"))!;
         Assert.Equal("Check the loop condition.", Assert.Single(faqs).Answer);
@@ -114,7 +134,7 @@ public sealed partial class SessionIntegrationTests
         using var second = await OtherStudentAsync(session.Code);
         using var third = await OtherStudentAsync(session.Code);
         var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
-        var secondId = await SubmitAsync(second, session.Id, HelpType.Physical);
+        var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);
         var ordinaryId = await SubmitAsync(third, session.Id, HelpType.Digital);
         var payload = new GeneralizedCreatedMessage(Guid.NewGuid(), session.Id, 1, "Shared", [firstId, secondId]);
         await DeliverGeneralizationAsync(payload);
@@ -143,6 +163,8 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
         Assert.Equal(HelpRequestStatus.Cancelled, (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!.Status);
         Assert.Equal(HelpRequestStatus.AwaitingConfirmation, (await second.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{secondId}", FaqJsonOptions))!.Status);
+        var notice = Assert.Single(await ReadNotificationsAsync(), item => item.Message.EventType == NotificationEventType.FaqAnswered);
+        Assert.Equal(secondId, notice.Message.HelpRequestId);
     }
 
     [PostgresFact]
@@ -151,7 +173,7 @@ public sealed partial class SessionIntegrationTests
         var session = await CreateAsync();
         await JoinAsync(session.Code);
         using var second = await OtherStudentAsync(session.Code);
-        var firstId = await SubmitAsync(student, session.Id, HelpType.Physical);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         Assert.Equal(HttpStatusCode.OK, take.StatusCode);
         var secondId = await SubmitAsync(second, session.Id, HelpType.Digital);

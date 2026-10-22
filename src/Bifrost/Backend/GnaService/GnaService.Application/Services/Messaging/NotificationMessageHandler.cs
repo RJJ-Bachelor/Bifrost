@@ -4,6 +4,7 @@ using GnaService.Application.Repositories;
 using GnaService.Domain.Entities;
 using Shared.Application.Messaging.Contracts;
 using Shared.Application.Persistence;
+using Shared.Domain.Notifications;
 
 namespace GnaService.Application.Services.Messaging;
 
@@ -32,11 +33,25 @@ public sealed class NotificationMessageHandler(
             generation: message.Payload.Generation,
             helpRequestId: message.Payload.HelpRequestId,
             change: message.Payload.Change,
-            status: message.Payload.Status);
+            status: message.Payload.Status,
+            eventType: message.Payload.EventType != NotificationEventType.Unknown
+                ? message.Payload.EventType : FromLegacyChange(message.Payload.Change));
 
         if (await notificationRepository.TryAddAsync(notification, cancellationToken))
             await unitOfWork.SaveChangesAsync(cancellationToken);
         else
             logger.LogInformation("Ignored duplicate notification {NotificationId}.", message.Id);
     }
+
+    // Messages already queued before EventType was introduced still carry their original change.
+    private static NotificationEventType FromLegacyChange(string? change) => change switch
+    {
+        "Created" => NotificationEventType.HelpRequestCreated,
+        "StudentMessageAdded" => NotificationEventType.StudentMessageAdded,
+        "Started" => NotificationEventType.HelpRequestStarted,
+        "Answered" => NotificationEventType.HelpRequestAnswered,
+        "FaqCreated" => NotificationEventType.FaqCreated,
+        "FaqSuggested" => NotificationEventType.FaqAnswered,
+        _ => NotificationEventType.Unknown
+    };
 }

@@ -20,6 +20,8 @@ using Shared.Application.Messaging.Contracts;
 using Shared.Infrastructure.Persistence.Outbox;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Application.Features.Common;
+using Shared.Domain.Notifications;
+using System.Collections.Concurrent;
 
 namespace EirService.Test;
 
@@ -48,6 +50,8 @@ public sealed partial class SessionIntegrationTests
         {
             var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var answered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var studentsNotified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var notices = new ConcurrentDictionary<Guid, NotificationCreatedMessage>();
             var deliveries = 0;
             await using var generalized = await messageBus.SubscribeAsync<GeneralizedCreatedMessage>(prefix + "-created",
                 MessageRoutes.Requests, MessageRoutes.GeneralizedCreated, async (message, _) =>
@@ -80,8 +84,15 @@ public sealed partial class SessionIntegrationTests
                 MessageRoutes.HelpRequestUpdated, (_, _) => Task.CompletedTask);
             await using var originals = await messageBus.SubscribeAsync<JsonElement>(prefix + "-originals", MessageRoutes.Requests,
                 MessageRoutes.HelpRequestCreated, (_, _) => Task.CompletedTask);
-            await using var notifications = await messageBus.SubscribeAsync<JsonElement>(prefix + "-notifications", MessageRoutes.Notifications,
-                MessageRoutes.NotificationCreated, (_, _) => Task.CompletedTask);
+            await using var notifications = await messageBus.SubscribeAsync<NotificationCreatedMessage>(prefix + "-notifications", MessageRoutes.Notifications,
+                MessageRoutes.NotificationCreated, (message, _) =>
+                {
+                    notices.TryAdd(message.Id, message.Payload);
+                    if (notices.Values.Count(notice => notice.EventType == NotificationEventType.FaqAnswered) == 2 &&
+                        notices.Values.Any(notice => notice.EventType == NotificationEventType.FaqCreated))
+                        studentsNotified.TrySetResult();
+                    return Task.CompletedTask;
+                });
             var payload = new GeneralizedCreatedMessage(Guid.NewGuid(), session.Id, 1, "Shared question", [firstId, secondId]);
             await using (var scope = mimir.CreateAsyncScope())
             {
@@ -111,6 +122,19 @@ public sealed partial class SessionIntegrationTests
                 messageBus, clock, NullLogger<OutboxDispatcher<EirRequestDbContext>>.Instance);
             await eirSender.PublishPendingAsync(CancellationToken.None);
             await answered.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await studentsNotified.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            var teacherNotice = Assert.Single(notices.Values, notice => notice.EventType == NotificationEventType.FaqCreated);
+            Assert.Equal("provider|opaque-teacher", teacherNotice.UserId);
+            Assert.Equal(payload.GeneralizationId, teacherNotice.HelpRequestId);
+            var studentNotices = notices.Values.Where(notice => notice.EventType == NotificationEventType.FaqAnswered).ToArray();
+            Assert.Equal(new[] { firstId, secondId }.Order(), studentNotices.Select(notice => notice.HelpRequestId!.Value).Order());
+            Assert.Equal(2, studentNotices.Select(notice => notice.UserId).Distinct().Count());
+            Assert.All(studentNotices, notice =>
+            {
+                Assert.Equal(session.Id, notice.SessionId);
+                Assert.Equal(1, notice.Generation);
+                Assert.Equal("AwaitingConfirmation", notice.Status);
+            });
             await using var verification = app.Services.CreateAsyncScope();
             var faq = await verification.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Faqs.SingleAsync();
             Assert.Equal("Shared answer", faq.Answer);

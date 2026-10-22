@@ -12,6 +12,8 @@ using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
 using Shared.Application.Persistence;
+using Shared.Domain.Notifications;
+using System.Text.Json;
 
 namespace GnaService.Test;
 
@@ -102,7 +104,8 @@ public sealed class NotificationTests
         var staged = Assert.Single(outgoing);
         var payload = Assert.IsType<NotificationDeliveryRequestedMessage>(staged.Payload);
         Assert.Equal(new NotificationDeliveryRequestedMessage(incoming.Id, incoming.Payload.UserId, incoming.Payload.Messages,
-            created.CreatedAt, incoming.Payload.SessionId, incoming.Payload.HelpRequestId), payload);
+            created.CreatedAt, incoming.Payload.SessionId, incoming.Payload.HelpRequestId,
+            incoming.Payload.Generation, incoming.Payload.Change, incoming.Payload.Status, NotificationEventType.HelpRequestAnswered), payload);
         Assert.Equal(MessageRoutes.NotificationDeliveryRequested, staged.RoutingKey);
     }
 
@@ -114,6 +117,39 @@ public sealed class NotificationTests
         Assert.Equal("student", subscription.UserId.Value);
         Assert.Equal("replacement-key", subscription.P256dh);
         Assert.Throws<ArgumentException>(() => PushSubscription.Create("student", "http://push.example", "key", "auth"));
+    }
+
+    [Theory]
+    [InlineData(NotificationEventType.FaqCreated, "FaqCreated")]
+    [InlineData(NotificationEventType.FaqAnswered, "FaqAnswered")]
+    [InlineData(NotificationEventType.HelpRequestAnswered, "HelpRequestAnswered")]
+    public void EventTypesAreStringsOnBothBrokerAndDeliveryContracts(NotificationEventType eventType, string name)
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var incoming = new NotificationCreatedMessage("student", "Answer", EventType: eventType);
+        var delivery = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), "student", "Answer", DateTimeOffset.UtcNow,
+            EventType: eventType);
+        using var createdJson = JsonDocument.Parse(JsonSerializer.Serialize(incoming, options));
+        using var deliveryJson = JsonDocument.Parse(JsonSerializer.Serialize(delivery, options));
+        Assert.Equal(name, createdJson.RootElement.GetProperty("eventType").GetString());
+        Assert.Equal(name, deliveryJson.RootElement.GetProperty("eventType").GetString());
+        Assert.Equal(incoming, JsonSerializer.Deserialize<NotificationCreatedMessage>(createdJson.RootElement.GetRawText(), options));
+        Assert.Equal(delivery, JsonSerializer.Deserialize<NotificationDeliveryRequestedMessage>(deliveryJson.RootElement.GetRawText(), options));
+    }
+
+    [Fact]
+    public async Task LegacyMessagesInferTheirCauseAndExplicitEventTypesTakePrecedence()
+    {
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        var old = JsonSerializer.Deserialize<NotificationCreatedMessage>(
+            """{"userId":"student","messages":"Answer","change":"FaqSuggested"}""", options)!;
+        Assert.Equal(NotificationEventType.Unknown, old.EventType);
+        var store = new NotificationStore();
+        var handler = new NotificationMessageHandler(NullLogger<NotificationMessageHandler>.Instance, store, store, TimeProvider.System);
+        await handler.HandleAsync(new(Guid.NewGuid(), old), default);
+        Assert.Equal(NotificationEventType.FaqAnswered, store.Saved!.EventType);
+        await handler.HandleAsync(new(Guid.NewGuid(), old with { EventType = NotificationEventType.HelpRequestAnswered }), default);
+        Assert.Equal(NotificationEventType.HelpRequestAnswered, store.Saved!.EventType);
     }
 
     private sealed class Sender(bool result, Exception? failure = null) : IRealtimeNotificationSender, IPushNotificationSender

@@ -4,8 +4,9 @@ import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Observable, Subscription, catchError, debounceTime, finalize, forkJoin, interval, merge, of, throwError, timeout } from 'rxjs';
+import { Observable, Subscription, catchError, combineLatest, debounceTime, filter, finalize, forkJoin, interval, merge, of, throwError, timeout } from 'rxjs';
 import { NotificationService } from './notification.service';
+import { helpRequestId, notificationAffectsSession } from './notification.model';
 import {
   ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
   HelpType, HelpRequestMessageType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
@@ -60,12 +61,17 @@ export class TestPageComponent {
   private refreshSubscription?: Subscription;
   private refreshQueued = false;
   private destroyed = false;
+  private sessionContextInitialized = false;
+  private generalizationContext = '';
+  pendingGeneralizationId = '';
+  private generalizationAttempt?: { key: string; id: string };
 
-  get generalizationExample() {
-    return JSON.stringify({ sessionId: this.sessionId, generation: this.session?.currentGeneration,
-      helpRequestIds: this.waitingRequests.filter(request => !request.isFaq).slice(0, 2).map(request => request.id) }, null, 2);
+  get generalizationPayload() {
+    return { sessionId: this.sessionId, generation: this.session?.currentGeneration,
+      helpRequestIds: this.waitingRequests.filter(request => !request.isFaq).slice(0, 2).map(request => request.id) };
   }
-  get canTestGeneralization() { return this.waitingRequests.filter(request => !request.isFaq).length >= 2; }
+  get generalizationExample() { return JSON.stringify(this.generalizationPayload, null, 2); }
+  get canTestGeneralization() { return this.generalizationPayload.helpRequestIds.length >= 2; }
   get sessionCode() { return this.session && 'code' in this.session ? this.session.code : ''; }
   get teacherCode() { return this.session && 'teacherCode' in this.session ? this.session.teacherCode : ''; }
   get waitingRequests() { return (this.teacherQueue?.requests ?? []).filter(request => !request.assignedTeacherId); }
@@ -79,9 +85,23 @@ export class TestPageComponent {
   get canAct() { return !!this.conversation && this.conversation.generation === this.session?.currentGeneration; }
   get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canRespondToFaq() {
-    return !this.isTeacher && this.canAct && this.conversation?.status === 'AwaitingConfirmation';
+    const request = this.conversation;
+    return !this.isTeacher && this.canAct && !!request && request.helpType === 'Digital' && request.sessionId === this.sessionId &&
+      request.studentId === this.identity?.userId && !!request.faqAnswerId && request.status === 'AwaitingConfirmation';
+  }
+  get faqResponsesAwaitingConfirmation() {
+    return this.requests.filter(request => request.sessionId === this.sessionId &&
+      request.generation === this.session?.currentGeneration && request.helpType === 'Digital' && request.studentId === this.identity?.userId &&
+      request.status === 'AwaitingConfirmation');
   }
   get selectedFaq() { return this.faqs.find(faq => faq.id === this.conversation?.faqAnswerId); }
+  get faqQuestion() {
+    return this.conversation?.messages.filter(message => message.messageType === 'FaqQuestion').at(-1)?.text
+      ?? this.selectedFaq?.question;
+  }
+  get faqAnswer() {
+    return this.conversation?.messages.filter(message => message.messageType === 'FaqAnswer').at(-1)?.text;
+  }
   get canStart() {
     return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Pending';
   }
@@ -106,22 +126,43 @@ export class TestPageComponent {
       this.destroyed = true;
       this.stopRefresh();
     });
-    merge(this.notifications.received, this.notifications.reconnected).pipe(
+    merge(this.notifications.received.pipe(filter(notification => notificationAffectsSession(
+      notification, this.role, this.sessionId, this.session?.currentGeneration))), this.notifications.reconnected).pipe(
       debounceTime(150), takeUntilDestroyed(this.destroyRef)
     ).subscribe(() => this.refresh());
     // Not every queue change produces a notification.
     interval(this.isTeacher ? 2000 : 10000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (!document.hidden && !this.refreshing) this.refresh();
     });
-    this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
+    combineLatest([this.route.paramMap, this.route.queryParamMap]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([params, query]) => {
+      const sessionId = params.get('sessionId') ?? '';
+      const requestedId = helpRequestId(query.get('requestId'));
+      if (this.sessionContextInitialized && sessionId === this.sessionId) {
+        if (requestedId && requestedId !== this.selectedRequestId) this.openRequest(requestedId);
+        return;
+      }
+      this.sessionContextInitialized = true;
       this.stopRefresh();
-      this.sessionId = params.get('sessionId') ?? '';
+      this.sessionId = sessionId;
       this.session = null;
       this.conversation = null;
       this.replyText = '';
-      this.selectedRequestId = this.readSelectedRequest();
+      this.selectedRequestId = requestedId ?? this.readSelectedRequest();
       this.loading = true;
       this.loadIdentity();
+    });
+  }
+
+  generalizeHelpRequests() {
+    if (!this.isTeacher || !this.session || !this.canTestGeneralization || this.pendingGeneralizationId || this.busy) return;
+    const payload = this.generalizationPayload;
+    const key = JSON.stringify(payload);
+    // Retry an uncertain HTTP result with the same event id.
+    if (this.generalizationAttempt?.key !== key) this.generalizationAttempt = { key, id: crypto.randomUUID() };
+    this.execute(this.api.post<{ generalizationId: string }>('teachers/development/generalizations/from-help-requests',
+      { ...payload, generalizationId: this.generalizationAttempt.id }), result => {
+      this.pendingGeneralizationId = result.generalizationId;
+      this.notice = 'Generaliseringen er sendt til behandling. FAQ-spørgsmålet vises i køen, når Eir har modtaget det.';
     });
   }
 
@@ -131,7 +172,7 @@ export class TestPageComponent {
         this.identity = identity;
         this.loginRequired = false;
         this.error = '';
-        void this.notifications.connect(this.role);
+        void this.notifications.connect(this.role, identity.userId);
         this.refresh();
       },
       error: failure => { this.loading = false; this.handleError(failure); }
@@ -171,6 +212,17 @@ export class TestPageComponent {
         this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
         this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
         this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
+        const context = this.sessionId + ':' + this.session?.currentGeneration;
+        if (context !== this.generalizationContext) {
+          this.generalizationContext = context;
+          this.pendingGeneralizationId = '';
+          this.generalizationAttempt = undefined;
+        } else if (this.pendingGeneralizationId && (this.teacherQueue?.requests.some(request => request.id === this.pendingGeneralizationId)
+          || this.faqs.some(faq => faq.id === this.pendingGeneralizationId))) {
+          this.pendingGeneralizationId = '';
+          this.generalizationAttempt = undefined;
+          this.notice = 'Det fælles FAQ-spørgsmål er modtaget i Eir og kan besvares fra køen.';
+        }
       },
       error: failure => this.handleError(failure, true)
     });
@@ -230,6 +282,15 @@ export class TestPageComponent {
     this.refresh();
   }
 
+  openFaqResponse(id: string) {
+    this.openRequest(id);
+    document.getElementById('conversation-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  showSessionFaqs() {
+    document.getElementById('faq-title')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   sendMessage() {
     if (!this.canSendMessage || !this.replyText.trim()) return;
     this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/messages',
@@ -241,8 +302,8 @@ export class TestPageComponent {
   }
 
   respondToFaq(accept: boolean) {
-    if (!this.canRespondToFaq) return;
-    this.execute(this.api.patch<HelpRequest>('students/requests/' + this.selectedRequestId + '/faq', { accept }), request => {
+    if (!this.canRespondToFaq || this.busy) return;
+    this.execute(this.api.patch<HelpRequest>('students/requests/' + this.conversation!.id + '/faq', { accept }), request => {
       this.conversation = request;
       this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.' : 'Du er tilbage i køen med din oprindelige køplads.';
     });
@@ -289,7 +350,7 @@ export class TestPageComponent {
   }
 
   statusLabel(status: string) {
-    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'Afventer dig', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
+    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
   }
 
   private execute<T>(request: Observable<T>, success: (body: T) => void) {
@@ -309,6 +370,9 @@ export class TestPageComponent {
   private selectRequest(id: string) {
     this.selectedRequestId = id;
     try { sessionStorage.setItem(this.selectionKey, id); } catch { /* Selection also works without storage. */ }
+    if ((this.route.snapshot.queryParamMap.get('requestId') ?? '') !== id)
+      void this.router.navigate([], { relativeTo: this.route, queryParams: { requestId: id || null },
+        queryParamsHandling: 'merge', replaceUrl: true });
   }
   private get selectionKey() { return 'bifrost-' + this.role + '-' + this.sessionId + '-request'; }
   private readSelectedRequest() {

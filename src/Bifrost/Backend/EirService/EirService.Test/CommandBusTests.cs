@@ -1,3 +1,4 @@
+using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
 using EirService.HelpRequests.Domain.DomainEvents;
 using EirService.HelpRequests.Domain.ValueObjects;
@@ -129,7 +130,11 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         _app.UseMiddleware<ValidationExceptionMiddleware>();
         _app.UseAuthentication();
         _app.UseAuthorization();
-        _app.UseFastEndpoints(configuration => configuration.Endpoints.RoutePrefix = "api");
+        _app.UseFastEndpoints(configuration =>
+        {
+            configuration.Endpoints.RoutePrefix = "api";
+            configuration.Serializer.Options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        });
         _app.MapGet("/legacy-validation-error", IResult () => throw new ValidationException("Legacy validation"));
         await _app.StartAsync();
         _client = _app.GetTestClient();
@@ -281,7 +286,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         var sessionId = await SeedSessionAsync(studentId);
         var suppliedId = Guid.NewGuid();
         using var response = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
-            new { Id = suppliedId, StudentId = "spoofed", Generation = 99, Message = "Please help", HelpType = HelpType.Digital });
+            new { Id = suppliedId, StudentId = "spoofed", Generation = 99, Message = "Please help", HelpType = "Digital" });
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var result = (await response.Content.ReadFromJsonAsync<FullHelpRequestResult>(
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
@@ -293,7 +298,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
         var notification = Assert.Single(_requests.Notifications);
         Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
-            sessionId, 1, result.Id, "Created", "Pending"), notification.Message);
+            sessionId, 1, result.Id, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
         Assert.NotEqual(result.Id, notification.Id);
         using var duplicate = await _client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests",
             new { Message = "Another question", HelpType = HelpType.Physical });
@@ -338,7 +343,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.Single(_requests.RequestMessages);
         var notification = Assert.Single(_requests.Notifications);
         Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
-            sessionId, 1, result.Id, "Created", "Pending"), notification.Message);
+            sessionId, 1, result.Id, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
     }
 
     [Fact]
@@ -469,7 +474,9 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         _requests.Saved.Add(HelpRequest.Create(sessionId, 2, studentId, HelpType.Digital, new MessageText("Wrong generation"), DateTimeOffset.UtcNow));
         using var response = await _client.GetAsync("/api/students/requests?userId=other-student");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = Assert.Single((await response.Content.ReadFromJsonAsync<HelpRequestResult[]>())!);
+        var result = Assert.Single((await response.Content.ReadFromJsonAsync<HelpRequestResult[]>(
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)
+            { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } }))!);
         Assert.Equal(mine.Id, result.Id);
         Assert.Equal(studentId, result.StudentId);
     }

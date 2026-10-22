@@ -34,7 +34,7 @@ public sealed class FaqDomainTests
     [Fact]
     public void LinkedRequestCannotBeTakenAndRejectionPreservesItsPosition()
     {
-        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
         var faqId = Guid.NewGuid();
         request.LinkToFaq(faqId, new MessageText("Shared question"), Now.AddMinutes(1));
         var generalization = request.Messages.Last();
@@ -59,20 +59,102 @@ public sealed class FaqDomainTests
         request.Reserve("teacher", Now.AddMinutes(4));
     }
 
-    [Theory]
-    [InlineData("Reserved")]
-    [InlineData("Active")]
-    [InlineData("Completed")]
-    [InlineData("Cancelled")]
-    public void GeneralizationCannotChangeUnavailableRequests(string state)
+    [Fact]
+    public void PhysicalRequestKeepsItsPhysicalHelpFlowInsteadOfJoiningAFaq()
     {
         var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
+        var faqId = Guid.NewGuid();
+
+        Assert.False(request.CanLinkToFaq);
+        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(faqId, new MessageText("Shared question"), Now));
+        Assert.Throws<HelpRequestRuleException>(() => request.SuggestFaq(faqId, "teacher", new MessageText("Answer"), Now));
+        Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("student", Now));
+        Assert.Throws<HelpRequestRuleException>(() => request.RejectFaq("student", Now));
+        Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.Null(request.FaqAnswerId);
+        Assert.Equal(Now, request.QueuedAt);
+        Assert.Equal(HelpRequestMessageType.StudentQuestion, Assert.Single(request.Messages).MessageType);
+
+        request.Reserve("teacher", Now.AddMinutes(1));
+        request.Start("teacher", Now.AddMinutes(2));
+        request.Complete("teacher", Now.AddMinutes(3));
+        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+    }
+
+    [Fact]
+    public void AnsweredDigitalQuestionCannotJoinAnotherFaqWhenItsFollowUpIsReopened()
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        request.Reserve("teacher", Now);
+        request.Answer("teacher", new MessageText("Individual answer"), Now.AddMinutes(1));
+        Assert.False(request.CanLinkToFaq);
+        request.AddStudentMessage("student", new MessageText("Follow-up"), Now.AddMinutes(2));
+
+        Assert.False(request.CanLinkToFaq);
+        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(Guid.NewGuid(), new MessageText("Shared question"), Now));
+        Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.Null(request.FaqAnswerId);
+        Assert.Equal(3, request.Messages.Count);
+        request.Reserve("teacher", Now.AddMinutes(3));
+        request.Answer("teacher", new MessageText("Follow-up answer"), Now.AddMinutes(4));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void FollowUpAfterFaqAnswerCannotBeCapturedByADelayedGeneralization(bool accepted)
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        var faqId = Guid.NewGuid();
+        request.LinkToFaq(faqId, new MessageText("Shared question"), Now);
+        request.SuggestFaq(faqId, "teacher", new MessageText("Shared answer"), Now.AddMinutes(1));
+        if (accepted) request.AcceptFaq("student", Now.AddMinutes(2));
+        else
+        {
+            request.RejectFaq("student", Now.AddMinutes(2));
+            Assert.True(request.CanLinkToFaq);
+        }
+        request.AddStudentMessage("student", new MessageText("Follow-up"), Now.AddMinutes(3));
+
+        Assert.False(request.CanLinkToFaq);
+        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(Guid.NewGuid(), new MessageText("Another question"), Now));
+        Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.Null(request.FaqAnswerId);
+        Assert.Equal(Now.AddMinutes(3), request.QueuedAt);
+    }
+
+    [Fact]
+    public void AdditionalDetailsBeforeAnAnswerDoNotExcludeTheOriginalQuestionFromGeneralization()
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        request.AddStudentMessage("student", new MessageText("Additional details"), Now.AddMinutes(1));
+
+        Assert.True(request.CanLinkToFaq);
+        request.LinkToFaq(Guid.NewGuid(), new MessageText("Shared question"), Now.AddMinutes(2));
+        Assert.Equal(HelpRequestStatus.AwaitingFaq, request.Status);
+    }
+
+    [Theory]
+    [InlineData(HelpType.Physical, "Reserved")]
+    [InlineData(HelpType.Physical, "Active")]
+    [InlineData(HelpType.Physical, "Completed")]
+    [InlineData(HelpType.Physical, "Cancelled")]
+    [InlineData(HelpType.Digital, "Reserved")]
+    [InlineData(HelpType.Digital, "Completed")]
+    [InlineData(HelpType.Digital, "Cancelled")]
+    public void GeneralizationCannotChangeUnavailableRequests(HelpType helpType, string state)
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", helpType, new MessageText("Question"), Now);
         if (state == "Cancelled") request.Cancel("student", AuthorRole.Student, Now);
         else
         {
             request.Reserve("teacher", Now);
-            if (state != "Reserved") request.Start("teacher", Now);
-            if (state == "Completed") request.Complete("teacher", Now);
+            if (helpType == HelpType.Physical)
+            {
+                if (state != "Reserved") request.Start("teacher", Now);
+                if (state == "Completed") request.Complete("teacher", Now);
+            }
+            else if (state == "Completed") request.Answer("teacher", new MessageText("Answer"), Now);
         }
         var status = request.Status;
 
@@ -80,7 +162,7 @@ public sealed class FaqDomainTests
 
         Assert.Equal(status, request.Status);
         Assert.Null(request.FaqAnswerId);
-        Assert.Single(request.Messages);
+        Assert.Equal(helpType == HelpType.Digital && state == "Completed" ? 2 : 1, request.Messages.Count);
     }
 
     [Fact]

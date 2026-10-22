@@ -1,3 +1,12 @@
+<section *ngIf="view.faqResponsesAwaitingConfirmation.length" class="card faq-response-notice" aria-labelledby="faq-response-title">
+  <p class="eyebrow">FAQ-SVAR KLAR</p>
+  <h2 id="faq-response-title">Acceptér eller afvis dit fælles svar</h2>
+  <p>Underviseren har besvaret et generaliseret spørgsmål, som din anmodning indgår i. Læs svaret, og vælg, om det hjælper dig.</p>
+  <div *ngFor="let request of view.faqResponsesAwaitingConfirmation" class="faq-response-link">
+    <p><strong>{{ request.displayNumber }}</strong> · {{ request.message }}</p>
+    <button type="button" (click)="view.openFaqResponse(request.id)" [disabled]="view.busy">Se svar og acceptér/afvis →</button>
+  </div>
+</section>
 <section *ngIf="view.studentQueue as queue" class="queue-summary card">
   <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : (queue.ownRequestId ? 'Din anmodning afventer hjælp eller et fælles svar' : 'Du står ikke i ventekøen') }}</p></div>
   <div class="queue-summary-side"><strong>{{ queue.waitingCount }}</strong><span>ventende</span><button *ngIf="queue.ownRequestId" class="text-button" (click)="view.openRequest(queue.ownRequestId)" [disabled]="view.busy">{{ queue.displayNumber }} →</button></div>
@@ -20,6 +29,7 @@
     <button *ngFor="let request of view.requests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
       <span class="request-item-heading"><strong>{{ request.displayNumber }}</strong><span class="status" [attr.data-status]="request.status">{{ view.statusLabel(request.status) }}</span></span>
       <span class="request-preview">{{ request.message }}</span>
+      <span *ngIf="request.helpType === 'Digital' && request.status === 'AwaitingConfirmation'" class="faq-response-prompt">Åbn samtalen for at acceptere eller afvise FAQ-svaret →</span>
       <span class="hint">{{ request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp' }} <span aria-hidden="true">→</span></span>
     </button>
   </div>

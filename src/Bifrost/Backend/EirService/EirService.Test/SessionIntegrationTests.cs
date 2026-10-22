@@ -1,3 +1,4 @@
+using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.Sessions.Domain.DomainEvents;
@@ -809,7 +810,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
         var first = Assert.Single(await ReadNotificationsAsync());
         Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
-            session.Id, 1, firstId, "Created", "Pending"), first.Message);
+            session.Id, 1, firstId, "Created", "Pending", NotificationEventType.HelpRequestCreated), first.Message);
         Assert.NotEqual(firstId, first.Id);
 
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
@@ -847,7 +848,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var notification = Assert.Single(await ReadNotificationsAsync());
         Assert.Contains(notification.Message.HelpRequestId, ids.Select(id => (Guid?)id));
         Assert.Equal(new NotificationCreatedMessage("provider|opaque-teacher", "Køen er startet. Der er en ny hjælpeanmodning.",
-            session.Id, 1, notification.Message.HelpRequestId, "Created", "Pending"), notification.Message);
+            session.Id, 1, notification.Message.HelpRequestId, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
     }
 
     [PostgresFact]
@@ -967,7 +968,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var studentId = (await answer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("studentId").GetString();
         var answered = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
         Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.",
-            session.Id, 1, id, "Answered", "Completed"), answered.Message);
+            session.Id, 1, id, "Answered", "Completed", NotificationEventType.HelpRequestAnswered), answered.Message);
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
         Assert.Equal("Completed", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
@@ -1225,7 +1226,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     private static async Task<Guid> SubmitAsync(HttpClient client, Guid sessionId, HelpType helpType)
     {
         using var response = await client.PostAsJsonAsync($"/api/students/sessions/{sessionId}/requests", new { Message = "Question", HelpType = helpType.ToString() });
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(response.StatusCode == HttpStatusCode.Created,
+            $"Creating a help request returned {response.StatusCode}: {await response.Content.ReadAsStringAsync()}");
         return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
     }
 

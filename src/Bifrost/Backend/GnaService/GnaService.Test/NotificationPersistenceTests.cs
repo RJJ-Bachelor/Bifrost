@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Shared.Api.Authentication;
@@ -23,6 +24,10 @@ using System.Text.Json;
 using GnaService.Application.Notifications;
 using Microsoft.AspNetCore.DataProtection;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Domain.Notifications;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
+using Shared.Application.Messaging.Outbox;
 
 namespace GnaService.Test;
 
@@ -55,11 +60,8 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
             options => options.DataProtectionProvider = new EphemeralDataProtectionProvider());
         builder.Services.AddMessaging(typeof(NotificationMessageHandler).Assembly);
         // Database tests exercise persistence/outbox, not broker background jobs.
-        foreach (var registration in builder.Services.Where(service => service.ServiceType == typeof(IHostedService)).ToArray())
-            if (registration.ImplementationType?.Namespace?.StartsWith("GnaService.") == true ||
-                registration.ImplementationType?.Namespace?.StartsWith("Shared.Infrastructure.") == true ||
-                registration.ImplementationFactory is not null)
-                builder.Services.Remove(registration);
+        builder.Services.RemoveAll<IHostedService>();
+        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         app = builder.Build();
         app.Services.UseMessaging();
         app.UseAuthentication();
@@ -87,6 +89,7 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
         Assert.Equal(incoming.Payload.Generation, saved.Generation);
         Assert.Equal(incoming.Payload.Change, saved.Change);
         Assert.Equal(incoming.Payload.Status, saved.Status);
+        Assert.Equal(NotificationEventType.HelpRequestAnswered, saved.EventType);
         var outbox = Assert.Single(await db.Outbox.ToArrayAsync());
         Assert.Equal(incoming.Id, outbox.MessageId);
         Assert.Equal(MessageRoutes.NotificationDeliveryRequested, outbox.RoutingKey);
@@ -98,6 +101,10 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
         Assert.Equal(incoming.Payload.Messages, delivery.Message);
         Assert.Equal(incoming.Payload.SessionId, delivery.SessionId);
         Assert.Equal(incoming.Payload.HelpRequestId, delivery.HelpRequestId);
+        Assert.Equal(incoming.Payload.Generation, delivery.Generation);
+        Assert.Equal(incoming.Payload.Change, delivery.Change);
+        Assert.Equal(incoming.Payload.Status, delivery.Status);
+        Assert.Equal(NotificationEventType.HelpRequestAnswered, delivery.EventType);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 
@@ -115,6 +122,57 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
         Assert.Single(await repository.GetForUserAsync("student", default));
         await repository.RemoveAsync("student", "https://push.example/one", default);
         Assert.Empty(await repository.GetForUserAsync("student", default));
+    }
+
+    [GnaPostgresFact]
+    public async Task EventTypeMigrationBackfillsHistoryAndPendingDeliveriesWithoutReplayingPublishedMessages()
+    {
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>();
+        var cases = new[] {
+            ("Created", NotificationEventType.HelpRequestCreated),
+            ("StudentMessageAdded", NotificationEventType.StudentMessageAdded),
+            ("Started", NotificationEventType.HelpRequestStarted),
+            ("Answered", NotificationEventType.HelpRequestAnswered),
+            ("FaqCreated", NotificationEventType.FaqCreated),
+            ("FaqSuggested", NotificationEventType.FaqAnswered),
+            ("Legacy", NotificationEventType.Unknown)
+        };
+        var records = cases.Select(item => Notification.Create(Guid.NewGuid(), "student", "Message",
+            sessionId: Guid.NewGuid(), generation: 3, helpRequestId: Guid.NewGuid(), change: item.Item1,
+            status: "AwaitingConfirmation", eventType: item.Item2)).ToArray();
+        db.Notifications.AddRange(records);
+        var source = records.Single(record => record.EventType == NotificationEventType.FaqAnswered);
+        var payload = new NotificationDeliveryRequestedMessage(source.Id, source.UserId.Value, source.Messages.Value,
+            source.CreatedAt, source.SessionId, source.HelpRequestId);
+        var pending = OutboxMessage.Create(new OutgoingMessage(source.Id, payload, MessageRoutes.Notifications,
+            MessageRoutes.NotificationDeliveryRequested), source.CreatedAt);
+        var published = OutboxMessage.Create(new OutgoingMessage(source.Id, payload, MessageRoutes.Notifications,
+            MessageRoutes.NotificationDeliveryRequested), source.CreatedAt);
+        published.MarkPublished(source.CreatedAt);
+        db.Outbox.AddRange(pending, published);
+        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            UPDATE outbox SET "Payload" = ("Payload"::jsonb - 'eventType' - 'generation' - 'change' - 'status')::text;
+            """);
+        await db.GetService<IMigrator>().MigrateAsync("20261019175409_AddNotificationContext");
+        await db.Database.MigrateAsync();
+        db.ChangeTracker.Clear();
+        foreach (var (change, eventType) in cases)
+            Assert.Equal(eventType, (await db.Notifications.SingleAsync(notification => notification.Change == change)).EventType);
+        var enriched = await db.Outbox.SingleAsync(message => message.Id == pending.Id);
+        var result = JsonSerializer.Deserialize<NotificationDeliveryRequestedMessage>(enriched.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(NotificationEventType.FaqAnswered, result.EventType);
+        Assert.Equal(source.Generation, result.Generation);
+        Assert.Equal(source.Change, result.Change);
+        Assert.Equal(source.Status, result.Status);
+        Assert.Null(enriched.PublishedAtUtc);
+        var historical = await db.Outbox.SingleAsync(message => message.Id == published.Id);
+        Assert.NotNull(historical.PublishedAtUtc);
+        using var historicalJson = JsonDocument.Parse(historical.Payload);
+        Assert.False(historicalJson.RootElement.TryGetProperty("eventType", out _));
+        Assert.False(db.Database.HasPendingModelChanges());
     }
 
     [GnaBrokerFact]
@@ -145,7 +203,9 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
             var bus = app.Services.GetRequiredService<IMessageBus>();
             while (true)
             {
-                try { await bus.PublishAsync(messageId, new NotificationCreatedMessage(student, "Rabbit to browser"),
+                try { await bus.PublishAsync(messageId, new NotificationCreatedMessage(student, "Rabbit to browser",
+                        Guid.Parse("11111111-1111-1111-1111-111111111111"), 2,
+                        Guid.Parse("22222222-2222-2222-2222-222222222222"), "FaqSuggested", "AwaitingConfirmation", NotificationEventType.FaqAnswered),
                     MessageRoutes.Notifications, MessageRoutes.NotificationCreated, token); break; }
                 catch (Exception) when (!token.IsCancellationRequested) { await Task.Delay(100, token); }
             }
@@ -156,6 +216,9 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
             var payload = frame.RootElement.GetProperty("arguments")[0];
             Assert.Equal(messageId, payload.GetProperty("notificationId").GetGuid());
             Assert.Equal(student, payload.GetProperty("userId").GetString());
+            Assert.Equal("FaqAnswered", payload.GetProperty("eventType").GetString());
+            Assert.Equal(2, payload.GetProperty("generation").GetInt32());
+            Assert.Equal("AwaitingConfirmation", payload.GetProperty("status").GetString());
             await using var scope = app.Services.CreateAsyncScope();
             Assert.True(await scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Notifications.AnyAsync(n => n.Id == messageId, token));
         }

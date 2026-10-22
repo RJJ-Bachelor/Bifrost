@@ -67,6 +67,8 @@ public sealed class DevelopmentSeedApiTests
         Assert.Equal(result.Session.Id, result.Generalization.SessionId);
         Assert.Equal(result.Session.CurrentGeneration, result.Generalization.Generation);
         Assert.Equal(result.Students.Take(2).Select(student => student.HelpRequestId), result.Generalization.HelpRequestIds);
+        Assert.All(result.Students.Where(student => result.Generalization.HelpRequestIds.Contains(student.HelpRequestId)),
+            student => Assert.Equal("Digital", student.HelpType));
         Assert.NotEqual(Guid.Empty, result.Generalization.GeneralizationId);
         using var studentClient = app.GetTestClient();
         studentClient.DefaultRequestHeaders.Add("Cookie", result.Students[0].CookieHeader);
@@ -193,7 +195,11 @@ public sealed class DevelopmentSeedApiTests
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapDevelopmentSeedApi();
-        app.UseFastEndpoints(configuration => configuration.Endpoints.RoutePrefix = "api");
+        app.UseFastEndpoints(configuration =>
+        {
+            configuration.Endpoints.RoutePrefix = "api";
+            configuration.Serializer.Options.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        });
         await app.StartAsync();
         return app;
     }

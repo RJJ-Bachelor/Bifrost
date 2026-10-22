@@ -44,7 +44,7 @@ Seed-kaldets body er gyldig JSON uden en miljøvariabel for antallet:
 
 Ret tallet i bodyen, hvis du ønsker flere eller færre demostuderende.
 
-Hver seed-kørsel opretter en ny session med nye studenterdeltagere og én HelpRequest pr. studerende. Der bruges både `Physical` og `Digital`. Eksisterende data bevares, og opstart seeder ikke data. FAQ'en sendes først, når du kører **MimirService → Publish generalization (dummy data)**.
+Hver seed-kørsel opretter en ny session med nye studenterdeltagere og én HelpRequest pr. studerende. De to første er `Digital`, så demoens accept/afvisning kan afprøves. Ved mindst tre studerende indeholder køen også `Physical`. Eksisterende data bevares, og opstart seeder ikke data. FAQ'en sendes først, når du kører **MimirService → Publish generalization (dummy data)**.
 
 Seed-servicen genbruger de eksisterende commands til sessioner, tilmelding og HelpRequests. Validering og beskedpublicering følger det normale flow. Hvis et senere command fejler, kan tidligere oprettede data fra kørslen være gemt; de kan slettes via den normale sessionsfunktion.
 
@@ -67,9 +67,16 @@ I **MimirService → Publish generalization (dummy data)** redigeres payloadet d
 Samme generaliserings-id og payload kan sendes igen for at teste genlevering. Kør seed-kaldet
 igen for at oprette et nyt, uafhængigt datasæt.
 Ved egne data skal alle helprequest-id'er høre til den angivne session og dens aktuelle generation.
-Ventende, ureserverede requests får spørgsmålet i samtalen og status `AwaitingFaq`.
+Ventende, ureserverede digitale requests får spørgsmålet i samtalen og status `AwaitingFaq`.
+Fysiske requests kan indgå som kilder, men fortsætter i deres fysiske kø med samme samtale
+og køtid. De får ingen FAQ-beskeder eller FAQ-svarnotifikationer. Kun digitale deltagere
+får det fælles svar og mulighed for at acceptere eller afvise.
 Reserverede, aktive, afsluttede og annullerede requests ændres ikke. `202` bekræfter, at Mimir
 har gemt eventet i outboxen; Eir validerer modtagerne ved den asynkrone behandling.
+
+Allerede besvarede digitale anmodninger og deres genåbnede opfølgninger får ingen nye
+FAQ-notifikationer eller krav om accept/afvisning. Det fælles FAQ-svar kan stadig læses
+med **Student → KnowledgeBase → GetStudentFaqs** og i test-frontendens fælles oversigt.
 
 Hvis `generalizationId` tidligere gav en GUID-/JSON-fejl, genindlæs collectionen i Bruno og
 kør **Seed FAQ demo** igen før Publish. Publish kontrollerer nu det opløste JSON-payload
@@ -82,7 +89,8 @@ Dette forløb kræver ikke Seed FAQ demo og bruger dine eksisterende anmodninger
 
 1. Log ind som underviser i Bruno. Opret en session og mindst to HelpRequests gennem
    de almindelige Bruno-kald eller test-frontenden. Alle anmodninger skal høre til samme
-   session og dens **aktuelle generation**, være `Pending` og uden en reserveret underviser.
+   session og dens **aktuelle generation**. Til accept/afvisning skal de digitale
+   anmodninger være ubesvarede, `Pending` og uden en reserveret underviser.
 2. Ved Bruno-oprettelse gemmes `sessionId` og `sessionGeneration` automatisk. For en
    frontend-session kan du indsætte `sessionId` og `generation` direkte i næste kalds
    JSON-body. Alternativt kan **EirService → Teacher → Sessions → GetSession** kaldes
@@ -98,10 +106,14 @@ Dette forløb kræver ikke Seed FAQ demo og bruger dine eksisterende anmodninger
    **TakeNextHelpRequest**, når FAQ'en er den næste ureserverede anmodning. Kontrollér
    `isFaq: true`, før du besvarer den med **AnswerHelpRequest**. Kaldet bruger automatisk
    ID'et på den faktiske reservation som `teacherHelpRequestId`.
-6. Åbn de oprindelige elevanmodninger i test-frontenden eller Bruno. Underviserens FAQ-svar
+6. Åbn de oprindelige digitale elevanmodninger i test-frontenden eller Bruno. Underviserens FAQ-svar
    giver `AwaitingConfirmation`. Eleven kan nu acceptere eller afvise i frontenden eller
    gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**. Brug den
    oprindelige elevs cookie og `studentHelpRequestId`; en FAQ-reservation bevarer dette ID.
+
+Fysiske spørgsmål kan også vælges i kildelisten. De bidrager til FAQ'en for underviseren,
+mens den studerende fortsætter sit fysiske hjælpeforløb. Eir sender kun startspørgsmålet
+fra en ny HelpRequest til Mimir; opfølgende beskeder sendes ikke til generalisering.
 
 Bodyen indeholder `sessionId`, `generation` og `helpRequestIds`; der sendes ikke `question`.
 Du kan tilføje `generalizationId` med ID'et fra svaret og sende samme payload igen for at

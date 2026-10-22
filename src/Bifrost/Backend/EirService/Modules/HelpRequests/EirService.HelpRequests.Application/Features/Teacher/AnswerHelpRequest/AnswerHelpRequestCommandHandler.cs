@@ -18,7 +18,7 @@ public sealed class AnswerHelpRequestCommandHandler(HelpRequestAccess access, IH
         if (request.IsFaq)
         {
             var linked = await repository.GetLinkedToFaqAsync(request.Id, cancellationToken);
-            foreach (var source in linked.Where(source => source.Status == HelpRequestStatus.AwaitingFaq &&
+            foreach (var source in linked.Where(source => source.HelpType == HelpType.Digital && source.Status == HelpRequestStatus.AwaitingFaq &&
                 source.SessionId == request.SessionId && source.Generation == request.Generation))
                 source.SuggestFaq(request.Id, command.TeacherId, new MessageText(command.Text), now);
         }

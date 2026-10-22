@@ -45,7 +45,7 @@ runtime:
         const ids = payload.helpRequestIds;
         if (!Array.isArray(ids) || ids.length < 2 || ids.length > 100 ||
             ids.some(id => !validId(id)) || new Set(ids.map(id => id.toLowerCase())).size !== ids.length) {
-          throw new Error("Provide 2-100 distinct, nonempty helpRequestIds from your own pending, unreserved requests in the same session and current generation.");
+          throw new Error("Provide 2-100 distinct, nonempty helpRequestIds from your own requests in the same session and current generation.");
         }
         const examples = new Set(["aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"]);
         if (ids.some(id => examples.has(id.toLowerCase()))) {
@@ -72,7 +72,11 @@ docs: |-
   Erstat begge eksempel-GUID'er i helpRequestIds med dine egne ID'er direkte i JSON-bodyen.
   CreateSession/GetSession gemmer sessionId og sessionGeneration automatisk i Bruno.
   Ved data fra frontenden kan sessionId og generation også udfyldes direkte i JSON-bodyen.
-  Anmodningerne skal være Pending og uden en reserveret underviser.
+  Kilderne skal tilhøre samme session og aktuelle generation.
+  Kun ubesvarede, ventende og ureserverede digitale anmodninger kobles på FAQ-forløbet.
+  Fysiske anmodninger bidrager som kilder og fortsætter i køen til fysisk hjælp.
+  Allerede besvarede anmodninger bevarer deres forløb og får ingen FAQ-notifikation eller acceptkrav.
+  Det fælles svar kan læses med GetStudentFaqs og i frontendens fælles oversigt.
   Mimir bruger altid spørgsmålet "Dette er et generaliseret spørgsmål."; send ikke question i bodyen.
   HTTP 202 bekræfter lagring i Mimirs outbox. Eir behandler eventet asynkront.
   Ved 202 gemmes generalizationId, sessionId og sessionGeneration i runtime og det valgte miljø.
