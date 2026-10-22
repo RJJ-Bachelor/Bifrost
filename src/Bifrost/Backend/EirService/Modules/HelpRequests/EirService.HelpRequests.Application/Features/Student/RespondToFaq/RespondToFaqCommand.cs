@@ -3,4 +3,4 @@ using FastEndpoints;
 
 namespace EirService.HelpRequests.Application.Features.Student.RespondToFaq;
 
-public sealed record RespondToFaqCommand(Guid Id, string StudentId, bool Accept) : ICommand<HelpRequestResult>;
+public sealed record RespondToFaqCommand(Guid Id, string StudentId, bool? Accept) : ICommand<HelpRequestResult>;

@@ -22,5 +22,3 @@ public static class SeedDevelopmentData
         }).RequireAuthorization(EndpointTags.Teacher).WithName("SeedDevelopmentData").WithTags("Test");
     }
 }
-
-public sealed record SeedDevelopmentDataRequest(string Scenario = DevelopmentDataSeeder.Scenario, int StudentCount = 6);

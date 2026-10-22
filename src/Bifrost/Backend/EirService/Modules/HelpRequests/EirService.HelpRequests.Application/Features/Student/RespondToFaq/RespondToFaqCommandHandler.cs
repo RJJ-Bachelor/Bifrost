@@ -12,7 +12,7 @@ public sealed class RespondToFaqCommandHandler(HelpRequestAccess access, IUnitOf
     public async Task<HelpRequestResult> ExecuteAsync(RespondToFaqCommand command, CancellationToken cancellationToken)
     {
         var request = await access.ForRequestAsync(command.Id, command.StudentId, AuthorRole.Student, true, cancellationToken);
-        if (command.Accept) request.AcceptFaq(command.StudentId, clock.GetUtcNow());
+        if (command.Accept!.Value) request.AcceptFaq(command.StudentId, clock.GetUtcNow());
         else request.RejectFaq(command.StudentId, clock.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return request.ToResult();
