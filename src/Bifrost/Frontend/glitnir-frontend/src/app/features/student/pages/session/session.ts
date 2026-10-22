@@ -5,13 +5,14 @@ import { Card } from '../../../../shared/components/card/card';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpTypeToggle } from '../../../help-request/components/help-type-toggle/help-type-toggle';
+import { QuestionList } from '../../../help-request/components/question-list/question-list';
 import { MessageForm } from '../../../help-request/components/message-form/message-form';
 import { HelpType } from '../../../help-request/help-request.model';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
 
 @Component({
-  imports: [Topbar, Card, HelpTypeToggle, MessageForm, FaqList],
+  imports: [Topbar, Card, HelpTypeToggle, MessageForm, FaqList, QuestionList],
   selector: 'bifrost-student-session',
   styleUrl: './session.scss',
   templateUrl: './session.html',
@@ -31,6 +32,7 @@ export class Session {
     () => this.id(),
     () => this.session.value()?.currentGeneration ?? 0,
   );
+  protected readonly requests = this.helpRequestApi.getStudentRequests(() => this.id());
   protected readonly queue = this.helpRequestApi.getStudentQueue(() => this.id());
   protected readonly hasOpenRequest = computed(
     () => this.queue.value().ownRequestId !== null,

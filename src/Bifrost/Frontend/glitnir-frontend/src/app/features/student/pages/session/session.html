@@ -36,7 +36,12 @@
   </bifrost-card>
 
   <div class="session-columns">
-    <bifrost-card title="Dine spørgsmål"></bifrost-card>
+    <bifrost-card title="Dine spørgsmål">
+      <bifrost-question-list
+        [items]="requests.value()"
+        (questionSelected)="goToQueue()"
+      />
+    </bifrost-card>
     <bifrost-card title="FAQ-Arkivet"></bifrost-card>
   </div>
 </div>
