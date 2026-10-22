@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
+import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpTypeToggle } from '../../../help-request/components/help-type-toggle/help-type-toggle';
@@ -11,9 +12,10 @@ import { MessageForm } from '../../../help-request/components/message-form/messa
 import { HelpRequest, HelpType } from '../../../help-request/help-request.model';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
+import { SessionGeneration } from '../../../session/session.model';
 
 @Component({
-  imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, QuestionList],
+  imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, FaqArchiveList, QuestionList],
   selector: 'bifrost-student-session',
   styleUrl: './session.scss',
   templateUrl: './session.html',
@@ -35,6 +37,10 @@ export class Session {
   );
   protected readonly status = this.sessionApi.getSessionStatus(() => this.id());
   protected readonly requests = this.helpRequestApi.getStudentRequests(() => this.id());
+  protected readonly generations = this.sessionApi.getStudentGenerations(() => this.id());
+  protected readonly archiveVisibleCount = computed(() =>
+    Math.max(3, this.requests.value().length - 1),
+  );
   protected readonly queue = this.helpRequestApi.getStudentQueue(() => this.id());
   protected readonly hasOpenRequest = computed(
     () => this.queue.value().ownRequestId !== null,
@@ -43,6 +49,7 @@ export class Session {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly selectedRequest = signal<HelpRequest | null>(null);
+  protected readonly selectedGeneration = signal<SessionGeneration | null>(null);
 
   protected switchSession(): void {
     this.router.navigateByUrl('/');
@@ -62,6 +69,14 @@ export class Session {
 
   protected closeRequestDialog(): void {
     this.selectedRequest.set(null);
+  }
+
+  protected onGenerationSelected(generation: SessionGeneration): void {
+    this.selectedGeneration.set(generation);
+  }
+
+  protected closeGenerationDialog(): void {
+    this.selectedGeneration.set(null);
   }
 
   protected onQuestionSubmitted(message: string): void {

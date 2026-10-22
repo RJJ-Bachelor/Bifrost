@@ -46,7 +46,13 @@
         (questionSelected)="onQuestionSelected($event)"
       />
     </bifrost-card>
-    <bifrost-card title="FAQ-Arkivet"></bifrost-card>
+    <bifrost-card title="FAQ-Arkivet">
+      <bifrost-faq-archive-list
+        [items]="generations()"
+        [maxItems]="archiveVisibleCount()"
+        (generationSelected)="onGenerationSelected($event)"
+      />
+    </bifrost-card>
   </div>
 </div>
 
@@ -57,5 +63,15 @@
 >
   <p class="state-message">
     Samtale-visning kommer her.
+  </p>
+</bifrost-dialog>
+
+<bifrost-dialog
+  [open]="selectedGeneration() !== null"
+  [title]="selectedGeneration()?.title ?? ''"
+  (closed)="closeGenerationDialog()"
+>
+  <p class="state-message">
+    FAQ for denne lektion kommer her.
   </p>
 </bifrost-dialog>
