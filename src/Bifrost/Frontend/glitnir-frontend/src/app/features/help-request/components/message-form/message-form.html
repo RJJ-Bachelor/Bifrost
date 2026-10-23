@@ -8,6 +8,10 @@
   <div class="message-form__error-slot">
     @if (error()) {
       <p class="message-form__error">{{ error() }}</p>
+    } @else if (messageForm.message().touched() && messageForm.message().invalid() && messageForm.message().value().length > 0) {
+      @for (validationError of messageForm.message().errors(); track validationError) {
+        <p class="message-form__error">{{ validationError.message }}</p>
+      }
     }
   </div>
 
