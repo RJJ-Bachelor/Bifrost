@@ -28,6 +28,34 @@ export interface ClearSessionResult {
   lastClearedAtUtc: string;
 }
 
+export interface ArchiveSessionResult {
+  archiveId: string;
+  sessionId: string;
+  generation: number;
+  currentGeneration: number;
+  archivedAtUtc: string;
+}
+
+export interface SessionArchiveMetadata {
+  id: string;
+  sessionId: string;
+  title: string;
+  generation: number;
+  startedAtUtc: string;
+  archivedAtUtc: string;
+}
+
+export interface SessionArchiveSummary extends SessionArchiveMetadata {
+  privateConversationCount: number;
+  generalizedQuestionCount: number;
+}
+
+export interface SessionArchive extends SessionArchiveMetadata {
+  faqs: Faq[];
+  conversations: Pick<HelpRequest, 'id' | 'sessionId' | 'generation' | 'requestNumber' | 'displayNumber' |
+    'studentId' | 'helpType' | 'status' | 'assignedTeacherId' | 'createdAt' | 'closedAt' | 'messages'>[];
+}
+
 export type HelpType = 'Physical' | 'Digital';
 export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'Completed' | 'Cancelled' | 'AwaitingFaq';
 export type HelpRequestAction = 'Start' | 'Complete' | 'Cancel';

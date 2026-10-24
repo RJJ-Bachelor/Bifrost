@@ -11,4 +11,6 @@ public interface ISessionRepository
     Task<Session?> GetByCodeAsync(string code, SessionCodeType codeType, CancellationToken cancellationToken);
     Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken);
     Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SessionArchive>> GetArchivesAsync(Guid sessionId, CancellationToken cancellationToken);
+    Task<SessionArchive?> GetArchiveAsync(Guid sessionId, Guid archiveId, CancellationToken cancellationToken);
 }

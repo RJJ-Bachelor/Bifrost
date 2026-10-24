@@ -2,11 +2,24 @@
 
 Åbn `scripts/Bifrost-JPF` som collection, vælg **Local** og **Developer Mode**, og udvid **Development**. Kaldene bruger `gatewayUrl` og samme login som resten af collectionen.
 
+## Behøver jeg Development-kaldene?
+
+De er valgfrie testhjælpere. Brug **EirService** til de almindelige endpoints, også arkivering.
+**Development → FAQ demo** samler ét seed-kald og de efterfølgende demo-trin.
+Demoens student-kald vælger selv hver sin studentercookie; teacher-kaldene kontrollerer
+demoens ID'er, så den rigtige FAQ bliver besvaret. **Development → Workflows** indeholder
+en genvej, som automatiserer almindelige API-kald i en ny session.
+
+Der er kun tre særlige Development-endpoints: Eirs seed og Mimirs to testgeneraliseringer
+(se tabellen nedenfor). De øvrige demo-trin bruger de normale endpoints.
+Hvis du allerede har data fra frontenden, kan du bruge
+[generalisering af egne HelpRequests](#generalisering-af-egne-helprequests) og springe FAQ-demoen over.
+
 ## Kom i gang
 
 1. Start Heimdall, Eir og deres normale afhængigheder i `Development`. FAQ-flowet bruger også Mimir og RabbitMQ.
 2. Kør **Login → Teacher → Login** som normalt. `teacherUsername` og `teacherPassword` bruges af den eksisterende login-helper; Bruno gemmer teacher-cookien.
-3. Sæt `studentCount` direkte i JSON-bodyen til et tal mellem 2 og 20 (standard 6), og send **Development → Seed FAQ demo**. Forvent `201 Created`. Ved en fejl vises den almindelige HTTP-status og response body; sessionsvariabler ændres kun ved succes.
+3. Åbn **Development → FAQ demo**, sæt `studentCount` i JSON-bodyen til et tal mellem 2 og 20 (standard 6), og send **Seed FAQ demo**. Forvent `201 Created`. Ved en fejl vises den almindelige HTTP-status og response body; sessionsvariabler ændres kun ved succes.
 4. Åbn den nye session i test-frontenden med samme underviser. Svaret indeholder session-id, studenterkode og underviserkode. En anden underviser kan joine med underviserkoden.
 5. Send **MimirService → Publish generalization (dummy data)**, når du vil sende et fælles spørgsmål om de to første HelpRequests via Mimir. JSON-bodyen kan redigeres direkte, og seed-kaldet har udfyldt ID'erne. Forvent `202 Accepted`. Beskeden leveres asynkront gennem den normale outbox og RabbitMQ.
 6. Brug **Get teacher queue**, indtil FAQ'en står først med `isFaq: true` og uden en tildelt underviser. Genlevering med samme generaliserings-id tilføjer ikke spørgsmålet igen.
@@ -57,7 +70,7 @@ FAQ-demoen gemmer også sine ID'er og generation som særskilte `faqDemo…`-run
 Demo-kaldene bruger disse værdier, så de også virker, når
 miljøvariabler ikke følger med til næste request. Cookies og `seedReady` gemmes også i runtime.
 De normale EirService-kald opsamler også sessioner og anmodninger automatisk gennem
-collectionens fælles response-script. Sessionsskift og ClearSession rydder gamle anmodnings-ID'er.
+collectionens fælles response-script. Sessionsskift, ArchiveSession og ClearSession rydder gamle anmodnings-ID'er.
 
 **Take next FAQ** gemmer det faktisk reserverede ID som `faqDemoTakenRequestId`.
 Et nyt seed nulstiller værdien. **Answer FAQ** kræver, at dette ID matcher demoens generalisering.
@@ -124,9 +137,22 @@ teste genlevering. Udelad feltet for en ny generalisering. Ved samme session og 
 bevares elevens ID og seed-demoens `faqDemo…`-variabler. Sessionsskift eller en ny generation
 rydder gamle anmodnings- og demo-ID'er, før det nye `generalizationId` gemmes.
 
+## Arkivtest med demo-data
+
+Når FAQ-demoen er besvaret, kan dens session arkiveres gennem
+**EirService → Teacher → Sessions → ArchiveSession**. `archiveId` og den nye
+`sessionGeneration` gemmes automatisk. Brug **GetSessionArchives** og **GetSessionArchive**
+under Teacher → Sessions til at se den gemte generation og **GetQueue** til at kontrollere den tomme kø.
+Student → Sessions har de samme læsekald og bruger den sidst valgte demostuderendes cookie.
+Arkivdetaljerne indeholder kun den studerendes egne samtaler og de besvarede FAQ'er.
+
+Arkivering afslutter den seedede generation og nulstiller dens demo-ID'er. Kør seed igen,
+hvis du vil gentage hele FAQ-demoen, eller brug almindelige EirService-kald til nye anmodninger i næste generation.
+Der skal ikke sendes en manuel Mimir-testgeneralisering ved arkivering; Eir sender selv arkivbeskeden.
+
 ## Almindeligt Mimir-flow
 
-**Development → Create digital help request (new session)** logger ind som underviser,
+**Development → Workflows → Create digital help request (new session)** logger ind som underviser,
 opretter en ny session, tilmelder den aktuelle studerende og sender en digital HelpRequest
 til Eir. Mimir modtager `request.created` og behandler anmodningen gennem sit normale flow.
 Dette er et separat forløb fra FAQ-demoen og opdaterer session-variablerne i Local.

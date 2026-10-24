@@ -1,0 +1,14 @@
+info:
+  name: GetSessionArchive
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/archives/{{archiveId}}'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Gets the archived generation, its FAQs and student conversations visible to the teacher.
+  ArchiveSession saves archiveId automatically; choose another id from GetSessionArchives.

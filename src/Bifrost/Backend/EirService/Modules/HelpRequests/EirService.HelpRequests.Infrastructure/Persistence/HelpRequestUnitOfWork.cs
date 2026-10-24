@@ -1,6 +1,7 @@
+using EirService.Contracts.Sessions.GetSessionGenerations;
+using FastEndpoints;
 using EirService.Contracts.Exceptions;
 using EirService.HelpRequests.Application.Repositories;
-using EirService.HelpRequests.Domain.DomainEvents;
 using EirService.HelpRequests.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -15,18 +16,25 @@ public sealed class HelpRequestUnitOfWork(EirRequestDbContext dbContext, TimePro
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var queuesToLock = dbContext.ChangeTracker.Entries<HelpRequest>()
-            .Where(entry => entry.State == EntityState.Added || entry.Entity.GetDomainEvents()
-                .OfType<HelpRequestChangedDomainEvent>().Any(change => change.Change == "StudentMessageAdded"))
+            .Where(entry => entry.State == EntityState.Added || entry.Entity.GetDomainEvents().Count > 0)
             .Select(entry => (entry.Entity.SessionId, entry.Entity.Generation)).Distinct()
             .OrderBy(queue => queue.SessionId).ThenBy(queue => queue.Generation).ToArray();
         await using var transaction = queuesToLock.Length > 0 && dbContext.Database.CurrentTransaction is null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        // Serialize queue entries, including follow-ups, so only the first notifies the owner.
+        // Serialize request mutations with generation changes and queue entries.
         foreach (var queue in queuesToLock)
         {
             var queueKey = $"helprequests:{queue.SessionId}:{queue.Generation}";
             await dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT pg_advisory_xact_lock(hashtextextended({queueKey}, 0))", cancellationToken);
+        }
+        if (queuesToLock.Length > 0)
+        {
+            // Check after acquiring the same lock used when a session advances its generation.
+            var generations = await new GetSessionGenerationsQuery(queuesToLock.Select(queue => queue.SessionId).Distinct().ToArray())
+                .ExecuteAsync(cancellationToken);
+            if (queuesToLock.Any(queue => !generations.TryGetValue(queue.SessionId, out var current) || current != queue.Generation))
+                throw new OperationConflictException("The session generation changed. Refresh and try again.");
         }
         // Message-only changes must also update the aggregate's xmin concurrency token.
         foreach (var entry in dbContext.ChangeTracker.Entries<HelpRequest>()

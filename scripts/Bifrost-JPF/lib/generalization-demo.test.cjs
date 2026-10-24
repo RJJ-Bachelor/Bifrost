@@ -12,7 +12,7 @@ const BrunoResponse = require('@usebruno/js/src/bruno-response');
 const collectionPath = path.resolve(__dirname, '..');
 const requireFromCollection = createRequire(path.join(collectionPath, 'package.json'));
 const read = name => yaml.load(fs.readFileSync(path.join(collectionPath, name), 'utf8'));
-const seed = read('Development/SeedFAQdemo.yml');
+const seed = read('Development/FaqDemo/SeedFAQdemo.yml');
 const publish = read('MimirService/PublishGeneralization.yml');
 const localVariables = Object.fromEntries(read('environments/Local.yml').variables.map(({ name, value }) => [name, value]));
 const seedData = {
@@ -77,9 +77,9 @@ for (const activeEnvironment of [true, false]) {
     assert.equal(runtime.sessionId, seedData.session.id);
     assert.equal(runtime.sessionGeneration, String(seedData.session.currentGeneration));
     for (const [file, expectedId] of [
-      ['Development/Getteacherqueue.yml', seedData.session.id],
-      ['Development/Getfirststudentrequest.yml', seedData.students[0].helpRequestId],
-      ['Development/Getsecondstudentrequest.yml', seedData.students[1].helpRequestId]
+      ['Development/FaqDemo/Getteacherqueue.yml', seedData.session.id],
+      ['Development/FaqDemo/Getfirststudentrequest.yml', seedData.students[0].helpRequestId],
+      ['Development/FaqDemo/Getsecondstudentrequest.yml', seedData.students[1].helpRequestId]
     ]) {
       const url = nextRequest.interpolate(read(file).http.url);
       assert.ok(url.includes(expectedId));
@@ -169,8 +169,8 @@ test('demo reserves and answers the FAQ, then responds with each source student 
   const runtime = {};
   const bru = createBru(runtime);
   seedSuccessfully(bru);
-  const take = read('Development/TakeNextFaq.yml');
-  const answer = read('Development/AnswerFaq.yml');
+  const take = read('Development/FaqDemo/TakeNextFaq.yml');
+  const answer = read('Development/FaqDemo/AnswerFaq.yml');
   const requestFor = document => new BrunoRequest({
     method: document.http.method, url: bru.interpolate(document.http.url),
     headers: { 'Content-Type': 'application/json' }, data: document.http.body?.data
@@ -194,8 +194,8 @@ test('demo reserves and answers the FAQ, then responds with each source student 
     setCookie: async (_url, cookie) => cookies.push(cookie)
   }) };
   for (const [file, studentIndex, accept] of [
-    ['Development/AcceptFirstStudentFaq.yml', 0, true],
-    ['Development/RejectSecondStudentFaq.yml', 1, false]
+    ['Development/FaqDemo/AcceptFirstStudentFaq.yml', 0, true],
+    ['Development/FaqDemo/RejectSecondStudentFaq.yml', 1, false]
   ]) {
     const document = read(file);
     const req = requestFor(document);
@@ -215,8 +215,8 @@ test('demo cannot answer an ordinary reserved request and a fresh seed clears th
   const runtime = {};
   const bru = createBru(runtime);
   seedSuccessfully(bru);
-  const take = read('Development/TakeNextFaq.yml');
-  const answer = read('Development/AnswerFaq.yml');
+  const take = read('Development/FaqDemo/TakeNextFaq.yml');
+  const answer = read('Development/FaqDemo/AnswerFaq.yml');
   run(take, 'before-request', { bru });
   run(take, 'after-response', { bru, res: response(200, { id: seedData.students[0].helpRequestId, isFaq: false }) });
 

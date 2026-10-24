@@ -1,0 +1,26 @@
+info:
+  name: ArchiveSession
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/archive'
+  body:
+    type: json
+    data: |-
+      {
+        "expectedGeneration": {{sessionGeneration}}
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Archives the current generation and starts the next generation with an empty queue.
+  Saves archiveId for the archive detail requests and updates sessionGeneration.
+  GetSession refreshes sessionGeneration if another teacher archived the session first (409).

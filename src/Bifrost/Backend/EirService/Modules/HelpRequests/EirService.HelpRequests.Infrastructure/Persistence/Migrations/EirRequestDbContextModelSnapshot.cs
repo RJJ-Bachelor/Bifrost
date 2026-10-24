@@ -23,6 +23,33 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("EirService.HelpRequests.Infrastructure.Persistence.ArchivedConversationSnapshot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Data")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Generation", "StudentId");
+
+                    b.ToTable("ArchivedConversation", "helprequests");
+                });
+
             modelBuilder.Entity("EirService.HelpRequests.Domain.Entities.HelpRequest", b =>
                 {
                     b.Property<Guid>("Id")

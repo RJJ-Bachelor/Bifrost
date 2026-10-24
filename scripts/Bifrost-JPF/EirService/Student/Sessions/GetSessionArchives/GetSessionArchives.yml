@@ -1,0 +1,16 @@
+info:
+  name: GetSessionArchives
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/archives'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Lists archived generations for a session the current student has joined.
+  Each generation includes privateConversationCount (the current student's private conversations/HelpRequests)
+  and generalizedQuestionCount (answered FAQ questions visible to the student).
+  To open an older archive, replace {{archiveId}} in GetSessionArchive's URL with its id once.

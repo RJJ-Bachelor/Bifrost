@@ -19,6 +19,7 @@ const requireFromCollection = createRequire(path.join(root, 'package.json'));
 const session = { id: '11111111-1111-1111-1111-111111111111', code: 'STUDENT1', teacherCode: 'TEACHER1', currentGeneration: 1 };
 const sourceId = '22222222-2222-2222-2222-222222222222';
 const faqId = '33333333-3333-3333-3333-333333333333';
+const archiveId = '44444444-4444-4444-4444-444444444444';
 const files = {
   create: 'EirService/Teacher/Sessions/CreateSession/CreateSession.yml',
   join: 'EirService/Student/Participants/JoinSession/JoinSession.yml',
@@ -27,6 +28,11 @@ const files = {
   take: 'EirService/Teacher/HelpRequests/TakeNextHelpRequest/TakeNextHelpRequest.yml',
   answer: 'EirService/Teacher/HelpRequests/AnswerHelpRequest/AnswerHelpRequest.yml',
   accept: 'EirService/Student/HelpRequests/RespondToFaq/AcceptFaq.yml',
+  archive: 'EirService/Teacher/Sessions/ArchiveSession/ArchiveSession.yml',
+  teacherArchives: 'EirService/Teacher/Sessions/GetSessionArchives/GetSessionArchives.yml',
+  teacherArchive: 'EirService/Teacher/Sessions/GetSessionArchive/GetSessionArchive.yml',
+  studentArchives: 'EirService/Student/Sessions/GetSessionArchives/GetSessionArchives.yml',
+  studentArchive: 'EirService/Student/Sessions/GetSessionArchive/GetSessionArchive.yml',
   clear: 'EirService/Teacher/Sessions/ClearSession/ClearSession.yml',
   remove: 'EirService/Teacher/Sessions/DeleteSession/DeleteSession.yml'
 };
@@ -106,6 +112,46 @@ test('empty take-next clears the old teacher selection without changing the stud
   assert.equal(flow.runtime.studentHelpRequestId, sourceId);
 });
 
+test('archive updates the current generation and selects the snapshot without retaining queue or demo ids', () => {
+  const flow = context();
+  flow.respond('create', session, 201);
+  flow.respond('submit', { id: sourceId }, 201);
+  flow.respond('take', { id: faqId, faqAnswerId: faqId });
+  flow.bru.setVar('faqDemoGeneralizationId', faqId);
+  const archived = { archiveId, sessionId: session.id, generation: 1, currentGeneration: 2,
+    archivedAtUtc: '2026-10-23T10:00:00Z' };
+  const before = { ...flow.runtime };
+  flow.respond('archive', { error: 'Conflict' }, 409);
+  assert.deepEqual(flow.runtime, before);
+  assert.throws(() => flow.respond('archive', { ...archived, archiveId: 'invalid' }), /archiveId/);
+  assert.deepEqual(flow.runtime, before);
+
+  flow.respond('archive', archived);
+
+  for (const variables of [flow.runtime, flow.environment]) {
+    assert.equal(variables.archiveId, archiveId);
+    assert.equal(variables.sessionGeneration, '2');
+    assert.equal(variables.studentHelpRequestId, '');
+    assert.equal(variables.teacherHelpRequestId, '');
+    assert.equal(variables.generalizationId, '');
+    assert.equal(variables.sessionCode, session.code);
+  }
+  assert.equal(flow.runtime.faqDemoGeneralizationId, undefined);
+  assert.equal(flow.runtime.seedReady, false);
+  assert.equal(flow.request('archive').getBody().expectedGeneration, 2);
+  for (const role of ['teacher', 'student']) {
+    assert.ok(flow.request(role + 'Archive').getUrl().endsWith('/archives/' + archiveId));
+    flow.respond(role + 'Archives', [{ id: faqId, sessionId: session.id, generation: 1 }]);
+    assert.equal(flow.runtime.archiveId, archiveId);
+    flow.respond(role + 'Archive', { id: archiveId, sessionId: session.id, generation: 1,
+      faqs: [], conversations: [] });
+    assert.equal(flow.runtime.archiveId, archiveId);
+    assert.equal(flow.runtime.sessionGeneration, '2');
+  }
+  flow.respond('join', { id: faqId, currentGeneration: 1 });
+  assert.equal(flow.runtime.archiveId, '');
+});
+
 test('the actual Bruno CLI inherits collection capture scripts across a complete request sequence', { timeout: 60000 }, async () => {
   const received = [];
   const server = http.createServer(async (req, res) => {
@@ -123,7 +169,13 @@ test('the actual Bruno CLI inherits collection capture scripts across a complete
     else if (req.url === sessionPath + '/queue/take-next') data = { id: faqId, faqAnswerId: faqId };
     else if (req.url === `/api/teachers/requests/${faqId}/messages`) data = { id: faqId, faqAnswerId: faqId };
     else if (req.url === `/api/students/requests/${sourceId}/faq`) data = { id: sourceId, faqAnswerId: faqId };
-    else if (req.url === sessionPath + '/clear' && body.expectedGeneration === 1) data = { sessionId: session.id, currentGeneration: 2 };
+    else if (req.url === sessionPath + '/archive' && body.expectedGeneration === 1)
+      data = { archiveId, sessionId: session.id, generation: 1, currentGeneration: 2, archivedAtUtc: '2026-10-23T10:00:00Z' };
+    else if (req.url === sessionPath + '/archives' || req.url === `/api/students/sessions/${session.id}/archives`)
+      data = [{ id: archiveId, sessionId: session.id, generation: 1 }];
+    else if (req.url === sessionPath + '/archives/' + archiveId || req.url === `/api/students/sessions/${session.id}/archives/${archiveId}`)
+      data = { id: archiveId, sessionId: session.id, generation: 1, faqs: [], conversations: [] };
+    else if (req.url === sessionPath + '/clear' && body.expectedGeneration === 2) data = { sessionId: session.id, currentGeneration: 3 };
     else if (req.url === sessionPath && req.method === 'DELETE') res.statusCode = 204;
     else { res.statusCode = 400; data = { error: 'Unresolved or incorrect request variables' }; }
     res.end(data === undefined ? undefined : JSON.stringify(data));

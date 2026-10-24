@@ -10,9 +10,9 @@ Start backendservices og Heimdall på `http://localhost:6004`. Kør `npm start` 
 | --- | --- | --- |
 | Forside | `/` | Tom forside. En allerede oprettet SignalR-forbindelse bevares. |
 | Studerende | `/students` | Tilmelding via kode og liste over tilmeldte sessioner. |
-| Studentens session | `/students/sessions/:sessionId` | Køplacering, opret hjælp, egne anmodninger og samtaler. |
+| Studentens session | `/students/sessions/:sessionId` | Køplacering, opret hjælp, egne anmodninger, samtaler og arkiv. |
 | Underviser | `/teachers` | Eksisterende lærerlogin, opret session og egne sessioner. |
-| Underviserens session | `/teachers/sessions/:sessionId` | Del sessionskode/link, se køen, tag næste, hjælp og ryd session. |
+| Underviserens session | `/teachers/sessions/:sessionId` | Del sessionskode/link, se køen, tag næste, hjælp, arkivér og ryd session. |
 
 De gamle URL'er `/overview`, `/students/requests`, `/teachers/requests` og `/requests` viderestilles til de tilsvarende hovedsider. Sessionslinks bruger `/students?code=SESSIONSKODE`.
 
@@ -23,6 +23,8 @@ En session åbnes fra listen. Sessionens ID og aktuelle generation hentes fra AP
 - **Studerende:** Vælg fysisk eller digital hjælp, og stil dit spørgsmål. Se din køplacering og samtale. Annuller før fysisk hjælp starter. Send opfølgende beskeder i en ventende, ureserveret eller afsluttet samtale; den genåbnes bagest i køen.
 - **Underviser:** Tag næste anmodning. Ved fysisk hjælp bruges **Start fysisk hjælp** og **Afslut fysisk hjælp**. Ved digital hjælp afslutter **Send svar og afslut** anmodningen. **Send forrest i køen** frigiver reservationen og returnerer anmodningen.
 - **Ryd session:** Findes under sessionindstillinger og kræver bekræftelse. De studerende forbliver tilmeldt. Gamle samtaler kan læses, men handlinger kræver sessionens aktuelle generation.
+- **Arkivér generation:** Underviseren vælger handlingen under sessionindstillinger og bekræfter. FAQ og personlige samtaler gemmes i arkivet, den aktuelle kø tømmes, og generationen stiger med én. Alle deltagere forbliver tilmeldt. Den nye arkivdetalje åbnes, og køen opdateres. **Ryd session uden arkiv** er stadig tilgængelig som en separat handling.
+- **Arkiverede generationer:** Begge roller kan vælge en generation under sessionens kø og læse FAQ og samtaler. Underviseren ser alle gemte FAQ-spørgsmål og sessionens personlige samtaler. Den studerende ser besvarede FAQ-spørgsmål og sine egne samtaler. Arkivet er kun til læsning.
 - Numre som **BF-002** identificerer en anmodning; køplaceringen kan ændre sig.
 
 Brug en separat browserprofil til hver studerende. Faner i samme profil deler den eksisterende studenter-cookie. Lærerlogin og logout bruger fortsat Heimdall og VarService.
@@ -52,7 +54,9 @@ API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udvi
 
 ## Build
 
-`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper, navigation og sessionsfiltrering med Node-testværktøjet.
+`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper, navigation, sessionsfiltrering, FAQ-svar og arkivering med Node-testværktøjet.
+
+Arkivering bruger `POST /api/teachers/sessions/{sessionId}/archive` med `{ expectedGeneration }`. Arkivlisten hentes fra `GET /api/{teachers|students}/sessions/{sessionId}/archives`, og en detalje fra samme sti med `/{archiveId}`. Listen opdateres sammen med sessionen; en arkivdetalje hentes, når den vælges. Brug **Opdatér arkiv**, hvis et FAQ-svar stadig er på vej gennem beskedkøen. API'et håndhæver medlemskab og filtrerer den studerendes samtaler.
 
 ## Generalisering og FAQ
 

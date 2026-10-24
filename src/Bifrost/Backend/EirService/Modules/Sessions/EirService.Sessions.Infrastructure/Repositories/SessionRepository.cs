@@ -51,4 +51,11 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
         await dbContext.Sessions.AsNoTracking().Where(session => ids.Contains(session.Id))
             .OrderByDescending(session => session.CreatedAtUtc).ThenBy(session => session.Id).ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<SessionArchive>> GetArchivesAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        await dbContext.Archives.AsNoTracking().Where(archive => archive.SessionId == sessionId)
+            .OrderByDescending(archive => archive.Generation).ToArrayAsync(cancellationToken);
+
+    public Task<SessionArchive?> GetArchiveAsync(Guid sessionId, Guid archiveId, CancellationToken cancellationToken) =>
+        dbContext.Archives.AsNoTracking().SingleOrDefaultAsync(
+            archive => archive.SessionId == sessionId && archive.Id == archiveId, cancellationToken);
 }

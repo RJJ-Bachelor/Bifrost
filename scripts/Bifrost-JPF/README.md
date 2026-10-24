@@ -8,6 +8,7 @@ Collectionens fælles response-script gemmer værdier automatisk ved vellykkede 
 | CreateSession / JoinSession / GetSession | `sessionId`, `sessionGeneration` og de sessionskoder, svaret indeholder |
 | Student CreateHelpRequest / GetHelpRequestById / besked og status | `studentHelpRequestId` samt `helpRequestId` som alias |
 | Teacher TakeNextHelpRequest / GetHelpRequest / svar og status | `teacherHelpRequestId`; en FAQ gemmer også `generalizationId` |
+| ArchiveSession | `archiveId` og ny `sessionGeneration`; gamle anmodnings- og demo-ID'er ryddes |
 | ClearSession | Ny `sessionGeneration`; gamle anmodnings- og generaliserings-ID'er ryddes |
 | DeleteSession | Den valgte session og dens anmodnings-ID'er ryddes |
 
@@ -20,35 +21,26 @@ Listekald vælger ikke automatisk et vilkårligt element.
 
 ## Development
 
-Til dine egne data bruges **MimirService → Generalize own help requests** uden seed.
-Opret mindst to HelpRequests i samme session fra Bruno eller test-frontenden, og indsæt
-deres ID'er direkte i requestens JSON-body. `sessionId` og `sessionGeneration` følger
-de almindelige sessionsvariabler, eller de kan indsættes direkte fra frontenden.
-Ved `202` gemmes payloadets session og generation automatisk til næste køkald.
-Mimir sender det faste spørgsmål
-"Dette er et generaliseret spørgsmål." gennem den normale outbox og RabbitMQ.
-Se [forløbet med egne data](Development/README.md#generalisering-af-egne-helprequests).
+**Development er valgfri.** De almindelige sessions-, arkiv-, kø- og samtalekald ligger
+under **EirService** og kan bruges uden seed eller Development-mappen.
+Testhjælperne er samlet efter deres formål:
 
-FAQ-testen bruger **Development** til data og inspektion og **MimirService** til publicering:
+| Mappe | Brug |
+|---|---|
+| Development → FAQ demo | Opret testdata, og afprøv en fælles FAQ med to forskellige studerende |
+| Development → Workflows | Opret en ny session og en digital HelpRequest gennem de normale endpoints |
+| MimirService | Send en testgeneralisering via Mimir og RabbitMQ, med seed-data eller egne data |
 
-1. `Development/Seed FAQ demo` opretter en ny session med studerende og HelpRequests.
-2. `MimirService/Publish generalization (dummy data)` sender det redigerbare JSON-payload via Mimirs test-API.
-3. `Development/Get teacher queue`, `Get first student request` og `Get second student request` viser resultatet.
-4. `Development/Take next FAQ` og `Answer FAQ` reserverer og besvarer fællesspørgsmålet.
-5. `Development/Accept first student FAQ` og `Reject second student FAQ` afprøver elevernes to svarmuligheder med hver sin cookie.
+Kun **Seed FAQ demo** kalder Eirs særlige Development-endpoint. Demoens øvrige kald
+bruger de normale endpoints med sikre demo-ID'er og de rigtige studentercookies.
+Workflows-kaldet automatiserer almindeligt login, sessionsoprettelse, tilmelding og oprettelse af en anmodning.
+Mimirs to testendpoints og Eirs seed findes kun i service-miljøet `Development` og kræver teacher-login.
 
-Seed-kaldet udfylder session, generation,
-generaliserings-id og de to helprequest-id'er som `faqDemo…`-runtime-variabler og kopierer
-de almindelige variabler til det valgte miljø. Publish stopper i Bruno med en konkret fejl,
-hvis payloadets værdier mangler eller ikke kan opløses. Eir føjer det fælles spørgsmål til de tilknyttede
-samtaler som en systembesked fra `mimir` og opretter en FAQ i underviserens kø.
-**Development → Create digital help request (new session)** opretter en almindelig
-digital elevanmodning i en ny session og starter Mimirs normale behandling.
-Manuelle anmodninger i en eksisterende session ligger under
-`EirService/Student/HelpRequests/CreateHelpRequest`.
-
-Kør først `Login/Teacher/Login` som normalt. Alle Development-kald bruger `gatewayUrl` og collectionens eksisterende cookie-login. Antallet af demostuderende sættes direkte som et tal i seed-kaldets JSON-body: `"studentCount": 6` (2–20). Demoens student-kald vælger den relevante demostuderende i Brunos cookiejar og bevarer teacher-login.
-Se [Development-vejledningen](Development/README.md) for opsætning og hele forløbet.
+Til eksisterende data bruges **MimirService → Generalize own help requests**.
+Opret mindst to HelpRequests i samme session og generation, og indsæt deres ID'er
+i requestens JSON-body. Seed er valgfri, og `sessionId` og `sessionGeneration` følger de almindelige sessionsvariabler.
+Se [forløbet med egne data](Development/README.md#generalisering-af-egne-helprequests)
+eller [den komplette FAQ-demo](Development/README.md#kom-i-gang).
 
 ## Mapper
 
@@ -65,7 +57,9 @@ EirService/
 │   │   ├── JoinSession/
 │   │   └── GetStudentSessions/
 │   ├── Sessions/
-│   │   └── GetStudentSession/
+│   │   ├── GetStudentSession/
+│   │   ├── GetSessionArchives/
+│   │   └── GetSessionArchive/
 │   ├── HelpRequests/
 │   │   ├── CreateHelpRequest/
 │   │   ├── GetHelpRequests/
@@ -88,6 +82,9 @@ EirService/
     │   ├── CreateSession/
     │   ├── GetSessions/
     │   ├── GetSession/
+    │   ├── ArchiveSession/
+    │   ├── GetSessionArchives/
+    │   ├── GetSessionArchive/
     │   ├── ClearSession/
     │   └── DeleteSession/
     ├── HelpRequests/
@@ -128,7 +125,8 @@ De almindelige Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som norma
 | `sessionId` | Gemmes automatisk fra CreateSession, JoinSession og GetSession |
 | `sessionCode` | Gemmes fra CreateSession/GetSession som teacher og studentens JoinSession |
 | `teacherSessionCode` | Gemmes fra CreateSession/GetSession som teacher og underviserens JoinSession |
-| `sessionGeneration` | Gemmes fra session-svar og opdateres efter ClearSession |
+| `sessionGeneration` | Den aktuelle generation; opdateres efter ArchiveSession og ClearSession |
+| `archiveId` | Gemmes fra ArchiveSession og arkivdetaljer; vælg et ældre arkiv med dets ID i detaljekaldets URL |
 | `studentHelpRequestId` / `helpRequestId` | Elevens anmodning; gemmes fra elevens oprette-, læse- og ændringskald |
 | `teacherHelpRequestId` | Gemmes fra underviserens læse-, reservations- og ændringskald |
 | `generalizationId` | ID'et for det fælles FAQ-spørgsmål; gemmes fra seed, begge Mimir-testkald og FAQ-svar |
@@ -148,6 +146,9 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | CreateSession | `POST /api/teachers/sessions` med titel |
 | GetSessions | `GET /api/teachers/sessions` |
 | GetSession | `GET /api/teachers/sessions/{{sessionId}}` |
+| ArchiveSession | `POST /api/teachers/sessions/{{sessionId}}/archive` med forventet generation |
+| GetSessionArchives | `GET /api/teachers/sessions/{{sessionId}}/archives` |
+| GetSessionArchive | `GET /api/teachers/sessions/{{sessionId}}/archives/{{archiveId}}` |
 | ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` med forventet generation |
 | DeleteSession | `DELETE /api/teachers/sessions/{{sessionId}}` |
 | GetQueue | `GET /api/teachers/sessions/{{sessionId}}/queue` |
@@ -165,6 +166,8 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | JoinSession | `POST /api/students/sessions/join` med sessionskode |
 | GetStudentSessions | `GET /api/students/sessions` |
 | GetStudentSession | `GET /api/students/sessions/{{sessionId}}` |
+| GetSessionArchives | `GET /api/students/sessions/{{sessionId}}/archives` |
+| GetSessionArchive | `GET /api/students/sessions/{{sessionId}}/archives/{{archiveId}}` |
 | CreateHelpRequest | `POST /api/students/sessions/{{sessionId}}/requests` med `message` og `helpType` |
 | GetHelpRequests | `GET /api/students/requests` |
 | GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
@@ -174,6 +177,31 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | CancelHelpRequest | `PATCH /api/students/requests/{{studentHelpRequestId}}/status` med `action: "Cancel"` |
 | GetStudentFaqs | `GET /api/students/sessions/{{sessionId}}/faqs` |
 | AcceptFaq / RejectFaq | `PATCH /api/students/requests/{{studentHelpRequestId}}/faq` med `accept: true` / `false` |
+
+## Arkivering
+
+1. Log ind som underviser, og vælg sessionen med **Teacher → Sessions → GetSession**.
+2. Kør **ArchiveSession**. Bodyens `expectedGeneration` kommer fra `sessionGeneration`.
+   Svaret gemmer `archiveId`, opdaterer den aktuelle generation og rydder gamle anmodnings-ID'er.
+3. Brug **GetSessionArchives** og **GetSessionArchive** under Teacher eller Student → Sessions.
+   For et ældre arkiv erstattes `{{archiveId}}` én gang i detaljekaldets URL med listens `id`;
+   svaret gemmer det valgte `archiveId`. Listekald vælger aldrig automatisk et arkiv.
+4. Kontrollér den nye generation med **GetSession** og den tomme kø med **GetQueue**.
+   Den samme session og de eksisterende sessionskoder bruges videre.
+
+Et arkiv indeholder generationens FAQ'er og samtaler. Underviseren kan hente alle
+generationens samtaler; den studerende kan hente sine egne samtaler og besvarede FAQ'er.
+Arkivlisten indeholder `privateConversationCount` og `generalizedQuestionCount` for hver generation.
+Det første tæller private samtaler (HelpRequests), så hver samtale tælles én gang uanset antallet af beskeder.
+Det andet tæller generationens generaliserede FAQ-spørgsmål. Underviseren ser alle spørgsmål,
+mens den studerendes tal kun omfatter egne samtaler og besvarede FAQ-spørgsmål.
+Arkivdetaljer ændrer aldrig `sessionGeneration` til den gamle generation.
+Arkivering sender samtidig besked til Mimir gennem den normale outbox og RabbitMQ.
+Hvis en anden underviser allerede har skiftet generation, giver ArchiveSession `409`;
+hent GetSession igen før et nyt forsøg.
+
+**ClearSession** findes fortsat som den særskilte ryd-funktion uden oprettelse af et arkiv.
+Brug **ArchiveSession**, når generationen skal gemmes og kunne findes i arkivlisten.
 
 ## FAQ og generalisering
 
@@ -190,7 +218,7 @@ Her er `studentHelpRequestId` elevens **oprindelige anmodning**, og elevcookien 
 Accept afslutter anmodningen; afvisning sender den tilbage i køen. Svaret kræver status
 `AwaitingConfirmation`, og hver elev vælger én af mulighederne.
 
-Til hele seed-forløbet bruges Development-kaldene ovenfor: de vælger ID'er og elevcookies automatisk.
+Til hele seed-forløbet bruges **Development → FAQ demo**: kaldene vælger ID'er og elevcookies automatisk.
 FAQ-listerne ligger under de almindelige EirService-mapper. Det genbrugelige FAQ-svar leveres
 asynkront til KnowledgeBase, så studentens liste kan være tom lige efter besvarelsen.
 
@@ -198,7 +226,7 @@ asynkront til KnowledgeBase, så studentens liste kan være tom lige efter besva
 
 CreateHelpRequest får ID, generation, `requestNumber` og `displayNumber` fra serveren.
 Displaynummeret er fx `BF-001` og følger anmodningen ved returnering og genåbning.
-Numrene starter forfra i hver session og efter ClearSession. Brug fortsat GUID'en
+Numrene starter forfra i hver session og efter ArchiveSession eller ClearSession. Brug fortsat GUID'en
 som `helpRequestId`; køplaceringen er et separat tal.
 Kø- og samtalekald ligger
 under `EirService/Student/HelpRequests` og `EirService/Teacher/HelpRequests`.

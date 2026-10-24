@@ -24,6 +24,12 @@ internal sealed class MemorySessionRepository : ISessionRepository, IUnitOfWork<
         Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => session.CreatedByTeacherId == teacherId).ToArray());
     public Task<IReadOnlyList<Session>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Session>>(sessions.Where(session => ids.Contains(session.Id)).ToArray());
+    public Task<IReadOnlyList<SessionArchive>> GetArchivesAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SessionArchive>>(sessions.Where(session => session.Id == sessionId)
+            .SelectMany(session => session.Archives).OrderByDescending(archive => archive.Generation).ToArray());
+    public Task<SessionArchive?> GetArchiveAsync(Guid sessionId, Guid archiveId, CancellationToken cancellationToken) =>
+        Task.FromResult(sessions.Where(session => session.Id == sessionId).SelectMany(session => session.Archives)
+            .SingleOrDefault(archive => archive.Id == archiveId));
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

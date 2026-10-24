@@ -253,6 +253,12 @@ public sealed class RegisterGeneralizationMessageHandlerTests
             return Task.CompletedTask;
         }
 
+        public Task<IReadOnlyDictionary<int, int>> CountForGenerationsAsync(
+            Guid sessionId, int[] generations, bool includeUnanswered, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<int, int>>(Saved
+                .Where(faq => faq.SessionId == sessionId && generations.Contains(faq.Generation) &&
+                    (includeUnanswered || faq.Answer is not null))
+                .GroupBy(faq => faq.Generation).ToDictionary(group => group.Key, group => group.Count()));
         public Task<IReadOnlyList<FaqAnswer>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<FaqAnswer>>(Saved.Where(faq => faq.SessionId == sessionId && faq.Generation == generation).ToArray());
 

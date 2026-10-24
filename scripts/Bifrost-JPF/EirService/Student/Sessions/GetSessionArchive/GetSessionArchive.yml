@@ -1,0 +1,14 @@
+info:
+  name: GetSessionArchive
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/archives/{{archiveId}}'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Gets the archived generation, its answered FAQs and only the current student's conversations.
+  Uses the existing student cookie; the student must have joined the session.

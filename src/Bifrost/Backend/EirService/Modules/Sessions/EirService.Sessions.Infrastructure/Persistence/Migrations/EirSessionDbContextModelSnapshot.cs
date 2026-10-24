@@ -18,7 +18,7 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("sessions")
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -47,6 +47,9 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                         .IsConcurrencyToken()
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset>("CurrentGenerationStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("LastClearedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -74,6 +77,36 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_sessions_DistinctCodes", "\"Code\" <> \"TeacherCode\"");
                         });
+                });
+
+            modelBuilder.Entity("EirService.Sessions.Domain.Entities.SessionArchive", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Generation")
+                        .IsUnique();
+
+                    b.ToTable("archives", "sessions");
                 });
 
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
@@ -125,6 +158,20 @@ namespace EirService.Sessions.Infrastructure.Persistence.Migrations
                     b.HasIndex("PublishedAtUtc", "CreatedAtUtc");
 
                     b.ToTable("outbox", "sessions");
+                });
+
+            modelBuilder.Entity("EirService.Sessions.Domain.Entities.SessionArchive", b =>
+                {
+                    b.HasOne("EirService.Sessions.Domain.Entities.Session", null)
+                        .WithMany("Archives")
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("EirService.Sessions.Domain.Entities.Session", b =>
+                {
+                    b.Navigation("Archives");
                 });
 #pragma warning restore 612, 618
         }

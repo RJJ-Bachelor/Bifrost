@@ -12,7 +12,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
-using Shared.Infrastructure.Persistence.UnitOfWork;
+using Shared.Application.Persistence;
+using Shared.Application.Messaging;
 
 namespace EirService.Sessions.Infrastructure;
 
@@ -28,8 +29,9 @@ public static class DependencyInjection
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
         services.AddScoped<ICommandHandler<GetSessionGenerationsQuery, IReadOnlyDictionary<Guid, int>>, GetSessionGenerationsQueryHandler>();
-        services.AddUnitOfWork<ISessionRepository, EirSessionDbContext>();
+        services.AddScoped<IUnitOfWork<ISessionRepository>, SessionUnitOfWork>();
         services.AddRabbitMqMessageBus(configuration);
+        services.AddRabbitMqQueue("mimir-session-updated", MessageRoutes.Sessions, MessageRoutes.SessionUpdated);
         services.AddOutbox<EirSessionDbContext>();
         return services;
     }
