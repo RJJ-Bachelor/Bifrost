@@ -64,7 +64,9 @@ export class StudentSession {
       this.selectedRequest.set(request);
       return;
     }
-    this.goToQueue();
+    if (request.status === 'pending' || request.status === 'active' || request.status === 'awaitingConfirmation') {
+      this.goToQueue();
+    }
   }
 
   protected closeRequestDialog(): void {
