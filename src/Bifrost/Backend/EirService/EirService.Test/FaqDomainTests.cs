@@ -31,10 +31,12 @@ public sealed class FaqDomainTests
         Assert.Equal(100, FaqAnswer.Create(id, Guid.NewGuid(), 1, "Question", sources.Take(100), Now).HelpRequestIds.Count);
     }
 
-    [Fact]
-    public void LinkedRequestCannotBeTakenAndRejectionPreservesItsPosition()
+    [Theory]
+    [InlineData(HelpType.Digital)]
+    [InlineData(HelpType.Physical)]
+    public void LinkedRequestCannotBeTakenAndRejectionPreservesItsPosition(HelpType helpType)
     {
-        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", helpType, new MessageText("Question"), Now);
         var faqId = Guid.NewGuid();
         request.LinkToFaq(faqId, new MessageText("Shared question"), Now.AddMinutes(1));
         var generalization = request.Messages.Last();
@@ -54,6 +56,7 @@ public sealed class FaqDomainTests
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("other-student", Now));
         request.RejectFaq("student", Now.AddMinutes(3));
         Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.Equal(helpType, request.HelpType);
         Assert.Equal(Now, request.QueuedAt);
         Assert.Null(request.FaqAnswerId);
         Assert.False(request.Messages.Single(message => message.MessageType == HelpRequestMessageType.StudentQuestion).IsRejected);
@@ -89,24 +92,52 @@ public sealed class FaqDomainTests
     }
 
     [Fact]
-    public void PhysicalRequestKeepsItsPhysicalHelpFlowInsteadOfJoiningAFaq()
+    public void PhysicalRequestCanAcceptAFaqAndFinishWithoutStartingPhysicalHelp()
     {
         var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
         var faqId = Guid.NewGuid();
 
-        Assert.False(request.CanLinkToFaq);
-        Assert.Throws<HelpRequestRuleException>(() => request.LinkToFaq(faqId, new MessageText("Shared question"), Now));
-        Assert.Throws<HelpRequestRuleException>(() => request.SuggestFaq(faqId, "teacher", new MessageText("Answer"), Now));
+        Assert.True(request.CanLinkToFaq);
+        request.LinkToFaq(faqId, new MessageText("Shared question"), Now.AddMinutes(1));
+        request.SuggestFaq(faqId, "teacher", new MessageText("Answer"), Now.AddMinutes(2));
+        Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("another-student", Now));
+        request.AcceptFaq("student", Now.AddMinutes(3));
+
+        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpType.Physical, request.HelpType);
+        Assert.Equal(faqId, request.FaqAnswerId);
+        Assert.Equal(Now, request.QueuedAt);
+        Assert.Null(request.StartedAt);
+        Assert.Null(request.AssignedTeacherId);
+        Assert.Equal(Now.AddMinutes(3), request.ClosedAt);
+        Assert.Equal(new[] { HelpRequestMessageType.StudentQuestion, HelpRequestMessageType.FaqQuestion, HelpRequestMessageType.FaqAnswer },
+            request.Messages.Select(message => message.MessageType));
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("student", Now));
         Assert.Throws<HelpRequestRuleException>(() => request.RejectFaq("student", Now));
-        Assert.Equal(HelpRequestStatus.Pending, request.Status);
-        Assert.Null(request.FaqAnswerId);
-        Assert.Equal(Now, request.QueuedAt);
-        Assert.Equal(HelpRequestMessageType.StudentQuestion, Assert.Single(request.Messages).MessageType);
+    }
 
-        request.Reserve("teacher", Now.AddMinutes(1));
-        request.Start("teacher", Now.AddMinutes(2));
-        request.Complete("teacher", Now.AddMinutes(3));
+    [Fact]
+    public void PhysicalFaqRejectionPreservesReturnPriorityAndAllowsPhysicalHelpToContinue()
+    {
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Physical, new MessageText("Question"), Now);
+        request.Reserve("teacher", Now);
+        request.Start("teacher", Now.AddMinutes(1));
+        request.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(2));
+        var returnedAt = request.ReturnedToQueueAt;
+        var faqId = Guid.NewGuid();
+        request.LinkToFaq(faqId, new MessageText("Shared question"), Now.AddMinutes(3));
+        request.SuggestFaq(faqId, "teacher", new MessageText("Answer"), Now.AddMinutes(4));
+        request.RejectFaq("student", Now.AddMinutes(5));
+
+        Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.Equal(HelpType.Physical, request.HelpType);
+        Assert.Equal(Now, request.QueuedAt);
+        Assert.Equal(returnedAt, request.ReturnedToQueueAt);
+        Assert.Null(request.FaqAnswerId);
+        request.Reserve("teacher", Now.AddMinutes(6));
+        Assert.Throws<HelpRequestRuleException>(() => request.Answer("teacher", new MessageText("Individual answer"), Now));
+        request.Start("teacher", Now.AddMinutes(7));
+        request.Complete("teacher", Now.AddMinutes(8));
         Assert.Equal(HelpRequestStatus.Completed, request.Status);
     }
 
@@ -129,11 +160,13 @@ public sealed class FaqDomainTests
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void FollowUpAfterFaqAnswerCannotBeCapturedByADelayedGeneralization(bool accepted)
+    [InlineData(HelpType.Digital, true)]
+    [InlineData(HelpType.Digital, false)]
+    [InlineData(HelpType.Physical, true)]
+    [InlineData(HelpType.Physical, false)]
+    public void FollowUpAfterFaqAnswerCannotBeCapturedByADelayedGeneralization(HelpType helpType, bool accepted)
     {
-        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", HelpType.Digital, new MessageText("Question"), Now);
+        var request = HelpRequest.Create(Guid.NewGuid(), 1, "student", helpType, new MessageText("Question"), Now);
         var faqId = Guid.NewGuid();
         request.LinkToFaq(faqId, new MessageText("Shared question"), Now);
         request.SuggestFaq(faqId, "teacher", new MessageText("Shared answer"), Now.AddMinutes(1));

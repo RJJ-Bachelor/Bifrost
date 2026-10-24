@@ -60,7 +60,7 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
                 foreach (var teacherId in session.TeacherIds)
                     Notify(teacherId, NotificationEventType.FaqCreated, "Der er kommet et nyt generaliseret FAQ-spørgsmål i køen.");
         }
-        if (change.Change == "FaqSuggested" && request.HelpType == HelpType.Digital &&
+        if (change.Change == "FaqSuggested" &&
             request.Status == HelpRequestStatus.AwaitingConfirmation)
             Notify(request.StudentId, NotificationEventType.FaqAnswered, "Der er kommet et fælles FAQ-svar. Bekræft om det hjælper dig.");
         if (change.Change == "Started")

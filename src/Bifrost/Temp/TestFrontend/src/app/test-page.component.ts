@@ -92,12 +92,12 @@ export class TestPageComponent {
   get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canRespondToFaq() {
     const request = this.conversation;
-    return !this.isTeacher && this.canAct && !!request && request.helpType === 'Digital' && request.sessionId === this.sessionId &&
+    return !this.isTeacher && this.canAct && !!request && request.sessionId === this.sessionId &&
       request.studentId === this.identity?.userId && !!request.faqAnswerId && request.status === 'AwaitingConfirmation';
   }
   get faqResponsesAwaitingConfirmation() {
     return this.requests.filter(request => request.sessionId === this.sessionId &&
-      request.generation === this.session?.currentGeneration && request.helpType === 'Digital' && request.studentId === this.identity?.userId &&
+      request.generation === this.session?.currentGeneration && request.studentId === this.identity?.userId &&
       request.status === 'AwaitingConfirmation');
   }
   get selectedFaq() { return this.faqs.find(faq => faq.id === this.conversation?.faqAnswerId); }
@@ -320,7 +320,9 @@ export class TestPageComponent {
     if (!this.canRespondToFaq || this.busy) return;
     this.execute(this.api.patch<HelpRequest>('students/requests/' + this.conversation!.id + '/faq', { accept }), request => {
       this.conversation = request;
-      this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.' : 'Du er tilbage i køen med din oprindelige køplads.';
+      this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.'
+        : request.helpType === 'Physical' ? 'Du er tilbage i køen til fysisk hjælp med din oprindelige køplads.'
+          : 'Du er tilbage i køen med din oprindelige køplads.';
     });
   }
 

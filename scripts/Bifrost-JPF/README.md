@@ -215,7 +215,9 @@ den returnerede FAQ's ID, som også er `generalizationId`. Der bruges de samme e
 
 Eleven svarer gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**.
 Her er `studentHelpRequestId` elevens **oprindelige anmodning**, og elevcookien skal tilhøre den anmodning.
-Accept afslutter anmodningen; afvisning sender den tilbage i køen. Svaret kræver status
+Fysiske og digitale anmodninger kan begge få FAQ-svaret i deres samtale.
+Accept afslutter anmodningen; afvisning sender den tilbage i køen med samme køtid og hjælpetype,
+så en fysisk anmodning fortsat venter på fysisk hjælp. Svaret kræver status
 `AwaitingConfirmation`, og hver elev vælger én af mulighederne.
 
 Til hele seed-forløbet bruges **Development → FAQ demo**: kaldene vælger ID'er og elevcookies automatisk.
