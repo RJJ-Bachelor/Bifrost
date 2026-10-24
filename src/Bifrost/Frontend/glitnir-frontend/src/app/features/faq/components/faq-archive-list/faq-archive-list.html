@@ -1,1 +1,17 @@
-<p>faq-archive-list works!</p>
+@if (items().length === 0) {
+  <p class="state-message">Ingen arkiverede generationer endnu.</p>
+} @else {
+  <div class="faq-archive-list">
+    @for (item of visible(); track item.generation) {
+      <bifrost-list-row (click)="generationSelected.emit(item)">
+        <span left>{{ item.title }}</span>
+        <span right class="faq-archive-list__icon"></span>
+      </bifrost-list-row>
+    }
+    @if (hasMore()) {
+      <button class="btn btn--primary faq-archive-list__show-all" (click)="showAll.emit()">
+        Se hele arkivet
+      </button>
+    }
+  </div>
+}

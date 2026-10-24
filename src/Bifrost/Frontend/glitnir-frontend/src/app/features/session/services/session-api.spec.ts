@@ -12,7 +12,12 @@ describe('SessionApi', () => {
   let service: SessionApi;
   let http: HttpTestingController;
 
-  const session: Session = { id: 'session-1', title: 'SWBAD-26' };
+  const session: Session = {
+    id: 'session-1',
+    title: 'SWBAD-26',
+    currentGeneration: 1,
+    lastClearedAtUtc: null,
+  };
 
   beforeEach(() => {
     TestBed.configureTestingModule({

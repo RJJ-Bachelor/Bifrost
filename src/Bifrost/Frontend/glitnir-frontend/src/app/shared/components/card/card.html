@@ -2,6 +2,11 @@
   @if (title()) {
     <h2 class="card-title">{{ title() }}</h2>
   }
-  <ng-content select="[card-header]" />
+  <div class="card-header__center">
+    <ng-content select="[card-header-center]" />
+  </div>
+  <div class="card-header__right">
+    <ng-content select="[card-header]" />
+  </div>
 </header>
 <ng-content />

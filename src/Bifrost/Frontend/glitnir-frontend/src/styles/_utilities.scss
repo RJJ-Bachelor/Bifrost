@@ -3,3 +3,19 @@
   text-align: center;
   padding: var(--space-4) 0;
 }
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  background-color: var(--color-grey-200);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-dark);
+  white-space: nowrap;
+}
+
+.badge--muted {
+  background-color: var(--color-grey-100);
+  color: var(--color-grey-500);
+}

@@ -1,0 +1,22 @@
+@if (visible().length === 0) {
+  <p class="state-message">Du har ikke stillet nogen spørgsmål endnu.</p>
+} @else {
+  <div class="question-list">
+    @for (item of visible(); track item.id) {
+      <bifrost-list-row
+        [muted]="!isClickable(item)"
+        (click)="questionSelected.emit(item)"
+      >
+        <span left class="question-list__message">{{ item.message }}</span>
+        <span right class="badge" [class.badge--muted]="!isClickable(item)">
+          {{ label(item.status) }}
+        </span>
+        @if (isOpen(item.status)) {
+          <span right class="question-list__icon question-list__icon--chevron"></span>
+        } @else if (isDigitalCompleted(item)) {
+          <span right class="question-list__icon question-list__icon--chat"></span>
+        }
+      </bifrost-list-row>
+    }
+  </div>
+}

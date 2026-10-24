@@ -1,0 +1,89 @@
+<bifrost-topbar>
+  <span topbar-center class="topbar-pill">{{ sessionTitle() }}</span>
+  <button topbar-right class="topbar-btn" (click)="switchSession()">Skift session</button>
+</bifrost-topbar>
+
+<div class="page-container">
+  <bifrost-card title="Stil et spørgsmål">
+    <ng-container card-header-center>
+      @if (!hasOpenRequest()) {
+        <bifrost-help-type-toggle
+          [value]="helpType()"
+          (valueChange)="helpType.set($event)"
+        />
+      }
+    </ng-container>
+    <div card-header class="session-status">
+      <span class="badge">{{ status().waitingCount }} i kø</span>
+      <span class="badge">ca. {{ status().estimatedWaitMinutes }} min</span>
+    </div>
+    @if (hasOpenRequest()) {
+      <div class="session-open-request">
+        <p class="session-open-request__message">
+          Du har allerede et spørgsmål i køen.
+        </p>
+        <button class="btn btn--primary" (click)="goToQueue()">
+          Gå til køsiden
+        </button>
+      </div>
+    } @else {
+      <bifrost-message-form
+        [submitting]="submitting()"
+        [error]="submitError()"
+        (submitted)="onQuestionSubmitted($event)"
+      />
+    }
+  </bifrost-card>
+
+  <bifrost-card title="FAQ - Tjek her før du spørger...">
+    @if (faq.isLoading()) {
+      <p class="state-message">Indlæser FAQ...</p>
+    } @else if (faq.error()) {
+      <p class="state-message">Kunne ikke hente FAQ.</p>
+    } @else {
+      <bifrost-faq-list [items]="faq.value()" />
+    }
+  </bifrost-card>
+
+  <div class="session-columns">
+    <bifrost-card title="Dine spørgsmål">
+      @if (requests.isLoading()) {
+        <p class="state-message">Indlæser spørgsmål...</p>
+      } @else if (requests.error()) {
+        <p class="state-message">Kunne ikke hente spørgsmål.</p>
+      } @else {
+        <bifrost-question-list
+          [items]="requests.value()"
+          (questionSelected)="onQuestionSelected($event)"
+        />
+      }
+    </bifrost-card>
+    <bifrost-card title="FAQ-Arkivet">
+      <bifrost-faq-archive-list
+        [items]="generations()"
+        [maxItems]="archiveVisibleCount()"
+        (generationSelected)="onGenerationSelected($event)"
+      />
+    </bifrost-card>
+  </div>
+</div>
+
+<bifrost-dialog
+  [open]="selectedRequest() !== null"
+  title="Samtale"
+  (closed)="closeRequestDialog()"
+>
+  <p class="state-message">
+    Samtale-visning kommer her.
+  </p>
+</bifrost-dialog>
+
+<bifrost-dialog
+  [open]="selectedGeneration() !== null"
+  [title]="selectedGeneration()?.title ?? ''"
+  (closed)="closeGenerationDialog()"
+>
+  <p class="state-message">
+    FAQ for denne lektion kommer her.
+  </p>
+</bifrost-dialog>
