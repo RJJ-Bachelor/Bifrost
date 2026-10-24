@@ -30,6 +30,7 @@ function captureSession(bru, data, { reset = false, code, teacherCode } = {}) {
   if (!validId(id) || !Number.isInteger(data?.currentGeneration) || data.currentGeneration < 1)
     throw new Error('The session response is missing a valid id or currentGeneration. Existing variables were preserved.');
   const changed = current(bru, 'sessionId') !== id;
+  if (changed) save(bru, { archiveId: '' });
   if (reset || changed || String(current(bru, 'sessionGeneration')) !== String(data.currentGeneration))
     clearRequests(bru);
   save(bru, {
@@ -54,15 +55,16 @@ function captureResponse(bru, req, res) {
   if (res.status < 200 || res.status >= 300) return;
   const route = new URL(bru.interpolate(req.getUrl())).pathname;
   const method = req.getMethod().toUpperCase();
-  const sessionRoute = route.match(/^\/api\/(students|teachers)\/sessions(?:\/(join|[0-9a-f-]+)(\/clear)?)?$/i);
+  const sessionRoute = route.match(/^\/api\/(students|teachers)\/sessions(?:\/(join|[0-9a-f-]+)(\/(?:clear|archive))?)?$/i);
+  const archiveRoute = route.match(/^\/api\/(students|teachers)\/sessions\/[0-9a-f-]+\/archives\/[0-9a-f-]+$/i);
   const helpRequestRoute = route.match(/^\/api\/(students|teachers)\/(?:requests\/[0-9a-f-]+(?:\/(?:messages|status|faq))?|sessions\/[0-9a-f-]+\/(?:requests|queue\/take-next))$/i);
   const publish = /^\/api\/teachers\/development\/generalizations(?:\/from-help-requests)?$/.test(route) && method === 'POST';
   // The seed request validates its full payload and sets demo cookies itself.
-  if (!sessionRoute && !helpRequestRoute && !publish) return;
+  if (!sessionRoute && !helpRequestRoute && !archiveRoute && !publish) return;
   if (sessionRoute && method === 'DELETE') {
     if (sessionRoute[2] === current(bru, 'sessionId')) {
       clearRequests(bru);
-      save(bru, { sessionId: '', sessionCode: '', teacherSessionCode: '', sessionGeneration: '' });
+      save(bru, { sessionId: '', sessionCode: '', teacherSessionCode: '', sessionGeneration: '', archiveId: '' });
     }
     return;
   }
@@ -79,12 +81,18 @@ function captureResponse(bru, req, res) {
       captureSession(bru, { id: data.sessionId, currentGeneration: data.generation });
     // Capture the id after a session change clears the previous request context.
     save(bru, { generalizationId: data.generalizationId });
+  } else if (archiveRoute) {
+    if (!validId(data?.id)) throw new Error('The archive response is missing a valid id. Existing variables were preserved.');
+    save(bru, { archiveId: data.id });
   } else if (helpRequestRoute) captureHelpRequest(bru, data, helpRequestRoute[1]);
   else if (sessionRoute && !Array.isArray(data)) {
+    if (sessionRoute[3] === '/archive' && !validId(data?.archiveId))
+      throw new Error('The archive response is missing a valid archiveId. Existing variables were preserved.');
     const joining = sessionRoute[2] === 'join' ? req.getBody() : null;
     captureSession(bru, data, { reset: Boolean(sessionRoute[3]),
       code: sessionRoute[1] === 'students' ? joining?.code : undefined,
       teacherCode: sessionRoute[1] === 'teachers' ? joining?.code : undefined });
+    if (sessionRoute[3] === '/archive') save(bru, { archiveId: data.archiveId });
   }
 }
 

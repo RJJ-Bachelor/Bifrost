@@ -8,8 +8,8 @@ import { Observable, Subscription, catchError, combineLatest, debounceTime, filt
 import { NotificationService } from './notification.service';
 import { helpRequestId, notificationAffectsSession } from './notification.model';
 import {
-  ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
-  HelpType, HelpRequestMessageType, Identity, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
+  ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
+  HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
 import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-help-requests.component';
@@ -43,6 +43,11 @@ export class TestPageComponent {
   teacherQueue: TeacherQueue | null = null;
   conversation: HelpRequest | null = null;
   faqs: Faq[] = [];
+  archives: SessionArchiveSummary[] = [];
+  archive: SessionArchive | null = null;
+  selectedArchiveId = '';
+  archiveLoading = false;
+  archiveError = '';
   joinCode = this.route.snapshot.queryParamMap.get('code') ?? '';
   sessionTitle = '';
   showCreateSession = false;
@@ -59,6 +64,7 @@ export class TestPageComponent {
   refreshError = '';
   notice = '';
   private refreshSubscription?: Subscription;
+  private archiveSubscription?: Subscription;
   private refreshQueued = false;
   private destroyed = false;
   private sessionContextInitialized = false;
@@ -86,12 +92,12 @@ export class TestPageComponent {
   get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canRespondToFaq() {
     const request = this.conversation;
-    return !this.isTeacher && this.canAct && !!request && request.helpType === 'Digital' && request.sessionId === this.sessionId &&
+    return !this.isTeacher && this.canAct && !!request && request.sessionId === this.sessionId &&
       request.studentId === this.identity?.userId && !!request.faqAnswerId && request.status === 'AwaitingConfirmation';
   }
   get faqResponsesAwaitingConfirmation() {
     return this.requests.filter(request => request.sessionId === this.sessionId &&
-      request.generation === this.session?.currentGeneration && request.helpType === 'Digital' && request.studentId === this.identity?.userId &&
+      request.generation === this.session?.currentGeneration && request.studentId === this.identity?.userId &&
       request.status === 'AwaitingConfirmation');
   }
   get selectedFaq() { return this.faqs.find(faq => faq.id === this.conversation?.faqAnswerId); }
@@ -125,6 +131,7 @@ export class TestPageComponent {
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
       this.stopRefresh();
+      this.archiveSubscription?.unsubscribe();
     });
     merge(this.notifications.received.pipe(filter(notification => notificationAffectsSession(
       notification, this.role, this.sessionId, this.session?.currentGeneration))), this.notifications.reconnected).pipe(
@@ -146,6 +153,12 @@ export class TestPageComponent {
       this.sessionId = sessionId;
       this.session = null;
       this.conversation = null;
+      this.archiveSubscription?.unsubscribe();
+      this.archives = [];
+      this.archive = null;
+      this.selectedArchiveId = '';
+      this.archiveLoading = false;
+      this.archiveError = '';
       this.replyText = '';
       this.selectedRequestId = requestedId ?? this.readSelectedRequest();
       this.loading = true;
@@ -192,6 +205,7 @@ export class TestPageComponent {
       sessions: this.api.get<(SessionSummary | TeacherSession)[]>(this.role + '/sessions'),
       session: this.sessionId ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
       faqs: this.sessionId ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
+      archives: this.sessionId ? optional(this.api.get<SessionArchiveSummary[]>(base + '/archives')) : of(null),
       queue: this.sessionId ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
       requests: this.sessionId && !this.isTeacher
         ? optional(this.api.get<HelpRequestSummary[]>('students/requests?sessionId=' + this.sessionId)) : of(null),
@@ -209,6 +223,7 @@ export class TestPageComponent {
         this.sessionUnavailable = !!this.sessionId && !data.session;
         this.requests = data.requests ?? [];
         this.faqs = data.faqs ?? [];
+        this.archives = data.archives ?? [];
         this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
         this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
         this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
@@ -305,7 +320,9 @@ export class TestPageComponent {
     if (!this.canRespondToFaq || this.busy) return;
     this.execute(this.api.patch<HelpRequest>('students/requests/' + this.conversation!.id + '/faq', { accept }), request => {
       this.conversation = request;
-      this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.' : 'Du er tilbage i køen med din oprindelige køplads.';
+      this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.'
+        : request.helpType === 'Physical' ? 'Du er tilbage i køen til fysisk hjælp med din oprindelige køplads.'
+          : 'Du er tilbage i køen med din oprindelige køplads.';
     });
   }
 
@@ -326,6 +343,45 @@ export class TestPageComponent {
       this.conversation = null;
       this.notice = 'Sessionen er ryddet.';
     });
+  }
+
+  archiveSession() {
+    if (!this.isTeacher || !this.session || this.busy || !window.confirm(
+      'Arkivér generation ' + this.session.currentGeneration + '? FAQ og personlige samtaler gemmes i arkivet, og den aktuelle kø tømmes. Alle deltagere forbliver tilmeldt.')) return;
+    this.execute(this.api.post<ArchiveSessionResult>('teachers/sessions/' + this.sessionId + '/archive',
+      { expectedGeneration: this.session.currentGeneration }), result => {
+      this.selectRequest('');
+      this.conversation = null;
+      this.replyText = '';
+      this.notice = 'Generation ' + result.generation + ' er arkiveret. Sessionen fortsætter i generation ' + result.currentGeneration + '.';
+      this.openArchive(result.archiveId);
+    });
+  }
+
+  openArchive(id: string) {
+    if (!this.sessionId || this.busy) return;
+    this.archiveSubscription?.unsubscribe();
+    this.selectedArchiveId = id;
+    this.archive = null;
+    this.archiveError = '';
+    this.archiveLoading = true;
+    this.archiveSubscription = this.api.get<SessionArchive>(this.role + '/sessions/' + this.sessionId + '/archives/' + id).pipe(
+      timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => { this.archiveLoading = false; })
+    ).subscribe({
+      next: archive => { this.archive = archive; },
+      error: failure => {
+        this.archiveError = failure instanceof HttpErrorResponse && failure.status === 404
+          ? 'Arkivet findes ikke, eller du har ikke adgang.' : 'Kunne ikke hente arkivet. Prøv igen.';
+        if (failure instanceof HttpErrorResponse && failure.status === 401) this.handleError(failure);
+      }
+    });
+  }
+
+  closeArchive() {
+    this.archiveSubscription?.unsubscribe();
+    this.selectedArchiveId = '';
+    this.archive = null;
+    this.archiveError = '';
   }
 
   async copySessionLink(role: 'students' | 'teachers' = 'students') {

@@ -1,3 +1,5 @@
+using EirService.HelpRequests.Application.Repositories;
+using Shared.Infrastructure.Persistence.UnitOfWork;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Domain.ValueObjects;
 using EirService.HelpRequests.Infrastructure.Persistence;
@@ -25,6 +27,7 @@ internal static class TestHelpRequests
     {
         db.Requests.Add(request);
         db.Outbox.AddRange(outgoing.Select(message => OutboxMessage.Create(message, DateTimeOffset.UtcNow)));
-        await new HelpRequestUnitOfWork(db, TimeProvider.System).SaveChangesAsync(cancellationToken);
+        // Broker fixtures deliberately use synthetic session IDs; bypass the entry generation guard.
+        await new UnitOfWork<IHelpRequestRepository, EirRequestDbContext>(db, TimeProvider.System).SaveChangesAsync(cancellationToken);
     }
 }

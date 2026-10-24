@@ -295,3 +295,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Help requests can now be linked to a FAQ generalization, transitioning them to an `AwaitingFaq` status, and students can accept or reject these answers, which triggers a return to the queue for rejected requests while preserving their original queue timestamp.
 - The `GnaService` notification system has been extended with a `NotificationEventType` to categorize notifications (e.g., `FaqCreated`, `FaqAnswered`), allowing the frontend to display context-specific titles and navigation targets.
 - Database migrations have been implemented to backfill `MessageType` for existing help request messages and to suppress redundant notifications for physical help requests that were previously affected by FAQ-related state changes.
+
+---
+
+## Update 2026-10-24
+
+- Implemented session archiving (`ArchiveSession`), allowing teachers to snapshot completed session generations while resetting the active queue and advancing the session generation.
+- Introduced JSONB-backed conversation snapshots and knowledge base read models to retain historical session state independently of active queue cleanups.
+- Session archiving emits a `SessionUpdatedIntegrationEvent` (`Archived`) via the transactional outbox, triggering automated queue cleanup and synchronization across modules and background services.
+- Added role-restricted endpoints for listing and inspecting session archives, enforcing architectural boundaries where students access only their own conversations and answered FAQs.
+- Enforced generation-based concurrency validation during archive execution to guarantee strict atomic lifecycle transitions under concurrent requests.

@@ -73,8 +73,9 @@ docs: |-
   CreateSession/GetSession gemmer sessionId og sessionGeneration automatisk i Bruno.
   Ved data fra frontenden kan sessionId og generation også udfyldes direkte i JSON-bodyen.
   Kilderne skal tilhøre samme session og aktuelle generation.
-  Kun ubesvarede, ventende og ureserverede digitale anmodninger kobles på FAQ-forløbet.
-  Fysiske anmodninger bidrager som kilder og fortsætter i køen til fysisk hjælp.
+  Ubesvarede, ventende og ureserverede fysiske og digitale anmodninger kobles på FAQ-forløbet.
+  Begge typer får FAQ-spørgsmålet, svaret, notifikation og mulighed for accept/afvisning.
+  Accept afslutter anmodningen. Afvisning bevarer køtid og hjælpetype, så fysisk hjælp stadig er fysisk.
   Allerede besvarede anmodninger bevarer deres forløb og får ingen FAQ-notifikation eller acceptkrav.
   Det fælles svar kan læses med GetStudentFaqs og i frontendens fælles oversigt.
   Mimir bruger altid spørgsmålet "Dette er et generaliseret spørgsmål."; send ikke question i bodyen.

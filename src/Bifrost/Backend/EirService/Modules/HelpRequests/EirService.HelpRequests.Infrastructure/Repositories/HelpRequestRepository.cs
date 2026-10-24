@@ -44,6 +44,10 @@ public sealed class HelpRequestRepository(
     public async Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken)
     {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        // Acquire the queue lock before locking a row, matching archival cleanup's lock order.
+        var queueKey = $"helprequests:{sessionId}:{generation}";
+        await dbContext.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT pg_advisory_xact_lock(hashtextextended({queueKey}, 0))", cancellationToken);
         // Lock only the selected row, skipping rows currently being reserved by another caller.
         var candidates = await dbContext.Requests.FromSqlInterpolated($"""
             SELECT r.*, r.xmin FROM helprequests."HelpRequest" AS r

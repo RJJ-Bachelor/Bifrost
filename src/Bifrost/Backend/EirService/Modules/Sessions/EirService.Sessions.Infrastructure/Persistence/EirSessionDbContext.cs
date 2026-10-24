@@ -8,6 +8,7 @@ namespace EirService.Sessions.Infrastructure.Persistence;
 public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> options) : DbContext(options)
 {
     public DbSet<Session> Sessions => Set<Session>();
+    public DbSet<SessionArchive> Archives => Set<SessionArchive>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -31,6 +32,18 @@ public sealed class EirSessionDbContext(DbContextOptions<EirSessionDbContext> op
             entity.Property(session => session.CreatedByTeacherId).IsRequired();
             entity.HasIndex(session => session.CreatedByTeacherId);
             entity.Property(session => session.CurrentGeneration).IsConcurrencyToken();
+            entity.HasMany(session => session.Archives).WithOne().HasForeignKey(archive => archive.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Navigation(session => session.Archives).UsePropertyAccessMode(PropertyAccessMode.Field);
+        });
+
+        modelBuilder.Entity<SessionArchive>(entity =>
+        {
+            entity.ToTable("archives");
+            entity.HasKey(archive => archive.Id);
+            entity.Property(archive => archive.Id).ValueGeneratedNever();
+            entity.Property(archive => archive.Title).HasMaxLength(200).IsRequired();
+            entity.HasIndex(archive => new { archive.SessionId, archive.Generation }).IsUnique();
         });
 
     }

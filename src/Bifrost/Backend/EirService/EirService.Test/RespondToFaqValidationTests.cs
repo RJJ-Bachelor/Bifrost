@@ -32,14 +32,17 @@ public sealed partial class CommandBusTests
     }
 
     [Theory]
-    [InlineData(true, HelpRequestStatus.Completed)]
-    [InlineData(false, HelpRequestStatus.Pending)]
-    public async Task ExplicitFaqDecisionPassesApplicationValidationAndUpdatesTheRequest(bool accept, HelpRequestStatus expected)
+    [InlineData(HelpType.Digital, true, HelpRequestStatus.Completed)]
+    [InlineData(HelpType.Digital, false, HelpRequestStatus.Pending)]
+    [InlineData(HelpType.Physical, true, HelpRequestStatus.Completed)]
+    [InlineData(HelpType.Physical, false, HelpRequestStatus.Pending)]
+    public async Task ExplicitFaqDecisionPassesApplicationValidationAndUpdatesTheRequest(
+        HelpType helpType, bool accept, HelpRequestStatus expected)
     {
         var studentId = AuthenticateStudent();
         var sessionId = await SeedSessionAsync(studentId);
         var now = DateTimeOffset.UtcNow;
-        var request = HelpRequest.Create(sessionId, 1, studentId, HelpType.Digital, new MessageText("Question"), now);
+        var request = HelpRequest.Create(sessionId, 1, studentId, helpType, new MessageText("Question"), now);
         var faqId = Guid.NewGuid();
         request.LinkToFaq(faqId, new MessageText("Shared question"), now);
         request.SuggestFaq(faqId, "teacher-123", new MessageText("Shared answer"), now);
@@ -53,6 +56,7 @@ public sealed partial class CommandBusTests
             new JsonSerializerOptions(JsonSerializerDefaults.Web)
             { Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() } });
         Assert.Equal(expected, result!.Status);
+        Assert.Equal(helpType, result.HelpType);
         Assert.Equal(expected, request.Status);
         Assert.Equal(accept ? faqId : (Guid?)null, request.FaqAnswerId);
         Assert.Equal(3, request.Messages.Count);

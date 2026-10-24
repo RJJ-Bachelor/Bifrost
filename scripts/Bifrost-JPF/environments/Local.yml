@@ -17,6 +17,8 @@ variables:
     value: ''
   - name: sessionGeneration
     value: '1'
+  - name: archiveId
+    value: ''
   - name: helpRequestId
     value: ''
   - name: studentHelpRequestId

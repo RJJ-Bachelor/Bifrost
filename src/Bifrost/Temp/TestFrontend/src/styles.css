@@ -181,3 +181,7 @@ form > button { margin-top: 15px; }
 .faq-response-prompt { color: #2c6651; font-size: 13px; font-weight: 600; }
 
 .test-payload { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.archive-list { display: grid; }
+.archive-detail { border-top: 2px solid var(--line); margin-top: 24px; padding-top: 24px; }
+.archive-conversations-title { margin-top: 28px; }
+.clear-session-hint { margin-top: 20px; }

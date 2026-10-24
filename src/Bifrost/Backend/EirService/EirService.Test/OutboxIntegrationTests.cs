@@ -586,16 +586,17 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
     }
 
     [OutboxBrokerFact]
-    public async Task HelpRequestsSubscriberLogsDeletedSessionAndIgnoresOtherUpdates()
+    public async Task HelpRequestsSubscriberLogsDeletionAndRemovesArchivedQueueThroughRabbitMq()
     {
         await using var services = BuildServices("eir", realBroker: true);
         var sessionId = Guid.NewGuid();
         var updates = Enum.GetValues<SessionUpdateType>().Select(type =>
-            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow)).ToArray();
+            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow, 3)).ToArray();
         await using (var scope = services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAtStartupAsync();
+            db.Requests.Add(TestHelpRequests.Create(Guid.NewGuid(), "student", "Queued question", sessionId, 3));
             db.Outbox.AddRange(updates.Select(update => OutboxMessage.Create(
                 new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), DateTimeOffset.UtcNow)));
             await db.SaveChangesAsync();
@@ -618,6 +619,9 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
             Assert.Contains(updates.Single(update => update.EventType == SessionUpdateType.Deleted).EventId.ToString(), logged);
             Assert.Contains("all session messages across all generations", logged);
             await using var scope = services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+            while (await db.Requests.AnyAsync(request => request.SessionId == sessionId, deadline.Token))
+                await Task.Delay(100, deadline.Token);
             Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
         }
         finally

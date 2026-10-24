@@ -9,12 +9,22 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
 {
     public DbSet<HelpRequest> Requests => Set<HelpRequest>();
     public DbSet<HelpRequestMessage> Messages => Set<HelpRequestMessage>();
+    public DbSet<ArchivedConversationSnapshot> ArchivedConversations => Set<ArchivedConversationSnapshot>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("helprequests");
         modelBuilder.AddOutbox("helprequests");
+        modelBuilder.Entity<ArchivedConversationSnapshot>(entity =>
+        {
+            entity.ToTable("ArchivedConversation");
+            entity.HasKey(snapshot => snapshot.Id);
+            entity.Property(snapshot => snapshot.Id).ValueGeneratedNever();
+            entity.Property(snapshot => snapshot.StudentId).HasMaxLength(100).IsRequired();
+            entity.Property(snapshot => snapshot.Data).HasColumnType("jsonb").IsRequired();
+            entity.HasIndex(snapshot => new { snapshot.SessionId, snapshot.Generation, snapshot.StudentId });
+        });
         modelBuilder.Entity<HelpRequest>(entity =>
         {
             entity.ToTable("HelpRequest");

@@ -10,9 +10,9 @@ Start backendservices og Heimdall på `http://localhost:6004`. Kør `npm start` 
 | --- | --- | --- |
 | Forside | `/` | Tom forside. En allerede oprettet SignalR-forbindelse bevares. |
 | Studerende | `/students` | Tilmelding via kode og liste over tilmeldte sessioner. |
-| Studentens session | `/students/sessions/:sessionId` | Køplacering, opret hjælp, egne anmodninger og samtaler. |
+| Studentens session | `/students/sessions/:sessionId` | Køplacering, opret hjælp, egne anmodninger, samtaler og arkiv. |
 | Underviser | `/teachers` | Eksisterende lærerlogin, opret session og egne sessioner. |
-| Underviserens session | `/teachers/sessions/:sessionId` | Del sessionskode/link, se køen, tag næste, hjælp og ryd session. |
+| Underviserens session | `/teachers/sessions/:sessionId` | Del sessionskode/link, se køen, tag næste, hjælp, arkivér og ryd session. |
 
 De gamle URL'er `/overview`, `/students/requests`, `/teachers/requests` og `/requests` viderestilles til de tilsvarende hovedsider. Sessionslinks bruger `/students?code=SESSIONSKODE`.
 
@@ -23,6 +23,8 @@ En session åbnes fra listen. Sessionens ID og aktuelle generation hentes fra AP
 - **Studerende:** Vælg fysisk eller digital hjælp, og stil dit spørgsmål. Se din køplacering og samtale. Annuller før fysisk hjælp starter. Send opfølgende beskeder i en ventende, ureserveret eller afsluttet samtale; den genåbnes bagest i køen.
 - **Underviser:** Tag næste anmodning. Ved fysisk hjælp bruges **Start fysisk hjælp** og **Afslut fysisk hjælp**. Ved digital hjælp afslutter **Send svar og afslut** anmodningen. **Send forrest i køen** frigiver reservationen og returnerer anmodningen.
 - **Ryd session:** Findes under sessionindstillinger og kræver bekræftelse. De studerende forbliver tilmeldt. Gamle samtaler kan læses, men handlinger kræver sessionens aktuelle generation.
+- **Arkivér generation:** Underviseren vælger handlingen under sessionindstillinger og bekræfter. FAQ og personlige samtaler gemmes i arkivet, den aktuelle kø tømmes, og generationen stiger med én. Alle deltagere forbliver tilmeldt. Den nye arkivdetalje åbnes, og køen opdateres. **Ryd session uden arkiv** er stadig tilgængelig som en separat handling.
+- **Arkiverede generationer:** Begge roller kan vælge en generation under sessionens kø og læse FAQ og samtaler. Underviseren ser alle gemte FAQ-spørgsmål og sessionens personlige samtaler. Den studerende ser besvarede FAQ-spørgsmål og sine egne samtaler. Arkivet er kun til læsning.
 - Numre som **BF-002** identificerer en anmodning; køplaceringen kan ændre sig.
 
 Brug en separat browserprofil til hver studerende. Faner i samme profil deler den eksisterende studenter-cookie. Lærerlogin og logout bruger fortsat Heimdall og VarService.
@@ -52,15 +54,17 @@ API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udvi
 
 ## Build
 
-`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper, navigation og sessionsfiltrering med Node-testværktøjet.
+`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper, navigation, sessionsfiltrering, FAQ-svar og arkivering med Node-testværktøjet.
+
+Arkivering bruger `POST /api/teachers/sessions/{sessionId}/archive` med `{ expectedGeneration }`. Arkivlisten hentes fra `GET /api/{teachers|students}/sessions/{sessionId}/archives`, og en detalje fra samme sti med `/{archiveId}`. Listen opdateres sammen med sessionen; en arkivdetalje hentes, når den vælges. Brug **Opdatér arkiv**, hvis et FAQ-svar stadig er på vej gennem beskedkøen. API'et håndhæver medlemskab og filtrerer den studerendes samtaler.
 
 ## Generalisering og FAQ
 
 Underviserkøen viser generaliserede FAQ-spørgsmål foran almindelige anmodninger. Tag opgaven og svar på samme måde som ved digital hjælp. De tilknyttede studerende får svaret i deres samtale og kan acceptere eller afvise; afvisning bevarer deres køplads. Begge roller kan se besvarede FAQ'er i sessionens fælles oversigt.
 
-Eir sender kun det oprindelige spørgsmål fra en ny HelpRequest til Mimir, både ved fysisk og digital hjælp. Opfølgende beskeder og genåbning sender ikke nye spørgsmål til generalisering. Fysiske anmodninger kan indgå som kilder til en FAQ, men fortsætter i den almindelige kø til fysisk hjælp med samme køtid og samtale. Kun ventende, ureserverede digitale anmodninger kobles på FAQ'en og får FAQ-svar, accept/afvisning og en `FaqAnswered`-notifikation via Gna. De normale beskeder om fysisk hjælp, eksempelvis når underviseren starter hjælpen, bevares.
+Eir sender kun det oprindelige spørgsmål fra en ny HelpRequest til Mimir, både ved fysisk og digital hjælp. Opfølgende beskeder og genåbning sender ikke nye spørgsmål til generalisering. Ubesvarede, ventende og ureserverede anmodninger af begge typer kobles på FAQ'en og får FAQ-spørgsmålet, svaret, accept/afvisning og en `FaqAnswered`-notifikation via Gna. Accept afslutter anmodningen. Afvisning bevarer den oprindelige køtid og hjælpetype, så en fysisk anmodning fortsat venter på fysisk hjælp fra underviseren. De normale beskeder om fysisk hjælp, eksempelvis når underviseren starter hjælpen, bevares.
 
-Allerede besvarede digitale anmodninger forbliver afsluttede, selv om deres ID indgår i en generalisering. De får hverken en ny FAQ-notifikation eller krav om accept/afvisning. Eleven kan læse svaret under sessionens **Spørgsmål og svar**; en afsluttet digital samtale har også **Se fælles FAQ-svar**. En opfølgning efter et undervisersvar eller et tidligere FAQ-svar bliver heller ikke overtaget af en forsinket generalisering af originalspørgsmålet. En afvist FAQ uden en ny opfølgning efterlader stadig originalspørgsmålet åbent for hjælp.
+Allerede besvarede anmodninger forbliver afsluttede, selv om deres ID indgår i en generalisering. De får hverken en ny FAQ-notifikation eller krav om accept/afvisning. Eleven kan læse svaret under sessionens **Spørgsmål og svar**; en afsluttet samtale har også **Se fælles FAQ-svar**. En opfølgning efter et undervisersvar eller et tidligere FAQ-svar bliver heller ikke overtaget af en forsinket generalisering af originalspørgsmålet. En afvist FAQ uden en ny opfølgning efterlader stadig originalspørgsmålet åbent for hjælp.
 
 På studentsiden vises **FAQ-svar klar** over køplaceringen, når en underviser har svaret. Vælg **Se svar og acceptér/afvis** for at åbne din oprindelige anmodning. Spørgsmålet, svaret og knapperne **Acceptér FAQ-svar** og **Afvis FAQ-svar – tilbage i køen** står øverst i samtalen. Du kan kun svare på dine egne anmodninger i den aktuelle generation. Accept afslutter anmodningen; afvisning sender den tilbage i køen med den oprindelige køplads. Indtil underviseren har svaret, er status **Afventer fælles FAQ-svar**, og samtalen forklarer, hvornår knapperne bliver tilgængelige.
 

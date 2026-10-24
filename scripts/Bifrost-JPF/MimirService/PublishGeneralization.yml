@@ -78,8 +78,9 @@ docs: |-
   Unresolved or invalid ids are rejected in Bruno before sending the request.
   Reuse the same id and payload to test redelivery without duplicate Eir messages.
   HTTP 202 confirms that Mimir stored the event in its outbox. Delivery is asynchronous.
-  Eir adds the question to eligible digital source conversations as a System message from mimir,
+  Eir adds the question to eligible physical and digital source conversations as a System message from mimir,
   links them to the FAQ and adds a shared FAQ question to the teacher queue.
-  Physical sources keep their normal queue position and receive no FAQ messages or notifications.
+  Both types receive the FAQ answer and notification. Acceptance completes the request.
+  Rejection restores the original queue time and help type; physical requests still await physical help.
   Inspect Development/Get teacher queue and the two student requests to see the result.
   Only available when Heimdall and Mimir run in Development.

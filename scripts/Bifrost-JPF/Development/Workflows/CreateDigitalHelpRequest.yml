@@ -1,7 +1,7 @@
 info:
   name: Create digital help request (new session)
   type: http
-  seq: 9
+  seq: 1
 http:
   method: POST
   url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
