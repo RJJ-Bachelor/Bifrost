@@ -44,7 +44,10 @@
         <a *ngFor="let item of sessions" class="session-card" [routerLink]="['/' + role + '/sessions', item.id]">
           <span class="session-card-top"><span class="eyebrow">UNDERVISNINGSSESSION</span><span class="arrow" aria-hidden="true">↗</span></span>
           <h3>{{ item.title }}</h3>
-          <span *ngIf="isTeacher" class="session-membership">{{ ownsSession(item) ? 'Oprettet af dig' : 'Tilmeldt som underviser' }}</span>
+          <span *ngIf="isTeacher" class="session-card-meta">
+            <span class="session-membership">{{ ownsSession(item) ? 'Oprettet af dig' : 'Tilmeldt som underviser' }}</span>
+            <span *ngIf="teacherSessionListItem(item) as teacherSession" class="session-queue-count"><strong>{{ teacherSession.waitingCount }}</strong> i kø</span>
+          </span>
           <span class="session-card-bottom"><span>Oprettet {{ item.createdAtUtc | date:'dd.MM.yyyy' }}</span><span>Åbn session →</span></span>
         </a>
       </div>

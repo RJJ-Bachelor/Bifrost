@@ -562,6 +562,12 @@ public sealed partial class CommandBusTests : IAsyncLifetime
                 .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
         public Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => ids.Contains(request.Id)).ToArray());
+        public Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
+            IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, int>>(Saved.Where(request =>
+                    request.Status == HelpRequestStatus.Pending &&
+                    sessionGenerations.TryGetValue(request.SessionId, out var generation) && request.Generation == generation)
+                .GroupBy(request => request.SessionId).ToDictionary(group => group.Key, group => group.Count()));
         public Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => !request.IsFaq && request.FaqAnswerId == faqId).ToArray());
         public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>

@@ -9,7 +9,7 @@ import { NotificationService } from './notification.service';
 import { helpRequestId, notificationAffectsSession } from './notification.model';
 import {
   ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
-  HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionSummary, StudentQueue, TeacherQueue, TeacherSession
+  HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionSummary, StudentQueue, TeacherQueue, TeacherSession, TeacherSessionListItem
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
 import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-help-requests.component';
@@ -36,7 +36,7 @@ export class TestPageComponent {
   readonly isTeacher = this.role === 'teachers';
   sessionId = '';
   identity: Identity | null = null;
-  sessions: (SessionSummary | TeacherSession)[] = [];
+  sessions: (SessionSummary | TeacherSessionListItem)[] = [];
   session: SessionSummary | TeacherSession | null = null;
   requests: HelpRequestSummary[] = [];
   studentQueue: StudentQueue | null = null;
@@ -202,7 +202,7 @@ export class TestPageComponent {
     const optional = <T>(read: Observable<T>) => read.pipe(catchError((failure: unknown) =>
       failure instanceof HttpErrorResponse && failure.status === 404 ? of(null) : throwError(() => failure)));
     this.refreshSubscription = forkJoin({
-      sessions: this.api.get<(SessionSummary | TeacherSession)[]>(this.role + '/sessions'),
+      sessions: this.api.get<(SessionSummary | TeacherSessionListItem)[]>(this.role + '/sessions'),
       session: this.sessionId ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
       faqs: this.sessionId ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
       archives: this.sessionId ? optional(this.api.get<SessionArchiveSummary[]>(base + '/archives')) : of(null),
@@ -257,6 +257,10 @@ export class TestPageComponent {
 
   ownsSession(session: SessionSummary | TeacherSession) {
     return 'createdByTeacherId' in session && session.createdByTeacherId === this.identity?.userId;
+  }
+
+  teacherSessionListItem(session: SessionSummary | TeacherSessionListItem) {
+    return this.isTeacher && 'waitingCount' in session ? session : null;
   }
 
   createSession() {
