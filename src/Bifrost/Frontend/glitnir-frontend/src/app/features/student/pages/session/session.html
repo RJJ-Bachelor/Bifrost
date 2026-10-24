@@ -36,15 +36,27 @@
   </bifrost-card>
 
   <bifrost-card title="FAQ - Tjek her før du spørger...">
-    <bifrost-faq-list [items]="faq()" />
+    @if (faq.isLoading()) {
+      <p class="state-message">Indlæser FAQ...</p>
+    } @else if (faq.error()) {
+      <p class="state-message">Kunne ikke hente FAQ.</p>
+    } @else {
+      <bifrost-faq-list [items]="faq.value()" />
+    }
   </bifrost-card>
 
   <div class="session-columns">
     <bifrost-card title="Dine spørgsmål">
-      <bifrost-question-list
-        [items]="requests.value()"
-        (questionSelected)="onQuestionSelected($event)"
-      />
+      @if (requests.isLoading()) {
+        <p class="state-message">Indlæser spørgsmål...</p>
+      } @else if (requests.error()) {
+        <p class="state-message">Kunne ikke hente spørgsmål.</p>
+      } @else {
+        <bifrost-question-list
+          [items]="requests.value()"
+          (questionSelected)="onQuestionSelected($event)"
+        />
+      }
     </bifrost-card>
     <bifrost-card title="FAQ-Arkivet">
       <bifrost-faq-archive-list
