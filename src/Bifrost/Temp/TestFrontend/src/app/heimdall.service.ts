@@ -22,6 +22,10 @@ export interface TeacherSession extends SessionSummary {
   createdByDisplayName: string | null;
 }
 
+export interface TeacherSessionListItem extends TeacherSession {
+  waitingCount: number;
+}
+
 export interface ClearSessionResult {
   sessionId: string;
   currentGeneration: number;

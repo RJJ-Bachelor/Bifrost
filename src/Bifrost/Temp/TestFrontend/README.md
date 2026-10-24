@@ -11,10 +11,12 @@ Start backendservices og Heimdall på `http://localhost:6004`. Kør `npm start` 
 | Forside | `/` | Tom forside. En allerede oprettet SignalR-forbindelse bevares. |
 | Studerende | `/students` | Tilmelding via kode og liste over tilmeldte sessioner. |
 | Studentens session | `/students/sessions/:sessionId` | Køplacering, opret hjælp, egne anmodninger, samtaler og arkiv. |
-| Underviser | `/teachers` | Eksisterende lærerlogin, opret session og egne sessioner. |
+| Underviser | `/teachers` | Eksisterende lærerlogin, opret session og egne/tilmeldte sessioner med antal i kø. |
 | Underviserens session | `/teachers/sessions/:sessionId` | Del sessionskode/link, se køen, tag næste, hjælp, arkivér og ryd session. |
 
 De gamle URL'er `/overview`, `/students/requests`, `/teachers/requests` og `/requests` viderestilles til de tilsvarende hovedsider. Sessionslinks bruger `/students?code=SESSIONSKODE`.
+
+Underviserens sessionskort viser antal ventende anmodninger i den aktuelle generation, også når køen er tom. Tallet kommer fra sessionslisten og opdateres sammen med den. Det svarer til kø-endpointets `waitingCount`: alle `Pending`-anmodninger, herunder reserverede anmodninger og FAQ-spørgsmål. Anmodninger under fysisk behandling eller som afventer FAQ-svar/bekræftelse tælles ikke med.
 
 En session åbnes fra listen. Sessionens ID og aktuelle generation hentes fra API'et. Den valgte samtale gemmes pr. rolle og session i browserfanens session storage, så den kan åbnes igen efter genindlæsning.
 

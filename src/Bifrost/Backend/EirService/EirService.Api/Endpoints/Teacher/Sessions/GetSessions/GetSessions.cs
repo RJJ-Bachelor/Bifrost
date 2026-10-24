@@ -1,4 +1,3 @@
-using EirService.Sessions.Application.Features.Teacher.Common;
 using EirService.Api.Authentication;
 using EirService.Sessions.Application.Features.Teacher.GetSessions;
 using FastEndpoints;
@@ -6,7 +5,7 @@ using EndpointTags = EirService.Api.Endpoints.Tags;
 
 namespace EirService.Api.Endpoints.Teacher.Sessions.GetSessions;
 
-internal sealed class GetSessions : EndpointWithoutRequest<IReadOnlyList<SessionResult>>
+internal sealed class GetSessions : EndpointWithoutRequest<IReadOnlyList<SessionListResult>>
 {
     public override void Configure()
     {
