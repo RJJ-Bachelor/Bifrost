@@ -17,10 +17,10 @@ import { SessionGeneration } from '../../../session/session.model';
 @Component({
   imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, FaqArchiveList, QuestionList],
   selector: 'bifrost-student-session',
-  styleUrl: './session.scss',
-  templateUrl: './session.html',
+  styleUrl: './student-session.scss',
+  templateUrl: './student-session.html',
 })
-export class Session {
+export class StudentSession {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly sessionApi = inject(SessionApi);

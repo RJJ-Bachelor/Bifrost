@@ -11,7 +11,7 @@ export const studentRoutes: Routes = [
   {
     path: 'sessions/:id',
     loadComponent: () =>
-      import('./pages/session/session').then((m) => m.Session),
+      import('./pages/session/student-session').then((m) => m.StudentSession),
   },
   {
     path: 'sessions/:id/queue',
