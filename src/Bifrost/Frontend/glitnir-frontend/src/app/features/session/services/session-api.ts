@@ -37,6 +37,14 @@ export class SessionApi {
     }));
   }
 
+  getTeacherSession(id: () => string): HttpResourceRef<Session | undefined> {
+    return httpResource<Session>(() => ({
+      url: `/api/teachers/sessions/${id()}`,
+      method: 'GET',
+      withCredentials: true,
+    }));
+  }
+
   getStudentGenerations(id: () => string): Signal<SessionGeneration[]> {
     // TODO(BF-J2/J3): replace with real endpoint when available.
     // return httpResource<SessionGeneration[]>(() => ({
