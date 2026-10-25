@@ -1,0 +1,58 @@
+.message-form__textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-grey-200);
+  border-radius: var(--radius-md);
+  background-color: var(--color-grey-100);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+  color: var(--color-primary-dark);
+  resize: vertical;
+  box-sizing: border-box;
+
+  &::placeholder {
+    color: var(--color-muted);
+  }
+
+  &:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+}
+
+.message-form__error-slot {
+  min-height: calc(var(--space-2) + 1.25rem);
+}
+
+.message-form__error {
+  margin: 0;
+  color: var(--color-red);
+  font-size: var(--font-size-sm);
+}
+
+.message-form__submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: fit-content;
+  margin: 0 auto;
+  min-width: 12rem;
+  padding: var(--space-3) var(--space-6);
+}
+
+.message-form__submit-icon {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  background-color: currentColor;
+  mask-image: url('/send-icon.svg');
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-image: url('/send-icon.svg');
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}

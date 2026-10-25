@@ -1,1 +1,24 @@
-<p>faq-list works!</p>
+@if (items().length === 0) {
+  <p class="state-message">Ingen FAQ-spørgsmål endnu.</p>
+} @else {
+  <ul class="faq-list">
+    @for (item of items(); track item.id) {
+      <li class="faq-list__item" (click)="toggle(item.id)">
+        <button
+          type="button"
+          class="faq-list__question"
+          [attr.aria-expanded]="isOpen(item.id)"
+        >
+          <span class="faq-list__question-text">{{ item.question }}</span>
+          <span
+            class="faq-list__chevron"
+            [class.faq-list__chevron--open]="isOpen(item.id)"
+          ></span>
+        </button>
+        @if (isOpen(item.id)) {
+          <div class="faq-list__answer">{{ item.answer }}</div>
+        }
+      </li>
+    }
+  </ul>
+}

@@ -6,3 +6,16 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+.topbar-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary-dark);
+  color: var(--color-white);
+  font-size: var(--font-size-body);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
