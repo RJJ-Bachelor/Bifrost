@@ -14,3 +14,10 @@ export interface SessionGeneration {
   generation: number;
   title: string;
 }
+
+export interface TeacherStatistics {
+  physicalCount: number;
+  digitalCount: number;
+  helpedStudentCount: number;
+  averageWaitMinutes: number | null;
+}

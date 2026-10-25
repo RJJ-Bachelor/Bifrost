@@ -1,7 +1,7 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject, signal, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Session, SessionGeneration, SessionStatus } from '../session.model';
+import { Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
 
 @Service()
 export class SessionApi {
@@ -63,6 +63,23 @@ export class SessionApi {
       { generation: 5, title: 'Lek 5 - REST API design' },
       { generation: 4, title: 'Lek 4 - Autentificering' },
     ]);
+  }
+
+  getTeacherStatistics(id: () => string): Signal<TeacherStatistics> {
+    // TODO(BF-35): replace with real endpoint when available.
+    // return httpResource<TeacherStatistics>(() => ({
+    //   url: `/api/teachers/sessions/${id()}/statistics`,
+    //   method: 'GET',
+    //   withCredentials: true,
+    // }), { defaultValue: { physicalCount: 0, digitalCount: 0, helpedStudentCount: 0, averageWaitMinutes: null } });
+
+    void id;
+    return signal({
+      physicalCount: 12,
+      digitalCount: 2,
+      helpedStudentCount: 11,
+      averageWaitMinutes: 10,
+    });
   }
 
   getSessionStatus(id: () => string): Signal<SessionStatus> {
