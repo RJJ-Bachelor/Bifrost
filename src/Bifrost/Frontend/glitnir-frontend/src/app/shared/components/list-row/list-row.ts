@@ -7,5 +7,9 @@ import { Component, input } from '@angular/core';
   styleUrl: './list-row.scss',
 })
 export class ListRow {
+  /**
+   * Renders the row in a de-emphasized, non-interactive state.
+   * Muted rows do not emit click events to the parent.
+   */
   readonly muted = input<boolean>(false);
 }
