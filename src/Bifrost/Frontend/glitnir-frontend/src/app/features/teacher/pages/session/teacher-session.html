@@ -3,3 +3,32 @@
   <button topbar-right class="topbar-btn" (click)="switchSession()">Skift session</button>
   <button topbar-right class="topbar-btn" (click)="openDashboard()">Åbn dashboard</button>
 </bifrost-topbar>
+
+<div class="page-container">
+  <bifrost-card title="Kø">
+    <div class="queue-stats">
+      <bifrost-stat-tile
+        [value]="queue.value().waitingCount"
+        label="Studerende i kø"
+      />
+      @if (frontWaitMinutes() !== null) {
+        <bifrost-stat-tile
+          [value]="frontWaitMinutes() + ' min'"
+          label="Tid i kø (forreste)"
+        />
+      }
+    </div>
+    <div class="queue-actions">
+      <button
+        class="btn btn--primary"
+        [disabled]="queue.value().waitingCount === 0 || taking()"
+        (click)="takeNext()"
+      >
+        {{ taking() ? 'Henter...' : 'Tag næste i køen' }}
+      </button>
+      @if (takeError()) {
+        <p class="queue-error">{{ takeError() }}</p>
+      }
+    </div>
+  </bifrost-card>
+</div>
