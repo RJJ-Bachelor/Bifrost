@@ -16,7 +16,7 @@ export const teacherRoutes: Routes = [
   {
     path: 'sessions/:id',
     loadComponent: () =>
-      import('./pages/session/session').then((m) => m.Session),
+      import('./pages/session/teacher-session').then((m) => m.TeacherSession),
   },
   {
     path: 'sessions/:id/answer/:requestId',
