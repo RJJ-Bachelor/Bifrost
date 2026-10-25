@@ -60,6 +60,12 @@ export class TeacherSession {
   protected readonly statistics = this.sessionApi.getTeacherStatistics(() => this.id());
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
   protected readonly selectedArchive = signal<SessionGeneration | null>(null);
+  protected readonly settingsOpen = signal(false);
+  protected readonly renameModel = signal('');
+  protected readonly renaming = signal(false);
+  protected readonly renameError = signal<string | null>(null);
+  protected readonly deleteConfirmOpen = signal(false);
+  protected readonly deleting = signal(false);
   protected readonly archiveDialogOpen = signal(false);
   protected readonly archiveTitle = signal('');
   protected readonly archiving = signal(false);
@@ -207,6 +213,58 @@ export class TeacherSession {
 
   protected closeArchiveDialog(): void {
     this.selectedArchive.set(null);
+  }
+
+  protected openSettings(): void {
+    this.renameModel.set(this.session.value()?.title ?? '');
+    this.renameError.set(null);
+    this.settingsOpen.set(true);
+  }
+
+  protected closeSettings(): void {
+    this.settingsOpen.set(false);
+    this.renameError.set(null);
+  }
+
+  protected onRenameInput(event: Event): void {
+    this.renameModel.set((event.target as HTMLInputElement).value);
+  }
+
+  protected submitRename(event: Event): void {
+    event.preventDefault();
+    const title = this.renameModel().trim();
+    if (title.length === 0 || this.renaming()) return;
+    // TODO(BF-XX): call rename endpoint when backend supports it.
+    this.renaming.set(true);
+    this.renameError.set(null);
+    setTimeout(() => {
+      this.renaming.set(false);
+    }, 200);
+  }
+
+  protected openDeleteConfirm(): void {
+    this.settingsOpen.set(false);
+    this.deleteConfirmOpen.set(true);
+  }
+
+  protected closeDeleteConfirm(): void {
+    this.deleteConfirmOpen.set(false);
+  }
+
+  protected confirmDelete(): void {
+    if (this.deleting()) return;
+
+    this.deleting.set(true);
+    this.sessionApi.deleteSession(this.id()).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.deleteConfirmOpen.set(false);
+        this.router.navigateByUrl('/teacher');
+      },
+      error: () => {
+        this.deleting.set(false);
+      },
+    });
   }
 
   protected openArchiveConfirm(): void {
