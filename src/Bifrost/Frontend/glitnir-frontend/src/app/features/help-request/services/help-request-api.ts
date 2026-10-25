@@ -9,7 +9,7 @@ import {
   SessionQueue,
 } from '../help-request.model';
 
-interface BackendHelpRequest {
+interface HelpRequestDto {
   id: string;
   displayNumber: string;
   status: string;
@@ -63,7 +63,7 @@ export class HelpRequestApi {
       {
         defaultValue: [],
         parse: (raw) =>
-          (raw as BackendHelpRequest[]).map((item) => ({
+          (raw as HelpRequestDto[]).map((item) => ({
             id: item.id,
             displayNumber: item.displayNumber,
             status: normalizeStatus(item.status),

@@ -2,7 +2,7 @@ import { httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service } from '@angular/core';
 import { FaqItem } from '../faq-item.model';
 
-interface BackendFaq {
+interface FaqDto {
   id: string;
   question: string;
   answer: string | null;
@@ -26,7 +26,7 @@ export class FaqApi {
       {
         defaultValue: [],
         parse: (raw) =>
-          (raw as BackendFaq[]).map((item) => ({
+          (raw as FaqDto[]).map((item) => ({
             id: item.id,
             question: item.question,
             answer: item.answer ?? '',
