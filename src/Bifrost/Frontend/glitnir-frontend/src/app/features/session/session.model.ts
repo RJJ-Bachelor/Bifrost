@@ -27,3 +27,11 @@ export interface TeacherStatistics {
   helpedStudentCount: number;
   averageWaitMinutes: number | null;
 }
+
+export interface ArchiveResult {
+  id: string;
+  sessionId: string;
+  generation: number;
+  currentGeneration: number;
+  archivedAtUtc: string;
+}

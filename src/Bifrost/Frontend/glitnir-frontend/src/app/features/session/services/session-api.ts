@@ -1,7 +1,7 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject, signal, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
+import { ArchiveResult, Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
 
 @Service()
 export class SessionApi {
@@ -111,6 +111,16 @@ export class SessionApi {
     // }), { defaultValue: { waitingCount: 0, estimatedWaitMinutes: 0 } });
 
     return signal({ waitingCount: 4, estimatedWaitMinutes: 10 });
+  }
+
+  archiveSession(id: string, expectedGeneration: number, _title: string): Observable<ArchiveResult> {
+    // TODO(BF-J2/J3): send title when backend ArchiveSessionRequest supports ArchivedTitle.
+    void _title;
+    return this.http.post<ArchiveResult>(
+      `/api/teachers/sessions/${id}/archive`,
+      { expectedGeneration },
+      { withCredentials: true },
+    );
   }
 
   joinSession(code: string): Observable<Session> {

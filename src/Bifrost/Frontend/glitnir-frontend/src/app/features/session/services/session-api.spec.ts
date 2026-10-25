@@ -5,7 +5,7 @@ import {
 } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { Session } from '../session.model';
+import { ArchiveResult, Session } from '../session.model';
 import { SessionApi } from './session-api';
 
 describe('SessionApi', () => {
@@ -70,6 +70,27 @@ describe('SessionApi', () => {
       request.flush(session);
 
       expect(await promise).toEqual(session);
+    });
+  });
+
+  describe('archiveSession', () => {
+    it('posts expectedGeneration and omits title until backend supports it', async () => {
+      const result: ArchiveResult = {
+        id: 'archive-1',
+        sessionId: 'session-1',
+        generation: 1,
+        currentGeneration: 2,
+        archivedAtUtc: '2026-10-25T12:00:00Z',
+      };
+      const promise = firstValueFrom(service.archiveSession('session-1', 1, 'Lek 1'));
+
+      const request = http.expectOne('/api/teachers/sessions/session-1/archive');
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ expectedGeneration: 1 });
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(result);
+
+      expect(await promise).toEqual(result);
     });
   });
 });
