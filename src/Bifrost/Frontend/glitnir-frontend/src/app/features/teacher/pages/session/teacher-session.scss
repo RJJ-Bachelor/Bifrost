@@ -1,3 +1,9 @@
+.dashboard-button {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}
+
 .topbar-pill--button {
   border: none;
   cursor: pointer;
@@ -11,8 +17,9 @@
 
 .topbar-pill__icon {
   display: inline-block;
-  width: 1rem;
-  height: 1rem;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
   background-color: currentColor;
   mask-image: url('/settings.svg');
   mask-size: contain;

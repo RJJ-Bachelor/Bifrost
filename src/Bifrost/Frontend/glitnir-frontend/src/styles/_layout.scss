@@ -8,8 +8,11 @@
 }
 
 .topbar-pill {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-pill);
   background-color: var(--color-primary-dark);
@@ -17,5 +20,14 @@
   font-size: var(--font-size-body);
   font-weight: 700;
   line-height: 1;
+  overflow: hidden;
+}
+
+.topbar-pill__text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  flex: 0 1 auto;
 }

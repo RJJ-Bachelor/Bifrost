@@ -1,10 +1,13 @@
 <bifrost-topbar>
   <button topbar-center class="topbar-pill topbar-pill--button" (click)="openSettings()">
-    {{ sessionTitle() }}
+    <span class="topbar-pill__text">{{ sessionTitle() }}</span>
     <span class="topbar-pill__icon"></span>
   </button>
-  <button topbar-right class="topbar-btn" (click)="switchSession()">Skift session</button>
-  <button topbar-right class="topbar-btn" (click)="openDashboard()">Åbn dashboard</button>
+  <button topbar-right class="topbar-btn" (click)="switchSession()">
+    <span class="btn__label-long">Skift session</span>
+    <span class="btn__label-short">Skift</span>
+  </button>
+  <button topbar-right class="topbar-btn dashboard-button" (click)="openDashboard()">Åbn dashboard</button>
 </bifrost-topbar>
 
 <div class="page-container">
