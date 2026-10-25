@@ -42,4 +42,85 @@
       }
     </div>
   </bifrost-card>
+
+  <bifrost-card title="FAQ">
+    @if (faqs.isLoading()) {
+      <p class="state-message">Indlæser FAQ...</p>
+    } @else if (faqs.error()) {
+      <p class="state-message">Kunne ikke hente FAQ.</p>
+    } @else {
+      <bifrost-faq-list
+        [items]="faqs.value()"
+        [editable]="true"
+        (faqEditRequested)="openEditFaq($event)"
+        (faqDeleteRequested)="requestDeleteFaq($event)"
+      />
+    }
+    <div class="faq-actions">
+      <button class="btn btn--outline" (click)="openCreateFaq()">
+        + Tilføj FAQ-spørgsmål og svar
+      </button>
+    </div>
+  </bifrost-card>
 </div>
+
+<bifrost-dialog
+  [open]="faqDialogOpen()"
+  [title]="faqEditTarget() ? 'Rediger FAQ' : 'Tilføj FAQ'"
+  (closed)="closeFaqDialog()"
+>
+  <form class="faq-form" (submit)="submitFaq($event)">
+    <label class="faq-form__field">
+      <span>Spørgsmål</span>
+      <textarea [formField]="faqForm.question" rows="3"></textarea>
+    </label>
+    <label class="faq-form__field">
+      <span>Svar</span>
+      <textarea [formField]="faqForm.answer" rows="5"></textarea>
+    </label>
+    @if (faqDialogError()) {
+      <p class="faq-form__error">{{ faqDialogError() }}</p>
+    }
+    <div class="form-actions">
+      <button type="button" class="btn btn--secondary" (click)="closeFaqDialog()">
+        Annuller
+      </button>
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="faqForm().invalid() || faqSubmitting()"
+      >
+        {{ faqSubmitting() ? 'Gemmer...' : 'Gem' }}
+      </button>
+    </div>
+  </form>
+</bifrost-dialog>
+
+<bifrost-dialog
+  [open]="faqDeleteTarget() !== null"
+  title="Slet FAQ"
+  size="sm"
+  (closed)="cancelDeleteFaq()"
+>
+  <p>Er du sikker på at du vil slette denne FAQ?</p>
+  <p class="faq-delete-question">{{ faqDeleteTarget()?.question }}</p>
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="cancelDeleteFaq()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="faqDeleting()"
+      (click)="confirmDeleteFaq()"
+    >
+      {{ faqDeleting() ? 'Sletter...' : 'Slet' }}
+    </button>
+  </div>
+</bifrost-dialog>
+
+<bifrost-status-dialog
+  [open]="faqStatusOpen()"
+  [message]="faqStatusMessage()"
+  (closed)="closeFaqStatus()"
+/>
