@@ -7,6 +7,8 @@ import {
   HelpRequestStatus,
   HelpType,
   SessionQueue,
+  TeacherHelpRequest,
+  TeacherQueue,
 } from '../help-request.model';
 
 interface HelpRequestDto {
@@ -30,6 +32,12 @@ const HELP_TYPE_MAP: Record<string, HelpType> = {
   Digital: 'digital',
   Physical: 'physical',
 };
+
+interface TeacherQueueDto {
+  generation: number;
+  waitingCount: number;
+  requests: Array<{ id: string; queuedAt: string }>;
+}
 
 function normalizeStatus(raw: string): HelpRequestStatus {
   const mapped = STATUS_MAP[raw];
@@ -87,6 +95,39 @@ export class HelpRequestApi {
     return this.http.post<HelpRequest>(
       `/api/students/sessions/${sessionId}/requests`,
       input,
+      { withCredentials: true },
+    );
+  }
+
+  getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {
+    return httpResource<TeacherQueue>(
+      () => ({
+        url: `/api/teachers/sessions/${sessionId()}/queue`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          waitingCount: 0,
+          generation: 0,
+          frontQueuedAt: null,
+        },
+        parse: (raw) => {
+          const dto = raw as TeacherQueueDto;
+          return {
+            waitingCount: dto.waitingCount,
+            generation: dto.generation,
+            frontQueuedAt: dto.requests[0]?.queuedAt ?? null,
+          };
+        },
+      },
+    );
+  }
+
+  takeNext(sessionId: string): Observable<TeacherHelpRequest | null> {
+    return this.http.post<TeacherHelpRequest | null>(
+      `/api/teachers/sessions/${sessionId}/queue/take-next`,
+      null,
       { withCredentials: true },
     );
   }
