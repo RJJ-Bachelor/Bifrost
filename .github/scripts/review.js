@@ -6,24 +6,36 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const API_KEY = process.env.GEMINI_API_KEY_REVIEW;
 const PR_NUMBER = process.env.PR_NUMBER;
 const REPO = process.env.GITHUB_REPOSITORY;
+const TOKENHARBOR_API_KEY = process.env.TOKENHARBOR_API_KEY;
+const TOKENHARBOR_BASE_URL = "https://tokenharbor.ai/v1";
 const CONTEXT_FILE_PATH = path.join(process.cwd(), "docs", "PROJECT_CONTEXT.md");
 
 const GITHUB_API = "https://api.github.com";
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Model Pools
+// Model Pools — each entry is { provider, id }
+// Providers: "gemini" (Google API) or "tokenharbor" (OpenAI-compatible gateway)
 const LIGHT_MODELS = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-  "gemma-4-31b-it",
-  "gemma-4-26b-a4b-it"
+  { provider: "gemini", id: "gemini-3.5-flash-lite" },
+  { provider: "gemini", id: "gemini-3.1-flash-lite" },
+  { provider: "gemini", id: "gemma-4-31b-it" },
+  { provider: "gemini", id: "gemma-4-26b-a4b-it" }
 ];
 const HEAVY_MODELS = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash"
+  { provider: "gemini", id: "gemini-3.8-flash" },
+  { provider: "tokenharbor", id: "deepseek-v4.1-flash:free" },
+  { provider: "gemini", id: "gemini-3.7-flash" },
+  { provider: "tokenharbor", id: "deepseek-v4-flash:free" },
+  { provider: "gemini", id: "gemini-3.6-flash" },
+  { provider: "gemini", id: "gemini-3.5-flash" }
 ];
+
+async function callModel(modelEntry, prompt, systemInstruction, expectJson = true) {
+  if (modelEntry.provider === "tokenharbor") {
+    return requestOpenAICompatibleModel(modelEntry.id, prompt, systemInstruction, expectJson);
+  }
+  return requestGeminiModel(modelEntry.id, prompt, systemInstruction, expectJson);
+}
 
 async function githubFetch(endpoint, options = {}) {
   const url = endpoint.startsWith("http") ? endpoint : `${GITHUB_API}${endpoint}`;
@@ -135,6 +147,79 @@ async function requestGeminiModel(model, prompt, systemInstruction, expectJson =
     const parsedJson = extractAndCleanJson(rawText);
     if (!parsedJson && rawText) {
       console.warn(`Model ${model} returned non-parsable JSON output:\n${rawText}`);
+    }
+    return parsedJson;
+  }
+}
+
+async function requestOpenAICompatibleModel(model, prompt, systemInstruction, expectJson = true, maxRetries = 2) {
+  if (!TOKENHARBOR_API_KEY) {
+    throw new Error("TOKENHARBOR_API_KEY is not configured. Cannot call TokenHarbor.");
+  }
+
+  const url = `${TOKENHARBOR_BASE_URL}/chat/completions`;
+  const requestBody = {
+    model,
+    messages: [
+      { role: "system", content: systemInstruction },
+      { role: "user", content: prompt }
+    ],
+    temperature: 0.2
+  };
+
+  if (expectJson) {
+    requestBody.response_format = { type: "json_object" };
+  }
+
+  let attempt = 0;
+  while (true) {
+    attempt++;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${TOKENHARBOR_API_KEY}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      if ((response.status === 503 || response.status === 429 || response.status >= 500) && attempt <= maxRetries) {
+        let delayMs = attempt * 5000;
+
+        if (response.status === 429) {
+          const retryAfter = response.headers.get("retry-after");
+          if (retryAfter) {
+            const seconds = parseInt(retryAfter, 10);
+            if (!isNaN(seconds)) {
+              if (seconds > 45) {
+                throw new Error(`TokenHarbor ${model} rate limit wait too long (${seconds}s): ${errText}`);
+              }
+              delayMs = (seconds + 2) * 1000;
+            }
+          } else {
+            delayMs = 15000 * attempt;
+          }
+        }
+
+        console.warn(`⏳ TokenHarbor model ${model} returned status ${response.status} (attempt ${attempt}/${maxRetries + 1}). Retrying in ${delayMs / 1000}s...`);
+        await sleep(delayMs);
+        continue;
+      }
+      throw new Error(`TokenHarbor model ${model} returned status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const rawText = data.choices?.[0]?.message?.content;
+
+    if (!expectJson) {
+      return rawText ? rawText.trim() : null;
+    }
+
+    const parsedJson = extractAndCleanJson(rawText);
+    if (!parsedJson && rawText) {
+      console.warn(`TokenHarbor model ${model} returned non-parsable JSON output:\n${rawText}`);
     }
     return parsedJson;
   }
@@ -389,9 +474,9 @@ async function performReview(basePrompt, diffText = "") {
     console.log("Evaluating PR with light triage models...");
     for (const model of LIGHT_MODELS) {
       try {
-        console.log(`Attempting triage with light model: ${model}...`);
+        console.log(`Attempting triage with light model: ${model.id} (${model.provider})...`);
         const fastInstruction = buildSystemInstruction("TRIAGE", false);
-        const result = await requestGeminiModel(model, basePrompt, fastInstruction, true);
+        const result = await callModel(model, basePrompt, fastInstruction, true);
 
         if (result) {
           if (result.complexity_evaluation) {
@@ -400,7 +485,7 @@ async function performReview(basePrompt, diffText = "") {
             const isCrossLayer = comp.cross_layer_impact === true || String(comp.cross_layer_impact).toLowerCase() === "true";
             const hasUnseen = comp.has_unseen_dependencies === true || String(comp.has_unseen_dependencies).toLowerCase() === "true";
 
-            console.log(`📊 PR Complexity [${model}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
+            console.log(`📊 PR Complexity [${model.id}]: ${score}/10 (Cross-layer: ${isCrossLayer}, Unseen deps: ${hasUnseen})`);
             if (comp.reasoning) {
               console.log(`   Reasoning: ${comp.reasoning}`);
             }
@@ -413,7 +498,7 @@ async function performReview(basePrompt, diffText = "") {
           }
 
           if (result.verdict === "NEED_CONTEXT") {
-            console.log(`⚡ ${model} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
+            console.log(`⚡ ${model.id} requested additional file context: ${JSON.stringify(result.requested_files || [])}`);
             if (result.context_reason) {
               console.log(`   Reason: ${result.context_reason}`);
             }
@@ -422,16 +507,16 @@ async function performReview(basePrompt, diffText = "") {
             escalated = true;
             break;
           } else if (result.verdict === "ESCALATE") {
-            console.log(`⚡ ${model} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
+            console.log(`⚡ ${model.id} requested escalation due to high PR complexity. Escalating to heavy reasoning models...`);
             escalated = true;
             break;
           } else {
-            console.log(`✅ Review successfully completed by light model: ${model}`);
+            console.log(`✅ Review successfully completed by light model: ${model.id}`);
             return result;
           }
         }
       } catch (err) {
-        console.warn(`Light model ${model} failed (${err.message}). Trying next light model...`);
+        console.warn(`Light model ${model.id} failed (${err.message}). Trying next light model...`);
         await sleep(1500);
       }
     }
@@ -445,7 +530,7 @@ async function performReview(basePrompt, diffText = "") {
   console.log("Attempting review with heavy reasoning models...");
   for (const model of HEAVY_MODELS) {
     try {
-      console.log(`Attempting deep review with heavy model: ${model}...`);
+      console.log(`Attempting deep review with heavy model: ${model.id} (${model.provider})...`);
 
       // Round 1: Heavy model receives current context and can either complete review or request deeper context
       let filesText = formatLoadedFiles(loadedFiles);
@@ -454,10 +539,10 @@ async function performReview(basePrompt, diffText = "") {
         : basePrompt;
 
       const investigateInstruction = buildSystemInstruction("HEAVY_INVESTIGATE", loadedFiles.size > 0);
-      let result = await requestGeminiModel(model, heavyPrompt, investigateInstruction, true);
+      let result = await callModel(model, heavyPrompt, investigateInstruction, true);
 
       if (result && result.verdict === "NEED_CONTEXT") {
-        console.log(`⚡ ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        console.log(`⚡ ${model.id} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
         if (result.context_reason) {
           console.log(`   Reason: ${result.context_reason}`);
         }
@@ -470,15 +555,15 @@ async function performReview(basePrompt, diffText = "") {
 
         // Round 2: Forced final review (cannot request additional context)
         const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
-        result = await requestGeminiModel(model, heavyPrompt, finalInstruction, true);
+        result = await callModel(model, heavyPrompt, finalInstruction, true);
       }
 
       if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
-        console.log(`✅ Review successfully completed by heavy model: ${model}`);
+        console.log(`✅ Review successfully completed by heavy model: ${model.id}`);
         return result;
       }
     } catch (err) {
-      console.warn(`Heavy model ${model} unavailable (${err.message}). Trying next heavy model...`);
+      console.warn(`Heavy model ${model.id} unavailable (${err.message}). Trying next heavy model...`);
       await sleep(1500);
     }
   }
@@ -487,7 +572,7 @@ async function performReview(basePrompt, diffText = "") {
   console.log("All heavy models failed. Falling back to light models with file context investigation as emergency backup...");
   for (const model of LIGHT_MODELS) {
     try {
-      console.log(`Attempting emergency review with light model: ${model}...`);
+      console.log(`Attempting emergency review with light model: ${model.id} (${model.provider})...`);
       let filesText = formatLoadedFiles(loadedFiles);
       let emergencyPrompt = filesText
         ? `${basePrompt}\n\n### Requested File Contents (Full Context from PR branch):\n${filesText}\n`
@@ -495,10 +580,10 @@ async function performReview(basePrompt, diffText = "") {
 
       // Round 1: Light model can request context or finish review
       const fallbackInstruction = buildSystemInstruction("INVESTIGATE", loadedFiles.size > 0);
-      let result = await requestGeminiModel(model, emergencyPrompt, fallbackInstruction, true);
+      let result = await callModel(model, emergencyPrompt, fallbackInstruction, true);
 
       if (result && result.verdict === "NEED_CONTEXT") {
-        console.log(`⚡ Emergency light model ${model} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
+        console.log(`⚡ Emergency light model ${model.id} requested deeper file context: ${JSON.stringify(result.requested_files || [])}`);
         if (result.context_reason) {
           console.log(`   Reason: ${result.context_reason}`);
         }
@@ -511,15 +596,15 @@ async function performReview(basePrompt, diffText = "") {
 
         // Round 2: Forced final review
         const finalInstruction = buildSystemInstruction("FINAL", loadedFiles.size > 0);
-        result = await requestGeminiModel(model, emergencyPrompt, finalInstruction, true);
+        result = await callModel(model, emergencyPrompt, finalInstruction, true);
       }
 
       if (result && result.verdict !== "NEED_CONTEXT" && result.verdict !== "ESCALATE") {
-        console.log(`✅ Review successfully completed by emergency light model: ${model}`);
+        console.log(`✅ Review successfully completed by emergency light model: ${model.id}`);
         return result;
       }
     } catch (err) {
-      console.warn(`Emergency fallback model ${model} failed (${err.message}). Trying next...`);
+      console.warn(`Emergency fallback model ${model.id} failed (${err.message}). Trying next...`);
       await sleep(1500);
     }
   }
@@ -690,13 +775,13 @@ ${diff}
 
     for (const model of [...LIGHT_MODELS, ...HEAVY_MODELS]) {
       try {
-        response = await requestGeminiModel(model, prompt, systemInstruction, false);
+        response = await callModel(model, prompt, systemInstruction, false);
         if (response) {
-          usedModel = model;
+          usedModel = model.id;
           break;
         }
       } catch (err) {
-        console.warn(`Context evaluation with ${model} failed (${err.message}). Trying next...`);
+        console.warn(`Context evaluation with ${model.id} failed (${err.message}). Trying next...`);
         await sleep(1500);
       }
     }
