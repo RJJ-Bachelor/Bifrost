@@ -55,7 +55,7 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(2, saved.CurrentGeneration);
         Assert.Equal(clock.Now, saved.CurrentGenerationStartedAtUtc);
         Assert.Null(saved.LastClearedAtUtc);
-        var message = await db.Outbox.SingleAsync();
+        var message = await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated);
         Assert.Equal(MessageRoutes.SessionUpdated, message.RoutingKey);
         var update = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(message.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
@@ -84,7 +84,7 @@ public sealed partial class SessionIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
         Assert.Equal(1, await db.Archives.CountAsync());
-        Assert.Equal(1, await db.Outbox.CountAsync());
+        Assert.Equal(1, await db.Outbox.CountAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated));
     }
 
     [PostgresFact]

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Infrastructure.Persistence.Messaging;
+using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Infrastructure.Persistence.UnitOfWork;
 
 namespace EirService.KnowledgeBase.Infrastructure;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IFaqRepository, FaqRepository>();
         services.AddUnitOfWork<IFaqRepository, EirKnowledgeBaseDbContext>();
         services.AddRabbitMqMessageBus(configuration);
+        services.AddOutbox<EirKnowledgeBaseDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddHostedService<RegisterGeneralizationMessageSubscriber>();
         services.AddHostedService<FaqAnsweredMessageSubscriber>();
         return services;

@@ -12,4 +12,6 @@ public sealed record NotificationCreatedMessage(
     string? Change = null,
     string? Status = null,
     [property: JsonConverter(typeof(JsonStringEnumConverter<NotificationEventType>))]
-    NotificationEventType EventType = NotificationEventType.Unknown);
+    NotificationEventType EventType = NotificationEventType.Unknown,
+    [property: JsonConverter(typeof(JsonStringEnumConverter<NotificationDeliveryType>))]
+    NotificationDeliveryType DeliveryType = NotificationDeliveryType.RealtimeOrPush);

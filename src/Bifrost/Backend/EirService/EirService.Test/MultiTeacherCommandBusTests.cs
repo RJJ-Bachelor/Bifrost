@@ -1,4 +1,5 @@
 using System.Net;
+using Shared.Domain.Notifications;
 using System.Net.Http.Json;
 using EirService.Contracts.Exceptions;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
@@ -80,9 +81,16 @@ public sealed partial class CommandBusTests
         await new JoinSessionCommand(session.Code, "student").ExecuteAsync();
         var request = await new CreateHelpRequestCommand(session.Id, "student", "Help", HelpType.Digital).ExecuteAsync();
 
-        Assert.Equal(new[] { "colleague", "owner" }, _requests.Notifications.Select(item => item.Message.UserId).Order());
-        Assert.Equal(2, _requests.Notifications.Select(item => item.Id).Distinct().Count());
-        Assert.All(_requests.Notifications, item => Assert.Equal(request.Id, item.Message.HelpRequestId));
+        Assert.Equal(new[] { "colleague", "owner", "student" }, _requests.Notifications.Select(item => item.Message.UserId).Order());
+        Assert.Equal(3, _requests.Notifications.Select(item => item.Id).Distinct().Count());
+        var direct = _requests.Notifications.Where(item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush).ToArray();
+        Assert.Equal(new[] { "colleague", "owner" }, direct.Select(item => item.Message.UserId).Order());
+        Assert.All(direct, item => Assert.Equal(request.Id, item.Message.HelpRequestId));
+        var generic = Assert.Single(_requests.Notifications, item => item.Message.UserId == "student").Message;
+        Assert.Equal(NotificationDeliveryType.RealtimeOnly, generic.DeliveryType);
+        Assert.Equal(NotificationEventType.SessionChanged, generic.EventType);
+        Assert.Equal(request.Id, generic.HelpRequestId);
+        Assert.Equal("Pending", generic.Status);
     }
 
     [Theory]

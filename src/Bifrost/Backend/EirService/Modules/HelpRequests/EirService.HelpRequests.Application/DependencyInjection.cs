@@ -1,3 +1,5 @@
+using EirService.Contracts.HelpRequests.GetFaqAnswerRecipients;
+using EirService.HelpRequests.Application.Features.Internal.GetFaqAnswerRecipients;
 using EirService.Contracts.HelpRequests.ApplyGeneralization;
 using EirService.Contracts.HelpRequests.CanApplyGeneralization;
 using EirService.Contracts.HelpRequests.GetArchivedConversationCounts;
@@ -20,6 +22,7 @@ public static class DependencyInjection
     public static IServiceCollection AddHelpRequestsApplication(this IServiceCollection services)
     {
         services.AddScoped<HelpRequestAccess>();
+        services.AddScoped<ICommandHandler<GetFaqAnswerRecipientsQuery, IReadOnlyList<FaqAnswerRecipient>>, GetFaqAnswerRecipientsQueryHandler>();
         services.AddScoped<ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, int>>, GetWaitingCountsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedConversationCountsQuery, IReadOnlyDictionary<int, int>>, GetArchivedConversationCountsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedConversationsQuery, IReadOnlyList<ArchivedConversation>>, GetArchivedConversationsQueryHandler>();

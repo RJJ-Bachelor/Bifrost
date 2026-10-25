@@ -8,5 +8,6 @@ public enum NotificationEventType
     HelpRequestStarted = 3,
     HelpRequestAnswered = 4,
     FaqCreated = 5,
-    FaqAnswered = 6
+    FaqAnswered = 6,
+    SessionChanged = 7
 }

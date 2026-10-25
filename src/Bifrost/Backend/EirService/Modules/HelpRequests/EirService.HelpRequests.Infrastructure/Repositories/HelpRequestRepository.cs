@@ -32,6 +32,12 @@ public sealed class HelpRequestRepository(
     public async Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         await dbContext.Requests.Include(request => request.Messages).Where(request => ids.Contains(request.Id)).ToArrayAsync(cancellationToken);
 
+    public Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+        dbContext.Requests.AsNoTracking()
+            .Where(request => request.SessionId == sessionId && request.Generation == generation &&
+                request.Status == HelpRequestStatus.Pending && request.StudentId != null)
+            .Select(request => request.StudentId!).Distinct().ToArrayAsync(cancellationToken);
+
     public async Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
         IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken)
     {

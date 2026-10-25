@@ -17,7 +17,7 @@ using System.Text.Json;
 
 namespace GnaService.Test;
 
-public sealed class NotificationTests
+public sealed partial class NotificationTests
 {
     private static readonly NotificationDeliveryRequestedMessage Message = new(Guid.NewGuid(), "student", "Help", DateTimeOffset.UtcNow);
 

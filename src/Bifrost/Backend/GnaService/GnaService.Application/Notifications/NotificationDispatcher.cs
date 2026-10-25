@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging.Contracts;
+using Shared.Domain.Notifications;
 
 namespace GnaService.Application.Notifications;
 
@@ -8,7 +9,9 @@ public sealed class NotificationDispatcher(IRealtimeNotificationSender realtime,
 {
     public async Task DispatchAsync(NotificationDeliveryRequestedMessage notification, CancellationToken cancellationToken)
     {
-        foreach (var channel in new[] { "SignalR", "Push" })
+        string[] channels = notification.DeliveryType == NotificationDeliveryType.RealtimeOnly
+            ? ["SignalR"] : ["SignalR", "Push"];
+        foreach (var channel in channels)
         {
             try
             {

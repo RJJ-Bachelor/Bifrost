@@ -33,11 +33,31 @@ Brug en separat browserprofil til hver studerende. Faner i samme profil deler de
 
 ## SignalR og opdateringer
 
+Cirklen øverst til højre viser SignalR-forbindelsens tilstand. Grøn betyder forbundet. Rød betyder afbrudt, opkobling eller genforbindelse. Hold markøren over cirklen for en tekststatus. Status følger den aktuelle rolle og identitet, også ved fejl og genforbindelse.
+
 SignalR-forbindelsen tilhører hele appen. Efter besøg på student- eller undervisersiden bevares den ved navigation, også på den tomme forside, hvor notifikationer stadig vises. Den senest autentificerede rolle bruges; et rolleskift skifter forbindelsen. Udløbet login lukker den relevante forbindelse.
 
-Siden henter aktuelle data ved relevante notifikationer, genforbindelse og egne handlinger. Notifikationer fra andre sessioner eller tidligere generationer opdaterer ikke den åbne samtale. Synlige studentsider opdateres også hvert 10. sekund og undervisersider hvert 2. sekund, fordi ikke alle køændringer udsender notifikationer. Opdatering af data bevarer kladder. Sidens timers og API-kald stoppes ved navigation; SignalR-forbindelsen skiftes ved rolleskift eller ændret identitet og stoppes ved udløbet identitet eller lukning af appen.
+Siden henter aktuelle data ved første indlæsning, relevante SignalR-notifikationer, genforbindelse og egne handlinger. Der bruges ingen periodisk polling af kø- eller sessionsdata. SignalR kan anvende Long Polling som transportfallback, hvis WebSocket ikke er tilgængelig; dette henter notifikationer og er ikke polling af kø-endpointet.
 
-Notifikationer viser en overskrift ud fra `eventType`, beskeden og dens session, generation, status og anmodning. **Åbn samtalen** åbner den rette elev- eller underviserside og den konkrete HelpRequest. Flere notifikationer vises én ad gangen. Genlevering med samme notifikations-ID vises kun én gang på samme forbindelse.
+Notifikationens `change` beskriver, hvilke data der er ændret. Frontenden genhenter kun berørte, synlige data. På sessionsoversigten opdaterer underviseren kun listen ved mulige ændringer i `waitingCount` eller sessionsmetadata. Den studerendes sessionsoversigt opdateres ved rydning, arkivering og sletning. På en åben sessionsside hentes den skjulte sessionsliste ikke. Almindelige køændringer henter køen; metadata og arkivlisten hentes ikke igen ved hver anmodning. En valgt undervisersamtale genbruges fra køens komplette requestdata, når den stadig er ventende eller aktiv.
+
+Reservation, accept af FAQ-svar og annullering under FAQ-forløbet varsler kun ejeren og underviserne. Afsluttet fysisk hjælp varsler desuden de studerende med ventende anmodninger, fordi deres ventetidsestimat kan ændres.
+
+| `change` | Data på en åben sessionsside |
+|---|---|
+| `Created`, `StudentMessageAdded`, `Started`, `Completed`, `Answered`, `Cancelled`, `ReturnedToQueue`, `FaqRejected` | Køen. Egen anmodningsliste og valgt samtale hentes kun, når notifikationen vedrører den studerendes anmodning. |
+| `Reserved` | Underviserens kø og eventuelt den valgte samtale. Den studerendes køtal og placering er uændrede; ejeren genhenter kun den valgte samtale. |
+| `FaqAccepted`, `FaqCancelled` | Ejerens kø og anmodningsliste samt en berørt valgt samtale. Øvrige studerende får ingen hændelse. |
+| `FaqCreated`, `FaqLinked` | Køen og underviserens FAQ-liste; ejerens berørte anmodning opdateres også. |
+| `FaqAnswered`, `FaqSuggested` | Køen og FAQ-listen samt berørte egne anmodninger og samtaler. |
+| `ArchivedFaqAnswered` | Arkivlisten og den åbne arkivdetalje. En igangværende arkivlæsning erstattes af en ny, så et forsinket svar ikke overses. |
+| `Cleared`, `Archived`, `Deleted`, nyere generation eller ukendt/ældre beskedformat | Alle synlige data for at opdatere sessionskonteksten sikkert. |
+
+Request-ID og status medfølger kun til ejeren og autoriserede undervisere. Andre studerende modtager den generelle årsag uden private requestdata. Egne mutationssvar opdaterer samtalen og den studerendes anmodningsoversigt direkte; nødvendige supplerende læsninger samles med notifikationer i samme opdateringskø. Et asynkront generaliseringskald afventer hændelsen frem for at genhente uændrede data efter `202 Accepted`.
+
+Flere tætliggende hændelser samles efter højst 150 ms, også ved vedvarende trafik. Ressourcer, der ændres under igangværende kald, flettes til én efterfølgende opdatering. Der bruges ingen tidsbaseret undertrykkelse af hændelser. Kladder bevares. API-kald og sidens abonnementer stoppes ved navigation; SignalR-forbindelsen skiftes ved rolleskift eller ændret identitet og stoppes ved udløbet identitet eller lukning af appen.
+
+Alle modtagne notifikationer vises i en modal i testfrontenden, også almindelige køændringer med `SessionChanged` og `RealtimeOnly`. `deliveryType` angiver leveringskanalen: `RealtimeOnly` leveres kun via SignalR, mens `RealtimeOrPush` også tillader push ved behov. Typen skjuler ikke modalen. Modalen viser en overskrift ud fra `eventType`, leveringstype, beskeden og dens session, generation, status og anmodning. **Åbn sessionen** åbner den relevante session ved en almindelig sessionsændring, og **Åbn samtalen** åbner en konkret HelpRequest. Flere notifikationer vises én ad gangen. Genlevering med samme notifikations-ID behandles kun én gang på samme forbindelse.
 
 | `eventType` | Modtager og årsag |
 |---|---|
@@ -45,8 +65,9 @@ Notifikationer viser en overskrift ud fra `eventType`, beskeden og dens session,
 | `StudentMessageAdded` | Sessionens undervisere, når en opfølgning starter en tom kø |
 | `HelpRequestStarted` | Eleven, når underviseren starter fysisk hjælp |
 | `HelpRequestAnswered` | Eleven, når underviseren besvarer en almindelig anmodning |
-| `FaqCreated` | Alle sessionens undervisere, når en generalisering bliver til en FAQ |
+| `FaqCreated` | Alle sessionens undervisere samt de studerende, hvis anmodninger kobles på generaliseringen |
 | `FaqAnswered` | Hver tilknyttet elev, når det fælles FAQ-svar er klar til accept eller afvisning |
+| `SessionChanged` | Øvrige deltagere og undervisere opdaterer sessionsdata via `RealtimeOnly` og får en modal i testfrontenden |
 
 Ældre eller ukendte eventtyper vises som en almindelig notifikation. Annullerede anmodninger får ikke nye FAQ-svar.
 
@@ -56,7 +77,7 @@ API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udvi
 
 ## Build
 
-`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper, navigation, sessionsfiltrering, FAQ-svar og arkivering med Node-testværktøjet.
+`npm run build` bygger frontenden. Angulars template- og TypeScript-kontrol indgår i buildet. `npm test` kontrollerer notifikationernes eventtyper og leveringstype, navigation, sessionsfiltrering, hændelsesstyret opdatering og genforbindelse, FAQ-svar og arkivering med Node-testværktøjet.
 
 Arkivering bruger `POST /api/teachers/sessions/{sessionId}/archive` med `{ expectedGeneration }`. Arkivlisten hentes fra `GET /api/{teachers|students}/sessions/{sessionId}/archives`, og en detalje fra samme sti med `/{archiveId}`. Listen opdateres sammen med sessionen; en arkivdetalje hentes, når den vælges. Brug **Opdatér arkiv**, hvis et FAQ-svar stadig er på vej gennem beskedkøen. API'et håndhæver medlemskab og filtrerer den studerendes samtaler.
 

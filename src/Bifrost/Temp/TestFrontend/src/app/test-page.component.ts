@@ -4,9 +4,9 @@ import { Component, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Observable, Subscription, catchError, combineLatest, debounceTime, filter, finalize, forkJoin, interval, merge, of, throwError, timeout } from 'rxjs';
+import { Observable, Subject, Subscription, auditTime, catchError, combineLatest, filter, finalize, forkJoin, map, merge, of, switchMap, tap, throwError, timeout } from 'rxjs';
 import { NotificationService } from './notification.service';
-import { helpRequestId, notificationAffectsSession } from './notification.model';
+import { SessionRefresh, helpRequestId, notificationRefreshParts, visibleSessionRefresh } from './notification.model';
 import {
   ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
   HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionSummary, StudentQueue, TeacherQueue, TeacherSession, TeacherSessionListItem
@@ -65,7 +65,10 @@ export class TestPageComponent {
   notice = '';
   private refreshSubscription?: Subscription;
   private archiveSubscription?: Subscription;
-  private refreshQueued = false;
+  private activeRefreshParts = SessionRefresh.None;
+  private queuedRefreshParts = SessionRefresh.None;
+  private notificationRefreshParts = SessionRefresh.None;
+  private readonly refreshChanges = new Subject<SessionRefresh>();
   private destroyed = false;
   private sessionContextInitialized = false;
   private generalizationContext = '';
@@ -133,13 +136,15 @@ export class TestPageComponent {
       this.stopRefresh();
       this.archiveSubscription?.unsubscribe();
     });
-    merge(this.notifications.received.pipe(filter(notification => notificationAffectsSession(
-      notification, this.role, this.sessionId, this.session?.currentGeneration))), this.notifications.reconnected).pipe(
-      debounceTime(150), takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => this.refresh());
-    // Not every queue change produces a notification.
-    interval(this.isTeacher ? 2000 : 10000).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      if (!document.hidden && !this.refreshing) this.refresh();
+    merge(this.notifications.received.pipe(map(notification => notificationRefreshParts(notification, this.refreshContext))),
+      this.notifications.reconnected.pipe(map(() => this.visibleRefreshParts)), this.refreshChanges).pipe(
+      filter(parts => parts !== SessionRefresh.None),
+      tap(parts => { this.notificationRefreshParts |= parts; }),
+      auditTime(150), takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => {
+      const parts = this.notificationRefreshParts;
+      this.notificationRefreshParts = SessionRefresh.None;
+      this.refresh(parts);
     });
     combineLatest([this.route.paramMap, this.route.queryParamMap]).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(([params, query]) => {
       const sessionId = params.get('sessionId') ?? '';
@@ -176,7 +181,7 @@ export class TestPageComponent {
       { ...payload, generalizationId: this.generalizationAttempt.id }), result => {
       this.pendingGeneralizationId = result.generalizationId;
       this.notice = 'Generaliseringen er sendt til behandling. FAQ-spørgsmålet vises i køen, når Eir har modtaget det.';
-    });
+    }, SessionRefresh.None);
   }
 
   loadIdentity() {
@@ -192,41 +197,74 @@ export class TestPageComponent {
     });
   }
 
-  refresh() {
-    if (this.destroyed || !this.identity) return;
-    if (this.busy || this.refreshing) { this.refreshQueued = true; return; }
-    this.refreshQueued = false;
+  private get refreshContext() {
+    return { role: this.role, sessionId: this.sessionId, generation: this.session?.currentGeneration,
+      selectedRequestId: this.selectedRequestId, conversationStatus: this.conversation?.status };
+  }
+  private get visibleRefreshParts() { return visibleSessionRefresh(this.refreshContext); }
+  private scheduleRefresh(parts: SessionRefresh) { this.refreshChanges.next(parts); }
+
+  refresh(parts = this.visibleRefreshParts) {
+    parts &= this.visibleRefreshParts;
+    if (this.destroyed || !this.identity || parts === SessionRefresh.None) return;
+    if (this.busy || this.refreshing) {
+      this.queuedRefreshParts |= parts;
+      return;
+    }
+    parts |= this.queuedRefreshParts;
+    this.queuedRefreshParts = SessionRefresh.None;
+    this.activeRefreshParts = parts;
     this.refreshing = true;
+    const read = (part: SessionRefresh) => (parts & part) !== 0;
     const base = this.role + '/sessions/' + this.sessionId;
     const selectedId = this.selectedRequestId;
-    const optional = <T>(read: Observable<T>) => read.pipe(catchError((failure: unknown) =>
+    const optional = <T>(request: Observable<T>) => request.pipe(catchError((failure: unknown) =>
       failure instanceof HttpErrorResponse && failure.status === 404 ? of(null) : throwError(() => failure)));
+    // A teacher queue already contains the complete pending and active conversations.
+    const conversationFromQueue = this.isTeacher && read(SessionRefresh.Queue);
+    if (read(SessionRefresh.Archive) && this.selectedArchiveId) this.openArchive(this.selectedArchiveId);
     this.refreshSubscription = forkJoin({
-      sessions: this.api.get<(SessionSummary | TeacherSessionListItem)[]>(this.role + '/sessions'),
-      session: this.sessionId ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
-      faqs: this.sessionId ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
-      archives: this.sessionId ? optional(this.api.get<SessionArchiveSummary[]>(base + '/archives')) : of(null),
-      queue: this.sessionId ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
-      requests: this.sessionId && !this.isTeacher
+      sessions: read(SessionRefresh.Sessions) ? this.api.get<(SessionSummary | TeacherSessionListItem)[]>(this.role + '/sessions') : of(null),
+      session: read(SessionRefresh.Session) ? optional(this.api.get<SessionSummary | TeacherSession>(base)) : of(null),
+      faqs: read(SessionRefresh.Faqs) ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
+      archives: read(SessionRefresh.Archives) ? optional(this.api.get<SessionArchiveSummary[]>(base + '/archives')) : of(null),
+      queue: read(SessionRefresh.Queue) ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
+      requests: read(SessionRefresh.Requests)
         ? optional(this.api.get<HelpRequestSummary[]>('students/requests?sessionId=' + this.sessionId)) : of(null),
-      conversation: this.sessionId && selectedId
+      conversation: read(SessionRefresh.Conversation) && selectedId && !conversationFromQueue
         ? optional(this.api.get<HelpRequest>(this.role + '/requests/' + selectedId)) : of(null)
-    }).pipe(timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => {
+    }).pipe(switchMap(data => {
+      if (!conversationFromQueue || !selectedId) return of(data);
+      const queue = data.queue as TeacherQueue | null;
+      const queued = [...(queue?.requests ?? []), ...(queue?.activeRequests ?? [])].find(request => request.id === selectedId);
+      if (queued) return of({ ...data, conversation: queued });
+      return read(SessionRefresh.Conversation)
+        ? optional(this.api.get<HelpRequest>(this.role + '/requests/' + selectedId)).pipe(map(conversation => ({ ...data, conversation })))
+        : of(data);
+    }), timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => {
       this.refreshing = false;
+      this.activeRefreshParts = SessionRefresh.None;
       this.loading = false;
-      if (this.refreshQueued && !this.destroyed) this.refresh();
+      const queued = this.queuedRefreshParts;
+      this.queuedRefreshParts = SessionRefresh.None;
+      if (queued !== SessionRefresh.None && !this.destroyed) this.refresh(queued);
     })).subscribe({
       next: data => {
         this.refreshError = '';
-        this.sessions = data.sessions;
-        this.session = data.session;
-        this.sessionUnavailable = !!this.sessionId && !data.session;
-        this.requests = data.requests ?? [];
-        this.faqs = data.faqs ?? [];
-        this.archives = data.archives ?? [];
-        this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
-        this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
-        this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
+        if (data.sessions) this.sessions = data.sessions;
+        if (read(SessionRefresh.Session)) {
+          this.session = data.session;
+          this.sessionUnavailable = !!this.sessionId && !data.session;
+        }
+        if (read(SessionRefresh.Requests)) this.requests = data.requests ?? [];
+        if (read(SessionRefresh.Faqs)) this.faqs = data.faqs ?? [];
+        if (read(SessionRefresh.Archives)) this.archives = data.archives ?? [];
+        if (read(SessionRefresh.Queue)) {
+          this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
+          this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
+        }
+        if (selectedId === this.selectedRequestId && (read(SessionRefresh.Conversation) || data.conversation))
+          this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
         const context = this.sessionId + ':' + this.session?.currentGeneration;
         if (context !== this.generalizationContext) {
           this.generalizationContext = context;
@@ -242,7 +280,6 @@ export class TestPageComponent {
       error: failure => this.handleError(failure, true)
     });
   }
-
   joinSession() {
     const code = this.joinCode.trim().toUpperCase();
     if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return;
@@ -250,7 +287,7 @@ export class TestPageComponent {
       this.joinCode = '';
       this.notice = 'Du er tilmeldt ' + session.title + '.';
       if (this.isTeacher) void this.router.navigate(['/teachers/sessions', session.id]);
-    });
+    }, this.isTeacher ? SessionRefresh.None : SessionRefresh.Sessions);
   }
 
   login() { this.api.login(this.router.url); }
@@ -267,7 +304,7 @@ export class TestPageComponent {
     if (!this.sessionTitle.trim()) return;
     this.execute(this.api.post<TeacherSession>('teachers/sessions', { title: this.sessionTitle.trim() }), session => {
       void this.router.navigate(['/teachers/sessions', session.id]);
-    });
+    }, SessionRefresh.None);
   }
 
   createHelpRequest() {
@@ -275,9 +312,10 @@ export class TestPageComponent {
     this.execute(this.api.post<HelpRequest>('students/sessions/' + this.sessionId + '/requests',
       { message: this.message.trim(), helpType: this.helpType }), request => {
       this.selectRequest(request.id);
+      this.applyRequest(request);
       this.message = '';
       this.notice = request.displayNumber + ' er oprettet.';
-    });
+    }, SessionRefresh.Queue);
   }
 
   takeNext() {
@@ -285,20 +323,21 @@ export class TestPageComponent {
     this.execute(this.api.post<HelpRequest | null>('teachers/sessions/' + this.sessionId + '/queue/take-next', null), request => {
       if (request) {
         this.selectRequest(request.id);
-        this.conversation = request;
+        this.applyRequest(request);
         this.replyText = '';
         this.notice = 'Du har taget ' + request.displayNumber + '.';
       }
       else this.notice = 'Der er ingen ledige hjælpeanmodninger i køen.';
-    });
+    }, SessionRefresh.Queue);
   }
 
   openRequest(id: string) {
-    this.stopRefresh();
     this.selectRequest(id);
     this.conversation = null;
     this.replyText = '';
-    this.refresh();
+    const queued = [...(this.teacherQueue?.requests ?? []), ...this.activeRequests].find(request => request.id === id);
+    if (this.isTeacher && queued && !this.refreshing) this.conversation = queued;
+    else this.refresh(SessionRefresh.Conversation);
   }
 
   openFaqResponse(id: string) {
@@ -314,29 +353,29 @@ export class TestPageComponent {
     if (!this.canSendMessage || !this.replyText.trim()) return;
     this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/messages',
       { text: this.replyText.trim() }), request => {
-      this.conversation = request;
+      this.applyRequest(request);
       this.replyText = '';
       this.notice = this.isTeacher ? 'Dit svar er sendt, og hjælpen er afsluttet.' : 'Din besked er sendt. Anmodningen er tilbage i køen.';
-    });
+    }, SessionRefresh.Queue);
   }
 
   respondToFaq(accept: boolean) {
     if (!this.canRespondToFaq || this.busy) return;
     this.execute(this.api.patch<HelpRequest>('students/requests/' + this.conversation!.id + '/faq', { accept }), request => {
-      this.conversation = request;
+      this.applyRequest(request);
       this.notice = accept ? 'FAQ-svaret er accepteret. Din anmodning er afsluttet.'
         : request.helpType === 'Physical' ? 'Du er tilbage i køen til fysisk hjælp med din oprindelige køplads.'
           : 'Du er tilbage i køen med din oprindelige køplads.';
-    });
+    }, SessionRefresh.Queue);
   }
 
   changeStatus(action: HelpRequestAction) {
     if (action === 'Start' && !this.canStart || action === 'Complete' && !this.canComplete || action === 'Cancel' && !this.canCancel) return;
     this.execute(this.api.patch<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/status', { action }), request => {
-      this.conversation = request;
+      this.applyRequest(request);
       this.notice = action === 'Start' ? 'Fysisk hjælp er startet.' : action === 'Complete' ? 'Hjælpen er afsluttet.'
         : this.isTeacher ? 'Anmodningen er sendt forrest i køen.' : 'Din anmodning er annulleret.';
-    });
+    }, SessionRefresh.Queue);
   }
 
   clearSession() {
@@ -358,7 +397,8 @@ export class TestPageComponent {
       this.conversation = null;
       this.replyText = '';
       this.notice = 'Generation ' + result.generation + ' er arkiveret. Sessionen fortsætter i generation ' + result.currentGeneration + '.';
-      this.openArchive(result.archiveId);
+      this.closeArchive();
+      this.selectedArchiveId = result.archiveId;
     });
   }
 
@@ -413,20 +453,40 @@ export class TestPageComponent {
     return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
   }
 
-  private execute<T>(request: Observable<T>, success: (body: T) => void) {
+  private applyRequest(request: HelpRequest) {
+    this.conversation = request;
+    if (this.isTeacher || !request.studentId || request.generation !== this.session?.currentGeneration) return;
+    const previous = this.requests.find(summary => summary.id === request.id);
+    const summary: HelpRequestSummary = {
+      id: request.id, requestNumber: request.requestNumber, displayNumber: request.displayNumber,
+      studentId: request.studentId, sessionId: request.sessionId, generation: request.generation,
+      status: request.status, helpType: request.helpType,
+      message: request.messages.find(message => message.messageType === 'StudentQuestion')?.text ?? previous?.message ?? ''
+    };
+    this.requests = previous ? this.requests.map(item => item.id === request.id ? summary : item) : [...this.requests, summary];
+  }
+
+  private execute<T>(request: Observable<T>, success: (body: T) => void, parts = this.visibleRefreshParts) {
     if (this.busy) return;
+    const interrupted = this.activeRefreshParts | this.queuedRefreshParts;
     this.stopRefresh();
+    this.queuedRefreshParts = interrupted;
     this.busy = true;
     this.error = '';
     this.refreshError = '';
     this.notice = '';
     request.pipe(timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => { this.busy = false; })).subscribe({
-      next: body => { this.busy = false; success(body); this.refresh(); },
-      error: failure => { this.handleError(failure); this.busy = false; this.refresh(); }
+      next: body => { this.busy = false; success(body); this.scheduleRefresh(parts | this.queuedRefreshParts); },
+      error: failure => { this.handleError(failure); this.busy = false; this.scheduleRefresh(this.visibleRefreshParts); }
     });
   }
 
-  private stopRefresh() { this.refreshQueued = false; this.refreshSubscription?.unsubscribe(); this.refreshing = false; }
+  private stopRefresh() {
+    this.queuedRefreshParts = SessionRefresh.None;
+    this.refreshSubscription?.unsubscribe();
+    this.activeRefreshParts = SessionRefresh.None;
+    this.refreshing = false;
+  }
   private selectRequest(id: string) {
     this.selectedRequestId = id;
     try { sessionStorage.setItem(this.selectionKey, id); } catch { /* Selection also works without storage. */ }

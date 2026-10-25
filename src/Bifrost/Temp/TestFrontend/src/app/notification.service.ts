@@ -8,9 +8,12 @@ export class NotificationService {
   private connection?: HubConnection;
   private connectionUserId?: string;
   private connectionVersion = 0;
+  private startingConnection?: HubConnection;
   private retry?: ReturnType<typeof setTimeout>;
   private readonly seen = new Set<string>();
   private readonly pending = signal<Notification[]>([]);
+  private readonly connectionState = signal(HubConnectionState.Disconnected);
+  readonly connected = computed(() => this.connectionState() === HubConnectionState.Connected);
   readonly current = computed(() => this.pending()[0] ?? null);
   readonly title = computed(() => notificationTitle(this.current()));
   readonly target = computed(() => notificationTarget(this.current()));
@@ -37,10 +40,19 @@ export class NotificationService {
       this.pending.update(messages => [...messages, received]);
       this.received.next(received);
     });
-    connection.onreconnected(() => {
-      if (this.connection === connection) this.reconnected.next();
+    connection.onreconnecting(() => {
+      if (this.connection === connection) this.connectionState.set(HubConnectionState.Reconnecting);
     });
-    connection.onclose(() => this.scheduleRetry(connection));
+    connection.onreconnected(() => {
+      if (this.connection !== connection) return;
+      this.connectionState.set(HubConnectionState.Connected);
+      this.reconnected.next();
+    });
+    connection.onclose(() => {
+      if (this.connection !== connection) return;
+      this.connectionState.set(HubConnectionState.Disconnected);
+      this.scheduleRetry(connection);
+    });
     await this.start(connection);
   }
 
@@ -57,20 +69,29 @@ export class NotificationService {
     const previous = this.connection;
     this.connection = undefined;
     this.connectionUserId = undefined;
+    this.connectionState.set(HubConnectionState.Disconnected);
     this.pending.set([]);
     this.seen.clear();
     await previous?.stop();
   }
 
   private async start(connection: HubConnection) {
-    if (this.connection !== connection) return;
+    if (this.connection !== connection || this.startingConnection === connection
+      || connection.state !== HubConnectionState.Disconnected) return;
+    this.startingConnection = connection;
+    this.connectionState.set(HubConnectionState.Connecting);
     try {
       await connection.start();
       if (this.connection !== connection) { await connection.stop(); return; }
-      this.reconnected.next();
+      this.connectionState.set(connection.state);
+      if (this.connected()) this.reconnected.next();
     } catch (error) {
+      if (this.connection !== connection) return;
+      this.connectionState.set(connection.state);
       console.warn('Notifikationsforbindelsen kunne ikke oprettes. Prøver igen.', error);
       this.scheduleRetry(connection);
+    } finally {
+      if (this.startingConnection === connection) this.startingConnection = undefined;
     }
   }
 

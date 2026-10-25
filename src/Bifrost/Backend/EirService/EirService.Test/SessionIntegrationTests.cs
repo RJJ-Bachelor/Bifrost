@@ -350,7 +350,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
-        Assert.Equal(1, await db.Outbox.CountAsync());
+        Assert.Equal(1, await db.Outbox.CountAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated));
     }
 
     [PostgresFact]
@@ -368,7 +368,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await firstScope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync();
         await Assert.ThrowsAsync<UnitOfWorkConcurrencyException>(() =>
             secondScope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync());
-        Assert.Equal(1, await firstDb.Outbox.CountAsync());
+        Assert.Equal(1, await firstDb.Outbox.CountAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated));
         Assert.Empty(first.GetDomainEvents());
         Assert.Single(second.GetDomainEvents());
         Assert.Equal(2, (await firstDb.Sessions.SingleAsync()).CurrentGeneration);
@@ -387,7 +387,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var domainEvent = Assert.IsType<SessionClearedDomainEvent>(Assert.Single(session.GetDomainEvents()));
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
-        var queued = await db.Outbox.SingleAsync();
+        var queued = await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated);
         var integrationEvent = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(queued.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(domainEvent.Id, integrationEvent.EventId);
@@ -402,10 +402,10 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.Null(queued.PublishedAtUtc);
         Assert.Empty(bus.Messages);
         await unitOfWork.SaveChangesAsync();
-        Assert.Equal(1, await db.Outbox.CountAsync());
+        Assert.Equal(1, await db.Outbox.CountAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated));
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirSessionDbContext>>(app.Services);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal(MessageRoutes.SessionUpdated, Assert.Single(bus.Messages).RoutingKey);
+        Assert.Single(bus.Messages, message => message.RoutingKey == MessageRoutes.SessionUpdated);
     }
 
     [PostgresFact]
@@ -434,7 +434,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
             """);
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
-        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync()).MessageId);
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).MessageId);
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
     }
 
@@ -478,7 +478,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         bus.Fail = true;
         await dispatcher.PublishPendingAsync(CancellationToken.None);
         await using (var scope = app.Services.CreateAsyncScope())
-            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc == null));
+            Assert.Equal(4, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc == null));
         bus.Fail = false;
         await dispatcher.PublishPendingAsync(CancellationToken.None);
         Assert.Contains(bus.Messages, message => message.RoutingKey == MessageRoutes.HelpRequestCreated);
@@ -487,7 +487,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(session.Id, help.GetProperty("sessionId").GetGuid());
         Assert.Equal(1, help.GetProperty("generation").GetInt32());
         await dispatcher.PublishPendingAsync(CancellationToken.None);
-        Assert.Equal(3, bus.Messages.Count);
+        Assert.Equal(4, bus.Messages.Count);
     }
 
     [PostgresFact]
@@ -661,7 +661,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Empty(await db.Sessions.ToArrayAsync());
         var messages = await db.Outbox.AsNoTracking().ToArrayAsync();
-        var deleted = Assert.Single(messages, message =>
+        var deleted = Assert.Single(messages, message => message.RoutingKey == MessageRoutes.SessionUpdated &&
             JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(message.Payload,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web))!.EventType == SessionUpdateType.Deleted);
         var payload = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(deleted.Payload,
@@ -746,7 +746,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
         Assert.Empty(await db.Sessions.ToArrayAsync());
-        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync()).MessageId);
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).MessageId);
     }
 
     [PostgresFact]
@@ -765,7 +765,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var verification = app.Services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Equal(2, (await saved.Sessions.SingleAsync()).CurrentGeneration);
-        var payload = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>((await saved.Outbox.SingleAsync()).Payload,
+        var payload = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>((await saved.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(SessionUpdateType.Cleared, payload.EventType);
     }
@@ -1048,7 +1048,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
         Assert.Equal(1, await db.Requests.CountAsync(request => request.SessionId == session.Id));
-        Assert.Equal(3, await db.Outbox.CountAsync());
+        Assert.Equal(4, await db.Outbox.CountAsync()); // Two integration events and one notification per recipient.
+        Assert.Equal(2, (await ReadNotificationsAsync(null)).Length);
     }
 
     [PostgresFact]
@@ -1084,8 +1085,10 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await JoinAsync(session.Code);
         var id = await SubmitAsync(student, session.Id, HelpType.Physical);
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        var notificationsBefore = await ReadNotificationsAsync(null);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+        var outboxCountBefore = await db.Outbox.CountAsync();
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE helprequests.outbox ADD CONSTRAINT "RejectStartedForTest"
             CHECK ("Payload"::jsonb->>'change' IS DISTINCT FROM 'Started');
@@ -1097,7 +1100,21 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var verification = app.Services.CreateAsyncScope();
         var saved = verification.ServiceProvider.GetRequiredService<EirRequestDbContext>();
         Assert.Equal(HelpRequestStatus.Pending, (await saved.Requests.SingleAsync(request => request.Id == id)).Status);
-        Assert.Equal(4, await saved.Outbox.CountAsync());
+        Assert.Equal(outboxCountBefore, await saved.Outbox.CountAsync());
+        Assert.Equal(notificationsBefore.Select(item => item.Id).Order(),
+            (await ReadNotificationsAsync(null)).Select(item => item.Id).Order());
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE helprequests.outbox DROP CONSTRAINT "RejectStartedForTest";
+            """);
+        await scope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync();
+        var retried = (await ReadNotificationsAsync(null))
+            .Where(item => notificationsBefore.All(previous => previous.Id != item.Id)).ToArray();
+        AssertSessionBroadcast(retried, session.Id, ["provider|opaque-teacher", request.StudentId!],
+            new Dictionary<string, (NotificationEventType, Guid)>
+            { [request.StudentId!] = (NotificationEventType.HelpRequestStarted, id) });
+        var committedIds = (await ReadNotificationsAsync(null)).Select(item => item.Id).Order().ToArray();
+        await scope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync();
+        Assert.Equal(committedIds, (await ReadNotificationsAsync(null)).Select(item => item.Id).Order());
     }
 
     [PostgresFact]
@@ -1220,13 +1237,19 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         return client;
     }
 
-    private async Task<(Guid Id, NotificationCreatedMessage Message)[]> ReadNotificationsAsync()
+    // Existing scenarios assert actionable notifications; pass null to inspect the complete broadcast.
+    private async Task<(Guid Id, NotificationCreatedMessage Message)[]> ReadNotificationsAsync(
+        NotificationDeliveryType? deliveryType = NotificationDeliveryType.RealtimeOrPush)
     {
         await using var scope = app.Services.CreateAsyncScope();
         var messages = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.AsNoTracking()
             .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync();
-        return messages.Select(message => (message.MessageId, JsonSerializer.Deserialize<NotificationCreatedMessage>(
-            message.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!)).ToArray();
+        var faqMessages = await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>()
+            .Set<OutboxMessage>().AsNoTracking()
+            .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync();
+        return messages.Concat(faqMessages).Select(message => (Id: message.MessageId, Message: JsonSerializer.Deserialize<NotificationCreatedMessage>(
+            message.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!))
+            .Where(item => deliveryType is null || item.Message.DeliveryType == deliveryType).ToArray();
     }
 
     private static async Task<Guid> SubmitAsync(HttpClient client, Guid sessionId, HelpType helpType)

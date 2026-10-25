@@ -6,6 +6,11 @@
       <a routerLink="/students" routerLinkActive="active">Studerende</a>
       <a routerLink="/teachers" routerLinkActive="active">Underviser</a>
     </nav>
+    <span class="connection-status" [class.connected]="notifications.connected()" role="status"
+      [attr.aria-label]="notifications.connected() ? 'SignalR: forbundet' : 'SignalR: ikke forbundet'"
+      [attr.title]="notifications.connected() ? 'SignalR: forbundet' : 'SignalR: ikke forbundet'">
+      <span class="connection-status-dot" aria-hidden="true"></span>
+    </span>
   </div>
 </header>
 <main id="main-content"><router-outlet /></main>
@@ -18,6 +23,7 @@
     <p *ngIf="notifications.count() > 1" class="hint">{{ notifications.count() }} ulæste notifikationer</p>
     <dl class="notification-details">
       <div><dt>Hændelse:</dt><dd>{{ notification.eventType ?? 'Unknown' }}</dd></div>
+      <div><dt>Leveringstype:</dt><dd>{{ notification.deliveryType ?? 'RealtimeOrPush' }}</dd></div>
       <div *ngIf="notification.generation != null"><dt>Generation:</dt><dd>{{ notification.generation }}</dd></div>
       <div *ngIf="notification.status"><dt>Status:</dt><dd>{{ notification.status }}</dd></div>
       <div><dt>UserId:</dt><dd>{{ notification.userId }}</dd></div>
@@ -26,7 +32,7 @@
       <div><dt>NotificationId:</dt><dd>{{ notification.notificationId }}</dd></div>
       <div><dt>CreatedAt:</dt><dd>{{ notification.createdAt | date:'dd.MM.yyyy HH:mm:ss' }}</dd></div>
     </dl>
-    <a *ngIf="notifications.target() as target" [routerLink]="target" (click)="notifications.dismiss()">Åbn samtalen</a>
+    <a *ngIf="notifications.target() as target" [routerLink]="target" (click)="notifications.dismiss()">{{ notification.helpRequestId ? 'Åbn samtalen' : 'Åbn sessionen' }}</a>
     <button type="button" (click)="notifications.dismiss()" autofocus>Luk</button>
   </section>
 </div>

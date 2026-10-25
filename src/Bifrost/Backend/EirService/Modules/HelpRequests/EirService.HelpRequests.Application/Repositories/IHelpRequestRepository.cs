@@ -9,6 +9,7 @@ public interface IHelpRequestRepository
     Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string studentId, CancellationToken cancellationToken);
     // Returns requests in queue order: latest return first, then QueuedAt and Id.
     Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
+    Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
         IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken);
     Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken);
