@@ -49,11 +49,43 @@ public sealed class UnitOfWorkEventBusTests
         Assert.Empty(db.ChangeTracker.Entries<OutboxMessage>());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CommitCoalescesExplicitKeysAndPrefersPersonalNotificationsRegardlessOfEventOrder(bool personalFirst)
+    {
+        await using var services = BuildServices(new HandlerGate());
+        await using var db = CreateContext();
+        var aggregate = new TestAggregate();
+        db.Add(aggregate);
+        var personal = new KeyedDomainEvent("session-a:user-a", 1, "Personal answer");
+        var generic = new KeyedDomainEvent("session-a:user-a", 0, "Refresh queue");
+        aggregate.AddEvent(personalFirst ? personal : generic);
+        aggregate.AddEvent(personalFirst ? generic : personal);
+        aggregate.AddEvent(new KeyedDomainEvent("session-a:user-a", 0, "Another source changed"));
+        aggregate.AddEvent(new KeyedDomainEvent("session-a:user-b", 0, "Another participant"));
+        aggregate.AddEvent(new KeyedDomainEvent("session-b:user-a", 0, "Another session"));
+        aggregate.AddEvent(new KeyedDomainEvent(null, 0, "Request integration event"));
+        aggregate.AddEvent(new KeyedDomainEvent(null, 0, "Answer integration event"));
+
+        await new UnitOfWork<UnitOfWorkEventBusTests, RecordingDbContext>(db, TimeProvider.System).SaveChangesAsync();
+
+        var messages = db.ChangeTracker.Entries<OutboxMessage>().Select(entry => entry.Entity).ToArray();
+        Assert.Equal(5, messages.Length);
+        Assert.Single(messages, message => message.Payload.Contains("Personal answer"));
+        Assert.DoesNotContain(messages, message => message.Payload.Contains("Refresh queue") || message.Payload.Contains("Another source changed"));
+        Assert.Single(messages, message => message.Payload.Contains("Another participant"));
+        Assert.Single(messages, message => message.Payload.Contains("Another session"));
+        Assert.Single(messages, message => message.Payload.Contains("Request integration event"));
+        Assert.Single(messages, message => message.Payload.Contains("Answer integration event"));
+        Assert.Empty(aggregate.GetDomainEvents());
+    }
+
     private static ServiceProvider BuildServices(HandlerGate gate)
     {
         var services = new ServiceCollection();
         services.AddSingleton(gate);
-        services.AddMessaging(new List<Type> { typeof(GatedHandler), typeof(FailingHandler) });
+        services.AddMessaging(new List<Type> { typeof(GatedHandler), typeof(FailingHandler), typeof(KeyedHandler) });
         var provider = services.BuildServiceProvider();
         provider.UseMessaging();
         return provider;
@@ -86,6 +118,20 @@ public sealed class UnitOfWorkEventBusTests
 
     private sealed record GatedDomainEvent() : DomainEvent(Guid.NewGuid());
     private sealed record FailingDomainEvent() : DomainEvent(Guid.NewGuid());
+
+    private sealed record KeyedDomainEvent(string? Key, int Priority, string Value) : DomainEvent(Guid.NewGuid());
+
+    private sealed class KeyedHandler : IEventHandler<DomainEventNotification<KeyedDomainEvent>>
+    {
+        public Task HandleAsync(DomainEventNotification<KeyedDomainEvent> notification, CancellationToken cancellationToken)
+        {
+            var change = notification.DomainEvent;
+            // Independent integration events can share a correlation ID and must remain separate.
+            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.Parse("11111111-1111-1111-1111-111111111111"),
+                new { change.Value }, "events", "changed", change.Key, change.Priority));
+            return Task.CompletedTask;
+        }
+    }
 
     private sealed class HandlerGate
     {

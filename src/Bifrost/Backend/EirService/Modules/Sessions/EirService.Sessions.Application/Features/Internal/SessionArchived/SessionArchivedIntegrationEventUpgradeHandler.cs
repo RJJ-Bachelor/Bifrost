@@ -1,3 +1,5 @@
+using EirService.Sessions.Application.Features.Internal.Common;
+using Microsoft.Extensions.DependencyInjection;
 using EirService.Sessions.Domain.DomainEvents;
 using FastEndpoints;
 using Shared.Application.DomainEvents;
@@ -7,10 +9,10 @@ using Shared.Application.Messaging.Outbox;
 
 namespace EirService.Sessions.Application.Features.Internal.SessionArchived;
 
-public sealed class SessionArchivedIntegrationEventUpgradeHandler
+public sealed class SessionArchivedIntegrationEventUpgradeHandler(IServiceScopeFactory scopeFactory)
     : IEventHandler<DomainEventNotification<SessionArchivedDomainEvent>>
 {
-    public Task HandleAsync(DomainEventNotification<SessionArchivedDomainEvent> notification, CancellationToken cancellationToken)
+    public async Task HandleAsync(DomainEventNotification<SessionArchivedDomainEvent> notification, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var domainEvent = notification.DomainEvent;
@@ -18,6 +20,7 @@ public sealed class SessionArchivedIntegrationEventUpgradeHandler
             domainEvent.CurrentGeneration, SessionUpdateType.Archived, domainEvent.ArchivedAtUtc, domainEvent.PreviousGeneration);
         notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
             MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
-        return Task.CompletedTask;
+        await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.CurrentGeneration,
+            "Archived", notification.EnqueueIntegrationEvent, cancellationToken);
     }
 }

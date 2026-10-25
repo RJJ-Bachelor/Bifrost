@@ -32,6 +32,35 @@ public sealed class HelpRequestRepository(
     public async Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         await dbContext.Requests.Include(request => request.Messages).Where(request => ids.Contains(request.Id)).ToArrayAsync(cancellationToken);
 
+    public Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+        dbContext.Requests.AsNoTracking()
+            .Where(request => request.SessionId == sessionId && request.Generation == generation &&
+                request.Status == HelpRequestStatus.Pending && request.StudentId != null)
+            .Select(request => request.StudentId!).Distinct().ToArrayAsync(cancellationToken);
+
+    public async Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
+        IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken)
+    {
+        if (sessionGenerations.Count == 0) return new Dictionary<Guid, int>();
+
+        IQueryable<Guid>? waitingSessionIds = null;
+        foreach (var group in sessionGenerations.GroupBy(session => session.Value))
+        {
+            var generation = group.Key;
+            var sessionIds = group.Select(session => session.Key).ToArray();
+            var requests = dbContext.Requests.AsNoTracking()
+                .Where(request => request.Status == HelpRequestStatus.Pending && request.Generation == generation &&
+                    sessionIds.Contains(request.SessionId))
+                .Select(request => request.SessionId);
+            waitingSessionIds = waitingSessionIds is null ? requests : waitingSessionIds.Concat(requests);
+        }
+
+        // Aggregate exact session/generation pairs in one SQL query, without loading requests or messages.
+        return await waitingSessionIds!.GroupBy(sessionId => sessionId)
+            .Select(group => new { SessionId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(group => group.SessionId, group => group.Count, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
         await dbContext.Requests.Include(request => request.Messages)
             .Where(request => request.FaqAnswerId == faqId && request.StudentId != null).ToArrayAsync(cancellationToken);

@@ -26,6 +26,8 @@ using EirService.Participants.Application.Repositories;
 using EirService.Participants.Application.Features.Student.JoinSession;
 using EirService.Participants.Application.Features.Teacher.JoinSession;
 using EirService.Contracts.Participants.GetSessionTeacherIds;
+using EirService.Contracts.Participants.GetSessionParticipantIds;
+using EirService.Participants.Application.Features.Internal.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
 using EirService.Participants.Application.Features.Internal.GetSessionTeacherIds;
 using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
@@ -96,6 +98,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<IUnitOfWork<ISessionRepository>>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
         builder.Services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionParticipantIdsQuery, string[]>, GetSessionParticipantIdsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
         var dataProtection = new EphemeralDataProtectionProvider();
@@ -296,7 +299,8 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.Equal(1, result.Generation);
         Assert.Equal("Please help", Assert.Single(result.Messages).Text);
         Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
-        var notification = Assert.Single(_requests.Notifications);
+        var notification = Assert.Single(_requests.Notifications,
+            item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush);
         Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
             sessionId, 1, result.Id, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
         Assert.NotEqual(result.Id, notification.Id);
@@ -341,7 +345,8 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.NotEqual(Guid.Empty, result.Id);
         Assert.Equal("student-123", Assert.Single(_requests.Saved).StudentId);
         Assert.Single(_requests.RequestMessages);
-        var notification = Assert.Single(_requests.Notifications);
+        var notification = Assert.Single(_requests.Notifications,
+            item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush);
         Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
             sessionId, 1, result.Id, "Created", "Pending", NotificationEventType.HelpRequestCreated), notification.Message);
     }
@@ -543,15 +548,18 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         }
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            var outgoing = new List<OutgoingMessage>();
             foreach (var request in Saved)
             {
                 foreach (var domainEvent in request.GetDomainEvents().OfType<HelpRequestChangedDomainEvent>())
-                    await new DomainEventNotification<HelpRequestChangedDomainEvent>(domainEvent, outgoing =>
-                    {
-                        if (outgoing.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((outgoing.Id, help.Message));
-                        if (outgoing.Payload is NotificationCreatedMessage notification) Notifications.Add((outgoing.Id, notification));
-                    }).PublishAsync(Mode.WaitForAll, cancellationToken);
+                    await new DomainEventNotification<HelpRequestChangedDomainEvent>(domainEvent, outgoing.Add)
+                        .PublishAsync(Mode.WaitForAll, cancellationToken);
                 request.ClearDomainEvents();
+            }
+            foreach (var message in OutgoingMessage.Coalesce(outgoing))
+            {
+                if (message.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((message.Id, help.Message));
+                if (message.Payload is NotificationCreatedMessage notification) Notifications.Add((message.Id, notification));
             }
         }
         public Task<HelpRequest?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -562,6 +570,16 @@ public sealed partial class CommandBusTests : IAsyncLifetime
                 .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
         public Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => ids.Contains(request.Id)).ToArray());
+        public Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+            Task.FromResult(Saved.Where(request => request.SessionId == sessionId && request.Generation == generation &&
+                    request.Status == HelpRequestStatus.Pending && request.StudentId != null)
+                .Select(request => request.StudentId!).Distinct().ToArray());
+        public Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
+            IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, int>>(Saved.Where(request =>
+                    request.Status == HelpRequestStatus.Pending &&
+                    sessionGenerations.TryGetValue(request.SessionId, out var generation) && request.Generation == generation)
+                .GroupBy(request => request.SessionId).ToDictionary(group => group.Key, group => group.Count()));
         public Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => !request.IsFaq && request.FaqAnswerId == faqId).ToArray());
         public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>

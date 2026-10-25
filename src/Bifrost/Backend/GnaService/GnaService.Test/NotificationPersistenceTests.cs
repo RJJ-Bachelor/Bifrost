@@ -31,7 +31,7 @@ using Shared.Application.Messaging.Outbox;
 
 namespace GnaService.Test;
 
-public sealed class NotificationPersistenceTests : IAsyncLifetime
+public sealed partial class NotificationPersistenceTests : IAsyncLifetime
 {
     private readonly string database = "gna_tests_" + Guid.NewGuid().ToString("N");
     private string connectionString = "";
@@ -90,6 +90,7 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
         Assert.Equal(incoming.Payload.Change, saved.Change);
         Assert.Equal(incoming.Payload.Status, saved.Status);
         Assert.Equal(NotificationEventType.HelpRequestAnswered, saved.EventType);
+        Assert.Equal(NotificationDeliveryType.RealtimeOrPush, saved.DeliveryType);
         var outbox = Assert.Single(await db.Outbox.ToArrayAsync());
         Assert.Equal(incoming.Id, outbox.MessageId);
         Assert.Equal(MessageRoutes.NotificationDeliveryRequested, outbox.RoutingKey);
@@ -105,6 +106,7 @@ public sealed class NotificationPersistenceTests : IAsyncLifetime
         Assert.Equal(incoming.Payload.Change, delivery.Change);
         Assert.Equal(incoming.Payload.Status, delivery.Status);
         Assert.Equal(NotificationEventType.HelpRequestAnswered, delivery.EventType);
+        Assert.Equal(NotificationDeliveryType.RealtimeOrPush, delivery.DeliveryType);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 

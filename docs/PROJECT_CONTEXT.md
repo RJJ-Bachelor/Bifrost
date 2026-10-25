@@ -305,3 +305,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Session archiving emits a `SessionUpdatedIntegrationEvent` (`Archived`) via the transactional outbox, triggering automated queue cleanup and synchronization across modules and background services.
 - Added role-restricted endpoints for listing and inspecting session archives, enforcing architectural boundaries where students access only their own conversations and answered FAQs.
 - Enforced generation-based concurrency validation during archive execution to guarantee strict atomic lifecycle transitions under concurrent requests.
+
+---
+
+## Update 2026-10-25
+
+- Teacher session summaries (`GetSessions`) include live waiting count metrics per session generation, incorporating pending requests while excluding active or confirmation-waiting items.
+- The transactional outbox pipeline (`OutgoingMessage.Coalesce`) supports coalescing explicitly keyed messages within a single database commit, prioritizing personal notifications over generic updates.
+- Real-time notification contracts introduce explicit delivery modes (`NotificationDeliveryType.RealtimeOrPush` versus `RealtimeOnly`) to control whether fallback push channels are engaged.
+- Session lifecycle transitions (clearing, archiving, and deletion) automatically broadcast `SessionChanged` real-time events to all session participants and associated teachers.
+- The frontend implements a granular notification-driven refresh strategy using bitmasked refresh flags (`SessionRefresh`) to selectively reload view state based on specific real-time event categories rather than relying on polling.

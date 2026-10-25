@@ -51,7 +51,8 @@ public sealed partial class SessionIntegrationTests
             Assert.Equal(payload.Question, faq.Question);
             Assert.Equal(payload.HelpRequestIds.Order(), faq.HelpRequestIds);
         }
-        var notices = (await ReadNotificationsAsync()).Where(item => item.Message.Change == "FaqCreated").ToArray();
+        var notices = (await ReadNotificationsAsync()).Where(item => item.Message.EventType == NotificationEventType.FaqCreated &&
+            item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush && item.Message.HelpRequestId == payload.GeneralizationId).ToArray();
         Assert.Equal(new[] { "colleague", "provider|opaque-teacher" }, notices.Select(item => item.Message.UserId).Order());
         Assert.Equal(2, notices.Select(item => item.Id).Distinct().Count());
         Assert.All(notices, item =>
@@ -93,6 +94,7 @@ public sealed partial class SessionIntegrationTests
         var suggested = (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!;
         Assert.Equal(HelpRequestStatus.AwaitingConfirmation, suggested.Status);
         Assert.Equal("Check the loop condition.", suggested.Messages.Last().Text);
+        await PersistFaqAnswerFromOutboxAsync();
         var answerNotices = (await ReadNotificationsAsync()).Where(item => item.Message.EventType == NotificationEventType.FaqAnswered).ToArray();
         Assert.Equal(new[] { firstId, secondId }.Order(), answerNotices.Select(item => item.Message.HelpRequestId!.Value).Order());
         Assert.Equal(2, answerNotices.Select(item => item.Id).Distinct().Count());
@@ -163,6 +165,7 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
         Assert.Equal(HelpRequestStatus.Cancelled, (await student.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{firstId}", FaqJsonOptions))!.Status);
         Assert.Equal(HelpRequestStatus.AwaitingConfirmation, (await second.GetFromJsonAsync<HelpRequestResult>($"/api/students/requests/{secondId}", FaqJsonOptions))!.Status);
+        await PersistFaqAnswerFromOutboxAsync();
         var notice = Assert.Single(await ReadNotificationsAsync(), item => item.Message.EventType == NotificationEventType.FaqAnswered);
         Assert.Equal(secondId, notice.Message.HelpRequestId);
     }

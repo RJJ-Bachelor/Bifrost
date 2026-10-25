@@ -29,6 +29,10 @@ public sealed class ParticipantRepository(EirParticipantDbContext dbContext) : I
         dbContext.Participants.AsNoTracking().Where(participant => participant.SubjectId == subjectId && participant.Role == role)
             .Select(participant => participant.SessionId).ToArrayAsync(cancellationToken);
 
+    public Task<string[]> GetParticipantIdsAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        dbContext.Participants.AsNoTracking().Where(participant => participant.SessionId == sessionId)
+            .Select(participant => participant.SubjectId).Distinct().OrderBy(subjectId => subjectId).ToArrayAsync(cancellationToken);
+
     public Task<string[]> GetSubjectIdsAsync(Guid sessionId, ParticipantRole role, CancellationToken cancellationToken) =>
         dbContext.Participants.AsNoTracking().Where(participant => participant.SessionId == sessionId && participant.Role == role)
             .OrderBy(participant => participant.SubjectId).Select(participant => participant.SubjectId).ToArrayAsync(cancellationToken);

@@ -48,3 +48,20 @@ test('only matching session generation and recipient role trigger a conversation
   assert.equal(helpers.notificationAffectsSession(notification, 'students', '', 2), true);
   assert.equal(helpers.notificationAffectsSession({ sessionId: null }, 'students', sessionId, 2), true);
 });
+
+test('session lifecycle notifications advance the current generation without accepting old request events', () => {
+  for (const change of ['Cleared', 'Archived']) {
+    const update = { ...notification, eventType: 'SessionChanged', change, generation: 3 };
+    assert.equal(helpers.notificationAffectsSession(update, 'students', sessionId, 2), true);
+    assert.equal(helpers.notificationAffectsSession(update, 'students', sessionId, 4), false);
+  }
+  assert.equal(helpers.notificationAffectsSession({ ...notification, generation: 3 }, 'students', sessionId, 2), false);
+  assert.equal(helpers.notificationAffectsSession({ ...notification, eventType: 'SessionChanged', change: 'Deleted' },
+    'students', sessionId, 2), true);
+});
+
+test('notification role filtering respects the recipient and accepts legacy messages without a role', () => {
+  assert.equal(helpers.notificationAffectsRole(notification, 'students'), true);
+  assert.equal(helpers.notificationAffectsRole(notification, 'teachers'), false);
+  assert.equal(helpers.notificationAffectsRole({ ...notification, recipientRole: undefined }, 'teachers'), true);
+});

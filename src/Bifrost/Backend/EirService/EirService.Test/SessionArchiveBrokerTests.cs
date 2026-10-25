@@ -59,7 +59,7 @@ public sealed partial class SessionIntegrationTests
             await ActivatorUtilities.CreateInstance<OutboxDispatcher<EirSessionDbContext>>(producer)
                 .PublishPendingAsync(CancellationToken.None);
             await using (var scope = app.Services.CreateAsyncScope())
-                Assert.NotNull((await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Outbox.SingleAsync()).PublishedAtUtc);
+                Assert.NotNull((await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).PublishedAtUtc);
 
             // Mimir starts after the archive has already been published and receives the retained message.
             var received = new TaskCompletionSource<SessionUpdatedIntegrationEvent>(TaskCreationOptions.RunContinuationsAsynchronously);

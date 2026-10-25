@@ -145,7 +145,7 @@ public sealed partial class SessionIntegrationTests
             var saved = await db.Requests.SingleAsync(request => request.Id == id);
             Assert.Null(saved.AssignedTeacherId);
             Assert.Equal(HelpRequestStatus.Pending, saved.Status);
-            Assert.Equal(3, await db.Outbox.CountAsync()); // Created, request text and owner notification.
+            Assert.Equal(4, await db.Outbox.CountAsync()); // Created, request text, owner notice and student realtime update.
         }
         using var retry = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         Assert.Equal(HttpStatusCode.OK, retry.StatusCode);

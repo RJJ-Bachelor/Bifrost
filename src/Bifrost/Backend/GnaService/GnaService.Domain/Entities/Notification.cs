@@ -21,7 +21,8 @@ public sealed class Notification : AggregateRoot<Guid>
         Guid? helpRequestId,
         string? change,
         string? status,
-        NotificationEventType eventType)
+        NotificationEventType eventType,
+        NotificationDeliveryType deliveryType)
     {
         Id = id;
         UserId = userId;
@@ -33,6 +34,7 @@ public sealed class Notification : AggregateRoot<Guid>
         Change = change;
         Status = status;
         EventType = eventType;
+        DeliveryType = deliveryType;
     }
 
 
@@ -54,6 +56,8 @@ public sealed class Notification : AggregateRoot<Guid>
 
     public NotificationEventType EventType { get; private set; }
 
+    public NotificationDeliveryType DeliveryType { get; private set; }
+
     public static Notification Create(
         Guid id,
         string userId,
@@ -64,7 +68,8 @@ public sealed class Notification : AggregateRoot<Guid>
         Guid? helpRequestId = null,
         string? change = null,
         string? status = null,
-        NotificationEventType eventType = NotificationEventType.Unknown)
+        NotificationEventType eventType = NotificationEventType.Unknown,
+        NotificationDeliveryType deliveryType = NotificationDeliveryType.RealtimeOrPush)
     {
         if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
 
@@ -72,7 +77,7 @@ public sealed class Notification : AggregateRoot<Guid>
             id,
             UserId.Create(userId),
             NotificationMessages.Create(messages), now ?? DateTimeOffset.UtcNow,
-            sessionId, generation, helpRequestId, change, status, eventType);
+            sessionId, generation, helpRequestId, change, status, eventType, deliveryType);
         notification.RaiseDomainEvent(new NotificationCreatedDomainEvent(notification));
         return notification;
     }

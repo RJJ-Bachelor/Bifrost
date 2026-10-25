@@ -52,6 +52,9 @@ internal sealed class MemoryParticipantRepository : IParticipantRepository
         Task.FromResult(participants.Any(participant => participant.SessionId == sessionId && participant.SubjectId == subjectId && participant.Role == role));
     public Task<Guid[]> GetSessionIdsAsync(string subjectId, ParticipantRole role, CancellationToken cancellationToken) =>
         Task.FromResult(participants.Where(participant => participant.SubjectId == subjectId && participant.Role == role).Select(participant => participant.SessionId).ToArray());
+    public Task<string[]> GetParticipantIdsAsync(Guid sessionId, CancellationToken cancellationToken) =>
+        Task.FromResult(participants.Where(participant => participant.SessionId == sessionId)
+            .Select(participant => participant.SubjectId).Distinct().Order().ToArray());
     public Task<string[]> GetSubjectIdsAsync(Guid sessionId, ParticipantRole role, CancellationToken cancellationToken) =>
         Task.FromResult(participants.Where(participant => participant.SessionId == sessionId && participant.Role == role).Select(participant => participant.SubjectId).ToArray());
 }

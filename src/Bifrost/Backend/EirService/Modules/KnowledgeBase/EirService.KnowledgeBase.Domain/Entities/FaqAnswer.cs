@@ -1,3 +1,4 @@
+using EirService.KnowledgeBase.Domain.DomainEvents;
 using Shared.Domain.Primitives;
 
 namespace EirService.KnowledgeBase.Domain.Entities;
@@ -45,6 +46,7 @@ public sealed class FaqAnswer : AggregateRoot<Guid>
         Answer = text;
         AnsweredByTeacherId = teacherId;
         AnsweredAt = now.ToUniversalTime();
+        RaiseDomainEvent(new FaqAnswerRecordedDomainEvent(this));
     }
 
     private static string Text(string value)

@@ -48,10 +48,14 @@ public sealed partial class SessionIntegrationTests
             Assert.Equal(payload.HelpRequestIds.Order(), faq.HelpRequestIds);
         }
         var created = Assert.Single(await ReadNotificationsAsync(),
-            item => item.Message.EventType == NotificationEventType.FaqCreated).Message;
+            item => item.Message.EventType == NotificationEventType.FaqCreated && item.Message.UserId == "provider|opaque-teacher").Message;
         Assert.Equal("provider|opaque-teacher", created.UserId);
         Assert.Equal(payload.GeneralizationId, created.HelpRequestId);
-        Assert.DoesNotContain(await ReadNotificationsAsync(), item => item.Message.UserId == physicalBefore.StudentId);
+        var linkedNotice = Assert.Single(await ReadNotificationsAsync(),
+            item => item.Message.UserId == physicalBefore.StudentId).Message;
+        Assert.Equal(NotificationEventType.FaqCreated, linkedNotice.EventType);
+        Assert.Equal("FaqLinked", linkedNotice.Change);
+        Assert.Equal(physicalId, linkedNotice.HelpRequestId);
         var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
         Assert.Equal(new[] { payload.GeneralizationId },
             queue.GetProperty("requests").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
@@ -65,6 +69,7 @@ public sealed partial class SessionIntegrationTests
             new { Text = "Update the loop variable." });
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
 
+        await PersistFaqAnswerFromOutboxAsync();
         var answerNotices = (await ReadNotificationsAsync())
             .Where(item => item.Message.EventType == NotificationEventType.FaqAnswered).ToArray();
         Assert.Equal(new[] { physicalId, firstDigitalId, secondDigitalId }.Order(),
@@ -153,7 +158,7 @@ public sealed partial class SessionIntegrationTests
             queue.GetProperty("requests").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
         Assert.Equal(3, queue.GetProperty("waitingCount").GetInt32());
         var teacherNotice = Assert.Single(await ReadNotificationsAsync(),
-            item => item.Message.EventType == NotificationEventType.FaqCreated).Message;
+            item => item.Message.EventType == NotificationEventType.FaqCreated && item.Message.UserId == "provider|opaque-teacher").Message;
         Assert.Equal("provider|opaque-teacher", teacherNotice.UserId);
 
         using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
@@ -163,6 +168,7 @@ public sealed partial class SessionIntegrationTests
             new { Text = "A reusable explanation." });
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
 
+        await PersistFaqAnswerFromOutboxAsync();
         var notices = await ReadNotificationsAsync();
         Assert.Equal(new[] { firstId, secondId }.Order(), notices
             .Where(item => item.Message.EventType == NotificationEventType.FaqAnswered)
@@ -232,6 +238,7 @@ public sealed partial class SessionIntegrationTests
         await DeliverGeneralizationAsync(payload);
         await DeliverGeneralizationAsync(payload);
         await CompleteDigitalRequestThroughTeacherAsync(session.Id, payload.GeneralizationId, "The common answer.");
+        await PersistFaqAnswerFromOutboxAsync();
 
         foreach (var (client, before) in unchanged)
         {

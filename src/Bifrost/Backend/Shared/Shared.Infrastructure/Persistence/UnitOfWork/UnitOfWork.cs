@@ -36,7 +36,7 @@ public sealed class UnitOfWork<TOwner, TDbContext>(TDbContext dbContext, TimePro
         }
 
         var now = timeProvider.GetUtcNow();
-        var outboxMessages = outgoing.Select(message => OutboxMessage.Create(message, now)).ToArray();
+        var outboxMessages = OutgoingMessage.Coalesce(outgoing).Select(message => OutboxMessage.Create(message, now)).ToArray();
         if (outboxMessages.Length > 0) dbContext.Set<OutboxMessage>().AddRange(outboxMessages);
         try
         {

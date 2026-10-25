@@ -106,6 +106,9 @@ Andre undervisere kan bruge `Teacher/Participants/JoinSession` med `teacherSessi
 `sessionCode` er kun til studerende; undervisertilmelding kræver den separate `teacherCode`.
 `GetSessions` viser derefter både oprettede og tilmeldte sessioner. Tilknyttede
 undervisere deler køen, mens hver reservation tilhører den underviser, der tog den.
+Hver session i `GetSessions` har `waitingCount` for sin aktuelle generation, også når tallet er nul.
+Det svarer til `GetQueue`: alle `Pending`-anmodninger, inklusive reserverede anmodninger og FAQ-spørgsmål.
+Anmodninger med `Active`, `AwaitingFaq` eller `AwaitingConfirmation` tælles ikke med.
 
 ## Login
 

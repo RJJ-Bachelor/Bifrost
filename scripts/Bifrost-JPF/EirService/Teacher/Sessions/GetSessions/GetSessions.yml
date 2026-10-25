@@ -10,3 +10,8 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Lists sessions created or joined by the authenticated teacher.
+  Each session includes waitingCount for its current generation, including zero.
+  The count matches GetQueue: all Pending requests, including reserved requests and FAQ questions.
+  Active requests and requests awaiting FAQ answers or confirmation are excluded.

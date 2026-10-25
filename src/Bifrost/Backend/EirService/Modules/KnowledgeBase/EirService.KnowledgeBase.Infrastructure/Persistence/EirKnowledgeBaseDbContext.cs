@@ -7,6 +7,7 @@ namespace EirService.KnowledgeBase.Infrastructure.Persistence;
 public sealed class EirKnowledgeBaseDbContext(DbContextOptions<EirKnowledgeBaseDbContext> options) : DbContext(options)
 {
     public DbSet<FaqAnswer> Faqs => Set<FaqAnswer>();
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

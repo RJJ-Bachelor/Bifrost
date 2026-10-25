@@ -35,7 +35,8 @@ public sealed class NotificationMessageHandler(
             change: message.Payload.Change,
             status: message.Payload.Status,
             eventType: message.Payload.EventType != NotificationEventType.Unknown
-                ? message.Payload.EventType : FromLegacyChange(message.Payload.Change));
+                ? message.Payload.EventType : FromLegacyChange(message.Payload.Change),
+            deliveryType: message.Payload.DeliveryType);
 
         if (await notificationRepository.TryAddAsync(notification, cancellationToken))
             await unitOfWork.SaveChangesAsync(cancellationToken);

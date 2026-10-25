@@ -23,7 +23,7 @@ using Shared.Application.Messaging.Contracts;
 
 namespace GnaService.Test;
 
-public sealed class NotificationHubTests : IAsyncLifetime
+public sealed partial class NotificationHubTests : IAsyncLifetime
 {
     private readonly SymmetricSecurityKey key = new(RandomNumberGenerator.GetBytes(32));
     private WebApplication app = null!;
@@ -167,8 +167,8 @@ public sealed class NotificationHubTests : IAsyncLifetime
         return Encoding.UTF8.GetString(bytes, 0, result.Count);
     }
 
-    private string Token(string role = "Teacher", string scope = "Bifrost") => new JwtSecurityTokenHandler().WriteToken(
-        new JwtSecurityToken("gna-tests", "Bifrost", [new("sub", "teacher"), new("role", role), new("scope", scope)],
+    private string Token(string role = "Teacher", string scope = "Bifrost", string subject = "teacher") => new JwtSecurityTokenHandler().WriteToken(
+        new JwtSecurityToken("gna-tests", "Bifrost", [new("sub", subject), new("role", role), new("scope", scope)],
             expires: DateTime.UtcNow.AddMinutes(10), signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)));
 
     public async Task DisposeAsync()

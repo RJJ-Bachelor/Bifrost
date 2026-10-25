@@ -11,6 +11,10 @@ const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, experimentalDecorators: true }
 }).outputText;
 
+const model = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../src/app/notification.model.ts'), 'utf8'), {
+  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+}).outputText, { exports: model });
 function fixture(role = 'students', helpType = 'Digital') {
   class HeimdallService {}
   class NotificationService {}
@@ -45,9 +49,9 @@ function fixture(role = 'students', helpType = 'Digital') {
     '@angular/core/rxjs-interop': { takeUntilDestroyed: () => rx.takeUntil(destroyed) },
     '@angular/forms': { FormsModule: class {} },
     '@angular/router': { ActivatedRoute, Router, RouterLink: class {} },
-    rxjs: { ...rx, interval: () => rx.NEVER },
+    rxjs: { ...rx, auditTime: () => rx.map(value => value), interval: () => rx.NEVER },
     './notification.service': { NotificationService },
-    './notification.model': { helpRequestId: value => value, notificationAffectsSession: () => true },
+    './notification.model': model,
     './heimdall.service': { HeimdallService },
     './student/help-requests/student-help-requests.component': { StudentHelpRequestsComponent: class {} },
     './teacher/help-requests/teacher-help-requests.component': { TeacherHelpRequestsComponent: class {} }

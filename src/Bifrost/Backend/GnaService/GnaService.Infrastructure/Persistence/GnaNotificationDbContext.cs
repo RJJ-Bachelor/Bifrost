@@ -1,6 +1,7 @@
 using GnaService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Domain.Notifications;
 
 namespace GnaService.Infrastructure.Persistence;
 
@@ -47,6 +48,8 @@ public sealed class GnaNotificationDbContext(
             entity.Property(notification => notification.CreatedAt)
                 .IsRequired();
             entity.Property(notification => notification.EventType).HasConversion<string>().HasMaxLength(40);
+            entity.Property(notification => notification.DeliveryType).HasConversion<string>().HasMaxLength(40)
+                .HasDefaultValue(NotificationDeliveryType.RealtimeOrPush);
         });
     }
 }

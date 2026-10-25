@@ -122,8 +122,12 @@ public sealed partial class SessionIntegrationTests
                 messageBus, clock, NullLogger<OutboxDispatcher<EirRequestDbContext>>.Instance);
             await eirSender.PublishPendingAsync(CancellationToken.None);
             await answered.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            var faqSender = new OutboxDispatcher<EirKnowledgeBaseDbContext>(app.Services.GetRequiredService<IServiceScopeFactory>(),
+                messageBus, clock, NullLogger<OutboxDispatcher<EirKnowledgeBaseDbContext>>.Instance);
+            await faqSender.PublishPendingAsync(CancellationToken.None);
             await studentsNotified.Task.WaitAsync(TimeSpan.FromSeconds(20));
-            var teacherNotice = Assert.Single(notices.Values, notice => notice.EventType == NotificationEventType.FaqCreated);
+            var teacherNotice = Assert.Single(notices.Values, notice => notice.EventType == NotificationEventType.FaqCreated
+                && notice.UserId == "provider|opaque-teacher");
             Assert.Equal("provider|opaque-teacher", teacherNotice.UserId);
             Assert.Equal(payload.GeneralizationId, teacherNotice.HelpRequestId);
             var studentNotices = notices.Values.Where(notice => notice.EventType == NotificationEventType.FaqAnswered).ToArray();
