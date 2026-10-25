@@ -3,6 +3,8 @@ export interface Session {
   title: string;
   currentGeneration: number;
   lastClearedAtUtc: string | null;
+  code?: string;
+  teacherCode?: string;
 }
 
 export interface SessionStatus {

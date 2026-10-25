@@ -113,6 +113,12 @@ export class SessionApi {
     return signal({ waitingCount: 4, estimatedWaitMinutes: 10 });
   }
 
+  deleteSession(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/teachers/sessions/${id}`, {
+      withCredentials: true,
+    });
+  }
+
   archiveSession(id: string, expectedGeneration: number, _title: string): Observable<ArchiveResult> {
     // TODO(BF-J2/J3): send title when backend ArchiveSessionRequest supports ArchivedTitle.
     void _title;
