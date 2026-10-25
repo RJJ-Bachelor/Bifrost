@@ -37,7 +37,7 @@
   color: var(--color-primary-dark);
 
   &:hover:not(:disabled) {
-    background-color: #d0d0d0;
+    background-color: var(--color-grey-200);
   }
 }
 
