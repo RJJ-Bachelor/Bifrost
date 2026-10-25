@@ -8,6 +8,12 @@ if [ "$COMMIT_SOURCE" = "merge" ]; then
     exit 0
 fi
 
+# Spring over ved fixup/squash/amend/reword (autosquash-håndtering)
+FIRST_LINE_CHECK=$(grep -v '^#' "$COMMIT_MSG_FILE" | head -n 1)
+if echo "$FIRST_LINE_CHECK" | grep -q -E '^(fixup|squash|amend|reword)!'; then
+    exit 0
+fi
+
 # Hent nuværende branch-navn
 BRANCH_NAME=$(git symbolic-ref --short HEAD 2>/dev/null)
 if [ -z "$BRANCH_NAME" ]; then
