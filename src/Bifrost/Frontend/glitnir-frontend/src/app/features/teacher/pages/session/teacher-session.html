@@ -96,6 +96,10 @@
       }
     </bifrost-card>
   </div>
+
+  <button class="btn btn--danger archive-button" (click)="openArchiveConfirm()">
+    Arkiver FAQ og nulstil kø
+  </button>
 </div>
 
 <bifrost-dialog
@@ -161,6 +165,41 @@
   <p class="state-message">
     FAQ og samtaler for denne generation kommer her.
   </p>
+</bifrost-dialog>
+
+<bifrost-dialog
+  [open]="archiveDialogOpen()"
+  title="Arkiver FAQ og nulstil kø"
+  (closed)="closeArchiveConfirm()"
+>
+  <p class="state-message">
+    Dette arkiverer nuværende generation og starter en ny. Køen og FAQ'en nulstilles.
+  </p>
+  <label class="faq-form__field">
+    <span>Navn på arkiveringen</span>
+    <input
+      type="text"
+      [value]="archiveTitle()"
+      (input)="archiveTitle.set($any($event.target).value)"
+      placeholder="Fx Lek 8 - SQL vs Mongo"
+    />
+  </label>
+  @if (archiveError()) {
+    <p class="faq-form__error">{{ archiveError() }}</p>
+  }
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="closeArchiveConfirm()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="archiveTitle().trim().length === 0 || archiving()"
+      (click)="confirmArchive()"
+    >
+      {{ archiving() ? 'Arkiverer...' : 'Arkiver' }}
+    </button>
+  </div>
 </bifrost-dialog>
 
 <bifrost-status-dialog

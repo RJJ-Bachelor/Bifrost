@@ -1,3 +1,9 @@
+.archive-button {
+  align-self: center;
+  padding: var(--space-3) var(--space-8);
+  font-size: var(--font-size-lg);
+}
+
 .queue-stats {
   display: flex;
   flex-wrap: wrap;
@@ -80,18 +86,22 @@
     color: var(--color-primary-dark);
   }
 
-  textarea {
+  textarea,
+  input {
     font-family: inherit;
     font-size: var(--font-size-body);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--color-grey-200);
     border-radius: var(--radius-sm);
-    resize: vertical;
 
     &:focus {
       outline: 2px solid var(--color-primary);
       outline-offset: -1px;
     }
+  }
+
+  textarea {
+    resize: vertical;
   }
 }
 

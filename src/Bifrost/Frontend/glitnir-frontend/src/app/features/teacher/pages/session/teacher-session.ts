@@ -60,6 +60,10 @@ export class TeacherSession {
   protected readonly statistics = this.sessionApi.getTeacherStatistics(() => this.id());
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
   protected readonly selectedArchive = signal<SessionGeneration | null>(null);
+  protected readonly archiveDialogOpen = signal(false);
+  protected readonly archiveTitle = signal('');
+  protected readonly archiving = signal(false);
+  protected readonly archiveError = signal<string | null>(null);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogOpen = signal(false);
   protected readonly faqEditTarget = signal<FaqItem | null>(null);
@@ -203,6 +207,43 @@ export class TeacherSession {
 
   protected closeArchiveDialog(): void {
     this.selectedArchive.set(null);
+  }
+
+  protected openArchiveConfirm(): void {
+    this.archiveTitle.set('');
+    this.archiveError.set(null);
+    this.archiveDialogOpen.set(true);
+  }
+
+  protected closeArchiveConfirm(): void {
+    this.archiveDialogOpen.set(false);
+    this.archiveError.set(null);
+  }
+
+  protected confirmArchive(): void {
+    const title = this.archiveTitle().trim();
+    if (title.length === 0 || this.archiving()) return;
+
+    const generation = this.session.value()?.currentGeneration;
+    if (generation === undefined) return;
+
+    this.archiving.set(true);
+    this.archiveError.set(null);
+
+    this.sessionApi.archiveSession(this.id(), generation, title).subscribe({
+      next: () => {
+        this.archiving.set(false);
+        this.archiveDialogOpen.set(false);
+        this.session.reload();
+        this.queue.reload();
+        this.faqs.reload();
+        this.archives.reload();
+      },
+      error: () => {
+        this.archiving.set(false);
+        this.archiveError.set('Kunne ikke arkivere. Prøv igen.');
+      },
+    });
   }
 
   private showFaqStatus(message: string): void {
