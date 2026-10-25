@@ -9,6 +9,7 @@ import {
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
+  TeacherQueueEntry,
 } from '../help-request.model';
 
 interface HelpRequestDto {
@@ -33,10 +34,17 @@ const HELP_TYPE_MAP: Record<string, HelpType> = {
   Physical: 'physical',
 };
 
+interface TeacherQueueEntryDto {
+  id: string;
+  queuedAt: string;
+  assignedTeacherId: string | null;
+}
+
 interface TeacherQueueDto {
   generation: number;
   waitingCount: number;
-  requests: Array<{ id: string; queuedAt: string }>;
+  requests: TeacherQueueEntryDto[];
+  activeRequests: TeacherQueueEntryDto[];
 }
 
 function normalizeStatus(raw: string): HelpRequestStatus {
@@ -109,15 +117,28 @@ export class HelpRequestApi {
       {
         defaultValue: {
           waitingCount: 0,
+          availableCount: 0,
           generation: 0,
           frontQueuedAt: null,
+          pendingRequests: [],
+          activeRequests: [],
         },
         parse: (raw) => {
           const dto = raw as TeacherQueueDto;
+          // TODO(BF-46): read availableCount and myReservedRequestId from backend.
           return {
             waitingCount: dto.waitingCount,
+            availableCount: dto.requests.filter((item) => item.assignedTeacherId === null).length,
             generation: dto.generation,
             frontQueuedAt: dto.requests[0]?.queuedAt ?? null,
+            pendingRequests: dto.requests.map((item) => ({
+              id: item.id,
+              assignedTeacherId: item.assignedTeacherId,
+            })),
+            activeRequests: dto.activeRequests.map((item) => ({
+              id: item.id,
+              assignedTeacherId: item.assignedTeacherId,
+            })),
           };
         },
       },

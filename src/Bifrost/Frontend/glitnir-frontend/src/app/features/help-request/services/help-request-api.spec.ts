@@ -140,8 +140,8 @@ describe('HelpRequestApi', () => {
         generation: 8,
         waitingCount: 4,
         requests: [
-          { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z' },
-          { id: 'request-2', queuedAt: '2026-10-25T10:05:00Z' },
+          { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z', assignedTeacherId: null },
+          { id: 'request-2', queuedAt: '2026-10-25T10:05:00Z', assignedTeacherId: null },
         ],
       });
 
@@ -149,8 +149,14 @@ describe('HelpRequestApi', () => {
 
       expect(resource.value()).toEqual({
         waitingCount: 4,
+        availableCount: 2,
         generation: 8,
         frontQueuedAt: '2026-10-25T10:00:00Z',
+        pendingRequests: [
+          { id: 'request-1', assignedTeacherId: null },
+          { id: 'request-2', assignedTeacherId: null },
+        ],
+        activeRequests: [],
       });
     });
 
@@ -161,14 +167,49 @@ describe('HelpRequestApi', () => {
       TestBed.tick();
 
       const req = http.expectOne('/api/teachers/sessions/session-1/queue');
-      req.flush({ generation: 8, waitingCount: 0, requests: [] });
+      req.flush({ generation: 8, waitingCount: 0, requests: [], activeRequests: [] });
 
       await TestBed.inject(ApplicationRef).whenStable();
 
       expect(resource.value()).toEqual({
         waitingCount: 0,
+        availableCount: 0,
         generation: 8,
         frontQueuedAt: null,
+        pendingRequests: [],
+        activeRequests: [],
+      });
+    });
+
+    it('excludes reserved requests from availableCount', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherQueue(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      const req = http.expectOne('/api/teachers/sessions/session-1/queue');
+      req.flush({
+        generation: 8,
+        waitingCount: 2,
+        requests: [
+          { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z', assignedTeacherId: null },
+          { id: 'request-2', queuedAt: '2026-10-25T10:05:00Z', assignedTeacherId: 'teacher-1' },
+        ],
+        activeRequests: [],
+      });
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()).toEqual({
+        waitingCount: 2,
+        availableCount: 1,
+        generation: 8,
+        frontQueuedAt: '2026-10-25T10:00:00Z',
+        pendingRequests: [
+          { id: 'request-1', assignedTeacherId: null },
+          { id: 'request-2', assignedTeacherId: 'teacher-1' },
+        ],
+        activeRequests: [],
       });
     });
   });

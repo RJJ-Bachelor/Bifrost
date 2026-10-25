@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
@@ -17,6 +18,7 @@ export class TeacherSession {
   private readonly route = inject(ActivatedRoute);
   private readonly sessionApi = inject(SessionApi);
   private readonly helpRequestApi = inject(HelpRequestApi);
+  private readonly authStore = inject(AuthStore);
 
   readonly id = input.required<string>();
 
@@ -27,6 +29,16 @@ export class TeacherSession {
     const queuedAt = this.queue.value().frontQueuedAt;
     if (queuedAt === null) return null;
     return Math.max(0, Math.floor((Date.now() - new Date(queuedAt).getTime()) / 60000));
+  });
+  // TODO(BF-46): replace with backend-provided myReservedRequestId.
+  protected readonly myReservedRequestId = computed(() => {
+    const me = this.authStore.user()?.userId;
+    if (!me) return null;
+    const queue = this.queue.value();
+    const pending = queue.pendingRequests.find((item) => item.assignedTeacherId === me);
+    if (pending) return pending.id;
+    const active = queue.activeRequests.find((item) => item.assignedTeacherId === me);
+    return active?.id ?? null;
   });
   protected readonly taking = signal(false);
   protected readonly takeError = signal<string | null>(null);
@@ -39,8 +51,14 @@ export class TeacherSession {
     this.router.navigate(['dashboard'], { relativeTo: this.route });
   }
 
+  protected resumeOwnRequest(): void {
+    const id = this.myReservedRequestId();
+    if (id === null) return;
+    this.router.navigate(['answer', id], { relativeTo: this.route });
+  }
+
   protected takeNext(): void {
-    if (this.taking() || this.queue.value().waitingCount === 0) return;
+    if (this.taking() || this.queue.value().availableCount === 0) return;
 
     this.taking.set(true);
     this.takeError.set(null);
