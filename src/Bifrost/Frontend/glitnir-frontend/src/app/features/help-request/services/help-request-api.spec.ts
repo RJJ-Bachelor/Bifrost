@@ -125,4 +125,77 @@ describe('HelpRequestApi', () => {
       expect(resource.value()).toEqual({ ownRequestId: 'request-1' });
     });
   });
+
+  describe('getTeacherQueue', () => {
+    it('maps the first request queuedAt to frontQueuedAt', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherQueue(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      const req = http.expectOne('/api/teachers/sessions/session-1/queue');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.withCredentials).toBe(true);
+      req.flush({
+        generation: 8,
+        waitingCount: 4,
+        requests: [
+          { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z' },
+          { id: 'request-2', queuedAt: '2026-10-25T10:05:00Z' },
+        ],
+      });
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()).toEqual({
+        waitingCount: 4,
+        generation: 8,
+        frontQueuedAt: '2026-10-25T10:00:00Z',
+      });
+    });
+
+    it('returns null frontQueuedAt when no requests are queued', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherQueue(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      const req = http.expectOne('/api/teachers/sessions/session-1/queue');
+      req.flush({ generation: 8, waitingCount: 0, requests: [] });
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()).toEqual({
+        waitingCount: 0,
+        generation: 8,
+        frontQueuedAt: null,
+      });
+    });
+  });
+
+  describe('takeNext', () => {
+    it('posts to the take-next endpoint and returns the request id', async () => {
+      const promise = firstValueFrom(service.takeNext('session-1'));
+
+      const req = http.expectOne(
+        '/api/teachers/sessions/session-1/queue/take-next',
+      );
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      req.flush({ id: 'request-1' });
+
+      expect(await promise).toEqual({ id: 'request-1' });
+    });
+
+    it('returns null when the queue is empty', async () => {
+      const promise = firstValueFrom(service.takeNext('session-1'));
+
+      const req = http.expectOne(
+        '/api/teachers/sessions/session-1/queue/take-next',
+      );
+      req.flush(null, { status: 204, statusText: 'No Content' });
+
+      expect(await promise).toBeNull();
+    });
+  });
 });
