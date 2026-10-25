@@ -1,2 +1,9 @@
-<span class="stat-tile__value">{{ value() }}</span>
-<span class="stat-tile__label">{{ label() }}</span>
+@for (item of items(); track $index) {
+  @if (!$first) {
+    <span class="stat-tile__divider"></span>
+  }
+  <div class="stat-tile__item">
+    <span class="stat-tile__value">{{ item.value }}</span>
+    <span class="stat-tile__label">{{ item.label }}</span>
+  </div>
+}
