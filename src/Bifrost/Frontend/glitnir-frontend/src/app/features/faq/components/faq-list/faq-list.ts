@@ -1,4 +1,4 @@
-import { Component, input, signal } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import { FaqItem } from '../../faq-item.model';
 
 @Component({
@@ -9,6 +9,10 @@ import { FaqItem } from '../../faq-item.model';
 })
 export class FaqList {
   readonly items = input.required<FaqItem[]>();
+  readonly editable = input(false);
+
+  readonly faqEditRequested = output<FaqItem>();
+  readonly faqDeleteRequested = output<FaqItem>();
 
   protected readonly openIds = signal<Set<string>>(new Set());
 
@@ -21,5 +25,15 @@ export class FaqList {
     if (next.has(id)) next.delete(id);
     else next.add(id);
     this.openIds.set(next);
+  }
+
+  protected onEdit(event: Event, item: FaqItem): void {
+    event.stopPropagation();
+    this.faqEditRequested.emit(item);
+  }
+
+  protected onDelete(event: Event, item: FaqItem): void {
+    event.stopPropagation();
+    this.faqDeleteRequested.emit(item);
   }
 }
