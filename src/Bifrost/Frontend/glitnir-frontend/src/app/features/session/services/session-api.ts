@@ -48,7 +48,7 @@ export class SessionApi {
   getStudentGenerations(id: () => string): Signal<SessionGeneration[]> {
     // TODO(BF-J2/J3): replace with real endpoint when available.
     // return httpResource<SessionGeneration[]>(() => ({
-    //   url: `/api/students/sessions/${id()}/generations`,
+    //   url: `/api/students/sessions/${id()}/archives`,
     //   method: 'GET',
     //   withCredentials: true,
     // }), { defaultValue: [] });
@@ -56,13 +56,33 @@ export class SessionApi {
     void id;
     void httpResource;
 
-    return signal([
-      { generation: 8, title: 'Lek 8 - SQL vs Mongo' },
-      { generation: 7, title: 'Lek 7 - Cache og optimering' },
-      { generation: 6, title: 'Lek 6 - Persistering af databaser' },
-      { generation: 5, title: 'Lek 5 - REST API design' },
-      { generation: 4, title: 'Lek 4 - Autentificering' },
-    ]);
+    const mockArchives: SessionGeneration[] = [
+      { id: '1', sessionId: 'mock', title: 'Generation 8', generation: 8, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '2', sessionId: 'mock', title: 'Generation 7', generation: 7, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '3', sessionId: 'mock', title: 'Generation 6', generation: 6, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '4', sessionId: 'mock', title: 'Generation 5', generation: 5, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '5', sessionId: 'mock', title: 'Generation 4', generation: 4, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+    ];
+    return signal(mockArchives);
+  }
+
+  getTeacherArchives(id: () => string): HttpResourceRef<SessionGeneration[]> {
+    return httpResource<SessionGeneration[]>(
+      () => ({
+        url: `/api/teachers/sessions/${id()}/archives`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: [],
+        // Backend Title is the session title (same for all generations). Show generation instead.
+        parse: (raw) =>
+          (raw as SessionGeneration[]).map((item) => ({
+            ...item,
+            title: `Generation ${item.generation}`,
+          })),
+      },
+    );
   }
 
   getTeacherStatistics(id: () => string): Signal<TeacherStatistics> {

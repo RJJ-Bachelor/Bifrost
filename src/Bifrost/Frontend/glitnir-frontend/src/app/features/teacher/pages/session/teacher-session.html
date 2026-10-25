@@ -8,13 +8,11 @@
   <bifrost-card title="Kø">
     <div class="queue-stats">
       <bifrost-stat-tile
-        [value]="queue.value().waitingCount"
-        label="Studerende i kø"
+        [items]="[{ value: queue.value().waitingCount, label: 'Studerende i kø' }]"
       />
       @if (frontWaitMinutes() !== null) {
         <bifrost-stat-tile
-          [value]="frontWaitMinutes() + ' min'"
-          label="Tid i kø (forreste)"
+          [items]="[{ value: frontWaitMinutes() + ' min', label: 'Tid i kø (forreste)' }]"
         />
       }
     </div>
@@ -62,6 +60,42 @@
       </button>
     </div>
   </bifrost-card>
+
+  <div class="session-columns">
+    <bifrost-card title="Dagens statistik">
+      <div class="statistics-tiles">
+        <bifrost-stat-tile
+          [items]="[{ value: statistics().helpedStudentCount, label: 'Studerende hjulpet' }]"
+        />
+        <bifrost-stat-tile
+          [items]="[{
+            value: statistics().averageWaitMinutes !== null ? statistics().averageWaitMinutes + ' min' : '—',
+            label: 'Gns. ventetid'
+          }]"
+        />
+        <bifrost-stat-tile
+          [items]="[
+            { value: statistics().physicalCount, label: 'Fysisk' },
+            { value: statistics().digitalCount, label: 'Digitalt' },
+            { value: statistics().physicalCount + statistics().digitalCount, label: 'I alt' }
+          ]"
+        />
+      </div>
+    </bifrost-card>
+
+    <bifrost-card title="FAQ-Arkivet">
+      @if (archives.isLoading()) {
+        <p class="state-message">Indlæser arkiv...</p>
+      } @else if (archives.error()) {
+        <p class="state-message">Kunne ikke hente arkiv.</p>
+      } @else {
+        <bifrost-faq-archive-list
+          [items]="archives.value()"
+          (generationSelected)="onArchiveSelected($event)"
+        />
+      }
+    </bifrost-card>
+  </div>
 </div>
 
 <bifrost-dialog
@@ -117,6 +151,16 @@
       {{ faqDeleting() ? 'Sletter...' : 'Slet' }}
     </button>
   </div>
+</bifrost-dialog>
+
+<bifrost-dialog
+  [open]="selectedArchive() !== null"
+  [title]="'Generation ' + (selectedArchive()?.generation ?? '')"
+  (closed)="closeArchiveDialog()"
+>
+  <p class="state-message">
+    FAQ og samtaler for denne generation kommer her.
+  </p>
 </bifrost-dialog>
 
 <bifrost-status-dialog

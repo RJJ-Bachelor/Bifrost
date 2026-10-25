@@ -11,8 +11,14 @@ export interface SessionStatus {
 }
 
 export interface SessionGeneration {
-  generation: number;
+  id: string;
+  sessionId: string;
   title: string;
+  generation: number;
+  startedAtUtc: string;
+  archivedAtUtc: string;
+  privateConversationCount: number;
+  generalizedQuestionCount: number;
 }
 
 export interface TeacherStatistics {

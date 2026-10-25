@@ -7,11 +7,13 @@ import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
+import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqItem } from '../../../faq/faq-item.model';
 import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
+import { SessionGeneration } from '../../../session/session.model';
 
 interface FaqFormModel {
   question: string;
@@ -19,7 +21,7 @@ interface FaqFormModel {
 }
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, Dialog, StatusDialog, FormField],
+  imports: [Topbar, Card, StatTile, FaqList, FaqArchiveList, Dialog, StatusDialog, FormField],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -55,6 +57,9 @@ export class TeacherSession {
   protected readonly taking = signal(false);
   protected readonly takeError = signal<string | null>(null);
 
+  protected readonly statistics = this.sessionApi.getTeacherStatistics(() => this.id());
+  protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
+  protected readonly selectedArchive = signal<SessionGeneration | null>(null);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogOpen = signal(false);
   protected readonly faqEditTarget = signal<FaqItem | null>(null);
@@ -190,6 +195,14 @@ export class TeacherSession {
 
   protected closeFaqStatus(): void {
     this.faqStatusOpen.set(false);
+  }
+
+  protected onArchiveSelected(archive: SessionGeneration): void {
+    this.selectedArchive.set(archive);
+  }
+
+  protected closeArchiveDialog(): void {
+    this.selectedArchive.set(null);
   }
 
   private showFaqStatus(message: string): void {
