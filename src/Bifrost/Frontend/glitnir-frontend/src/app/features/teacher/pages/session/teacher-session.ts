@@ -99,7 +99,8 @@ export class TeacherSession {
   }
 
   protected openDashboard(): void {
-    this.router.navigate(['dashboard'], { relativeTo: this.route });
+    const urlTree = this.router.createUrlTree(['dashboard'], { relativeTo: this.route });
+    window.open(this.router.serializeUrl(urlTree), '_blank', 'noopener,width=1200,height=900');
   }
 
   protected resumeOwnRequest(): void {

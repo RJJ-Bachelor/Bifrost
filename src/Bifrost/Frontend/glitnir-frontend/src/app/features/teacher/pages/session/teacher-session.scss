@@ -4,6 +4,13 @@
   }
 }
 
+.dashboard-button__icon {
+  --icon-size: 0.875rem;
+  margin-left: var(--space-1);
+  mask-image: url('/external-link.svg');
+  -webkit-mask-image: url('/external-link.svg');
+}
+
 .topbar-pill--button {
   border: none;
   cursor: pointer;
