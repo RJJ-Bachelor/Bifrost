@@ -15,9 +15,11 @@ import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
 import { SessionGeneration } from '../../../session/session.model';
+import { SessionDeleteDialog } from './components/session-delete-dialog/session-delete-dialog';
+import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, Dialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, SessionSettingsDialog, SessionDeleteDialog, Dialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -57,11 +59,7 @@ export class TeacherSession {
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
   protected readonly selectedArchive = signal<SessionGeneration | null>(null);
   protected readonly settingsOpen = signal(false);
-  protected readonly renameModel = signal('');
-  protected readonly renaming = signal(false);
-  protected readonly renameError = signal<string | null>(null);
   protected readonly deleteConfirmOpen = signal(false);
-  protected readonly deleting = signal(false);
   protected readonly archiveDialogOpen = signal(false);
   protected readonly archiveTitle = signal('');
   protected readonly archiving = signal(false);
@@ -154,37 +152,18 @@ export class TeacherSession {
   }
 
   protected openSettings(): void {
-    this.renameModel.set(this.session.value()?.title ?? '');
-    this.renameError.set(null);
     this.settingsOpen.set(true);
   }
 
   protected closeSettings(): void {
     this.settingsOpen.set(false);
-    this.renameError.set(null);
-  }
-
-  protected onRenameInput(event: Event): void {
-    this.renameModel.set((event.target as HTMLInputElement).value);
   }
 
   protected onArchiveTitleInput(event: Event): void {
     this.archiveTitle.set((event.target as HTMLInputElement).value);
   }
 
-  protected submitRename(event: Event): void {
-    event.preventDefault();
-    const title = this.renameModel().trim();
-    if (title.length === 0 || this.renaming()) return;
-    // TODO(BF-47): call rename endpoint when backend supports it.
-    this.renaming.set(true);
-    this.renameError.set(null);
-    setTimeout(() => {
-      this.renaming.set(false);
-    }, 200);
-  }
-
-  protected openDeleteConfirm(): void {
+  protected onDeleteRequested(): void {
     this.settingsOpen.set(false);
     this.deleteConfirmOpen.set(true);
   }
@@ -193,20 +172,9 @@ export class TeacherSession {
     this.deleteConfirmOpen.set(false);
   }
 
-  protected confirmDelete(): void {
-    if (this.deleting()) return;
-
-    this.deleting.set(true);
-    this.sessionApi.deleteSession(this.id()).subscribe({
-      next: () => {
-        this.deleting.set(false);
-        this.deleteConfirmOpen.set(false);
-        this.router.navigateByUrl('/teacher');
-      },
-      error: () => {
-        this.deleting.set(false);
-      },
-    });
+  protected onSessionDeleted(): void {
+    this.deleteConfirmOpen.set(false);
+    this.router.navigateByUrl('/teacher');
   }
 
   protected openArchiveConfirm(): void {
