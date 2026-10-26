@@ -270,7 +270,7 @@
       type="text"
       class="input-field"
       [value]="archiveTitle()"
-      (input)="archiveTitle.set($any($event.target).value)"
+      (input)="onArchiveTitleInput($event)"
       placeholder="Fx Lek 8 - SQL vs Mongo"
     />
   </label>

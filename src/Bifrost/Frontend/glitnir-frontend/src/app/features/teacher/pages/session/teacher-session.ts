@@ -233,6 +233,10 @@ export class TeacherSession {
     this.renameModel.set((event.target as HTMLInputElement).value);
   }
 
+  protected onArchiveTitleInput(event: Event): void {
+    this.archiveTitle.set((event.target as HTMLInputElement).value);
+  }
+
   protected submitRename(event: Event): void {
     event.preventDefault();
     const title = this.renameModel().trim();
