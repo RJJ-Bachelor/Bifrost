@@ -129,7 +129,7 @@
     <div class="settings-rename-row">
       <input
         type="text"
-        class="settings-rename-input"
+        class="input-field settings-rename-input"
         [value]="renameModel()"
         (input)="onRenameInput($event)"
       />
@@ -188,11 +188,11 @@
   <form class="faq-form" (submit)="submitFaq($event)">
     <label class="faq-form__field">
       <span>Spørgsmål</span>
-      <textarea [formField]="faqForm.question" rows="3"></textarea>
+      <textarea class="input-field" [formField]="faqForm.question" rows="3"></textarea>
     </label>
     <label class="faq-form__field">
       <span>Svar</span>
-      <textarea [formField]="faqForm.answer" rows="5"></textarea>
+      <textarea class="input-field" [formField]="faqForm.answer" rows="5"></textarea>
     </label>
     @if (faqDialogError()) {
       <p class="faq-form__error">{{ faqDialogError() }}</p>
@@ -257,6 +257,7 @@
     <span>Navn på arkiveringen</span>
     <input
       type="text"
+      class="input-field"
       [value]="archiveTitle()"
       (input)="archiveTitle.set($any($event.target).value)"
       placeholder="Fx Lek 8 - SQL vs Mongo"
