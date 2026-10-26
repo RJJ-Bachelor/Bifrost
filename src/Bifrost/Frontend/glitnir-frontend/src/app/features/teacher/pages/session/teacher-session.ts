@@ -237,7 +237,7 @@ export class TeacherSession {
     event.preventDefault();
     const title = this.renameModel().trim();
     if (title.length === 0 || this.renaming()) return;
-    // TODO(BF-XX): call rename endpoint when backend supports it.
+    // TODO(BF-47): call rename endpoint when backend supports it.
     this.renaming.set(true);
     this.renameError.set(null);
     setTimeout(() => {
