@@ -158,11 +158,11 @@
 
   bifrost-stat-tile {
     width: 100%;
-
-    &:nth-child(3) {
-      grid-column: 1 / -1;
-    }
   }
+}
+
+.statistics-tiles__full {
+  grid-column: 1 / -1;
 }
 
 .faq-form {
