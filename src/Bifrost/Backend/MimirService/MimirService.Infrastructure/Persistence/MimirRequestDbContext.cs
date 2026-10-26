@@ -8,6 +8,7 @@ public sealed class MimirRequestDbContext(
     DbContextOptions<MimirRequestDbContext> options) : DbContext(options)
 {
     public DbSet<HelpRequest> Requests => Set<HelpRequest>();
+    public DbSet<Generalization> Generalizations => Set<Generalization>();
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -27,6 +28,25 @@ public sealed class MimirRequestDbContext(
                 .HasMaxLength(4000)
                 .IsRequired();
             entity.Property(request => request.ReceivedAt)
+                .IsRequired();
+            entity.HasOne<Generalization>()
+                .WithMany()
+                .HasForeignKey(request => request.GeneralizationId);
+        });
+        modelBuilder.Entity<Generalization>(entity =>
+        {
+            entity.ToTable("generalizations");
+            entity.HasKey(generalization => generalization.Id);
+            entity.Property(generalization => generalization.Id).ValueGeneratedNever();
+            entity.Property(generalization => generalization.SessionId)
+                .IsRequired();
+            entity.Property(generalization => generalization.Generation)
+                .IsRequired();
+            entity.HasIndex(generalization => new { generalization.SessionId, generalization.Generation });
+            entity.Property(generalization => generalization.Question)
+                .HasMaxLength(Generalization.MaxQuestionLength)
+                .IsRequired();
+            entity.Property(generalization => generalization.CreatedAt)
                 .IsRequired();
         });
     }
