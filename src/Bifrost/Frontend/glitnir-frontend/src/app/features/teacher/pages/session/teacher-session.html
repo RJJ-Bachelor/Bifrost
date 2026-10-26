@@ -14,10 +14,12 @@
   <bifrost-card title="Kø">
     <div class="queue-stats">
       <bifrost-stat-tile
+        class="surface-box"
         [items]="[{ value: queue.value().waitingCount, label: 'Studerende i kø' }]"
       />
       @if (frontWaitMinutes() !== null) {
         <bifrost-stat-tile
+          class="surface-box"
           [items]="[{ value: frontWaitMinutes() + ' min', label: 'Tid i kø (forreste)' }]"
         />
       }
@@ -71,15 +73,18 @@
     <bifrost-card title="Dagens statistik">
       <div class="statistics-tiles">
         <bifrost-stat-tile
+          class="surface-box"
           [items]="[{ value: statistics().helpedStudentCount, label: 'Studerende hjulpet' }]"
         />
         <bifrost-stat-tile
+          class="surface-box"
           [items]="[{
             value: statistics().averageWaitMinutes !== null ? statistics().averageWaitMinutes + ' min' : '—',
             label: 'Gns. ventetid'
           }]"
         />
         <bifrost-stat-tile
+          class="surface-box"
           [items]="[
             { value: statistics().physicalCount, label: 'Fysisk' },
             { value: statistics().digitalCount, label: 'Digitalt' },
@@ -114,11 +119,11 @@
   (closed)="closeSettings()"
 >
   <div class="settings-codes">
-    <div class="settings-code">
+    <div class="settings-code surface-box">
       <span class="settings-code__label">Studerende-kode</span>
       <span class="settings-code__value">{{ session.value()?.code ?? '—' }}</span>
     </div>
-    <div class="settings-code">
+    <div class="settings-code surface-box">
       <span class="settings-code__label">Underviser-kode</span>
       <span class="settings-code__value">{{ session.value()?.teacherCode ?? '—' }}</span>
     </div>

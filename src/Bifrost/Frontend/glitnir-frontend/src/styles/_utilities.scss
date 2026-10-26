@@ -22,6 +22,12 @@
   }
 }
 
+.surface-box {
+  background: var(--color-grey-100);
+  border: 2px solid var(--color-grey-200);
+  border-radius: var(--radius-lg);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
