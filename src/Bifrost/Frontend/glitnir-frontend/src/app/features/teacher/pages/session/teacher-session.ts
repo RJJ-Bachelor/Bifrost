@@ -7,6 +7,7 @@ import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
+import { FaqDeleteDialog } from '../../../faq/components/faq-delete-dialog/faq-delete-dialog';
 import { FaqDialogState, FaqFormDialog, FaqSavedEvent } from '../../../faq/components/faq-form-dialog/faq-form-dialog';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqItem } from '../../../faq/faq-item.model';
@@ -16,7 +17,7 @@ import { SessionApi } from '../../../session/services/session-api';
 import { SessionGeneration } from '../../../session/session.model';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, Dialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, Dialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -68,8 +69,6 @@ export class TeacherSession {
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
   protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
-  protected readonly faqDeleting = signal(false);
-  protected readonly faqDeleteError = signal<string | null>(null);
   protected readonly faqStatusOpen = signal(false);
   protected readonly faqStatusMessage = signal('');
 
@@ -129,32 +128,17 @@ export class TeacherSession {
   }
 
   protected requestDeleteFaq(item: FaqItem): void {
-    this.faqDeleteError.set(null);
     this.faqDeleteTarget.set(item);
   }
 
   protected cancelDeleteFaq(): void {
     this.faqDeleteTarget.set(null);
-    this.faqDeleteError.set(null);
   }
 
-  protected confirmDeleteFaq(): void {
-    const target = this.faqDeleteTarget();
-    if (target === null || this.faqDeleting()) return;
-
-    this.faqDeleting.set(true);
-    this.faqApi.deleteFaq(target.id).subscribe({
-      next: () => {
-        this.faqDeleting.set(false);
-        this.faqDeleteTarget.set(null);
-        this.showFaqStatus('FAQ slettet.');
-        this.faqs.reload();
-      },
-      error: () => {
-        this.faqDeleting.set(false);
-        this.faqDeleteError.set('Kunne ikke slette FAQ. Prøv igen.');
-      },
-    });
+  protected onFaqDeleted(): void {
+    this.faqDeleteTarget.set(null);
+    this.showFaqStatus('FAQ slettet.');
+    this.faqs.reload();
   }
 
   protected closeFaqStatus(): void {

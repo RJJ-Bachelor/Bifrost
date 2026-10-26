@@ -150,7 +150,7 @@
       </button>
     </div>
     @if (renameError()) {
-      <p class="faq-form__error">{{ renameError() }}</p>
+      <p class="form-error">{{ renameError() }}</p>
     }
   </form>
 
@@ -195,31 +195,11 @@
   (cancelled)="closeFaqDialog()"
 />
 
-<bifrost-dialog
-  [open]="faqDeleteTarget() !== null"
-  title="Slet FAQ"
-  size="sm"
-  (closed)="cancelDeleteFaq()"
->
-  <p>Er du sikker på at du vil slette denne FAQ?</p>
-  <p class="faq-delete-question">{{ faqDeleteTarget()?.question }}</p>
-  @if (faqDeleteError()) {
-    <p class="faq-form__error">{{ faqDeleteError() }}</p>
-  }
-  <div class="form-actions">
-    <button type="button" class="btn btn--secondary" (click)="cancelDeleteFaq()">
-      Annuller
-    </button>
-    <button
-      type="button"
-      class="btn btn--danger"
-      [disabled]="faqDeleting()"
-      (click)="confirmDeleteFaq()"
-    >
-      {{ faqDeleting() ? 'Sletter...' : 'Slet' }}
-    </button>
-  </div>
-</bifrost-dialog>
+<bifrost-faq-delete-dialog
+  [item]="faqDeleteTarget()"
+  (deleted)="onFaqDeleted()"
+  (cancelled)="cancelDeleteFaq()"
+/>
 
 <bifrost-dialog
   [open]="selectedArchive() !== null"
@@ -250,7 +230,7 @@
     />
   </label>
   @if (archiveError()) {
-    <p class="faq-form__error">{{ archiveError() }}</p>
+    <p class="form-error">{{ archiveError() }}</p>
   }
   <div class="form-actions">
     <button type="button" class="btn btn--secondary" (click)="closeArchiveConfirm()">

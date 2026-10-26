@@ -42,6 +42,12 @@
   -webkit-mask-position: center;
 }
 
+.form-error {
+  margin: 0;
+  color: var(--color-red);
+  font-size: var(--font-size-sm);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
