@@ -13,9 +13,19 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
     public Task<bool> ExistsAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Requests.AnyAsync(existing => existing.Id == id, cancellationToken);
 
-    public async Task<bool> TryAddAsync(HelpRequest request, OutgoingMessage? reply, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<HelpRequest>> GetWaitingAsync(Guid sessionId, int generation,
+        CancellationToken cancellationToken) =>
+        await dbContext.Requests
+            .Where(request => request.SessionId == sessionId && request.Generation == generation &&
+                request.GeneralizationId == null)
+            .OrderBy(request => request.ReceivedAt)
+            .ToArrayAsync(cancellationToken);
+
+    public async Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
+        CancellationToken cancellationToken)
     {
         if (await dbContext.Requests.AnyAsync(existing => existing.Id == request.Id, cancellationToken)) return false;
+        if (generalization is not null) dbContext.Generalizations.Add(generalization);
         dbContext.Requests.Add(request);
         if (reply is not null) dbContext.Outbox.Add(OutboxMessage.Create(reply, timeProvider.GetUtcNow()));
         try
@@ -26,7 +36,7 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "PK_requests" })
         {
-            // The original request and reply were committed together. A redelivery needs no new reply.
+            // The original request, generalization and reply were committed together. A redelivery needs no new reply.
             dbContext.ChangeTracker.Clear();
             return false;
         }
