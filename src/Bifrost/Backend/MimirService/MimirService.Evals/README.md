@@ -5,7 +5,7 @@ Datasættet måler, hvor godt Mimir generaliserer hjælpeanmodninger. Det tester
 1. **Beslutningen:** om modellen vælger `standalone`, `join` eller `pair`, og om den vælger den rigtige kandidat.
 2. **Generaliseringen:** om FAQ-spørgsmålet ved `pair` er formuleret rigtigt.
 
-Reglerne står i rapportens afsnit 7.2.5 (GeneralizationService). Mappen indeholder kun data. Harnessen, der kører datasættet mod modellerne, laves i BF-10. Evals kører ikke i CI, fordi de kalder den rigtige model.
+Reglerne står i rapportens afsnit 7.2.5 (GeneralizationService). Harnessen i samme mappe kører datasættet mod én model ad gangen, se [Kørsel](#kørsel). Evals kører ikke i CI, fordi de kalder den rigtige model. CI bygger kun projektet.
 
 ## Reglen kort
 
@@ -44,7 +44,7 @@ Reglerne står i rapportens afsnit 7.2.5 (GeneralizationService). Mappen indehol
 | `id` | Unikt navn på casen i kebab-case. |
 | `category` | En af kategorierne nedenfor. |
 | `note` | Hvorfor facit er, som det er. Skal altid udfyldes. |
-| `sessionTitle` | Sessionens titel. Harnessen kan udelade den for at måle, om titlen hjælper. |
+| `sessionTitle` | Sessionens titel. Harnessen sender den ikke med, fordi Mimir ikke får titlen i `request.created`. |
 | `candidates` | Kandidaterne i køen. En `request` har `text`, en `generalization` har `faqQuestion`. Id'erne (`r1`, `g1`) gælder kun inden for casen. En tom liste betyder en tom kø. |
 | `newQuestion` | Det nye spørgsmål, der skal vurderes. |
 | `expected.decision` | `standalone`, `join` eller `pair`. |
@@ -84,6 +84,26 @@ Måltal:
 - **Korrekte beslutninger** i procent, samlet og pr. kategori.
 - **Gyldig JSON** i procent.
 - **FAQ-spørgsmål uden fund i `mustNotContain`** i procent.
+
+## Kørsel
+
+Harnessen bruger den rigtige `GeneralizationDecider` og `GeminiLlmClient`, men kun én model ad gangen, så resultaterne ikke blander modeller. Gemini-nøglen læses fra AppHosts user secret `Parameters:gemini-api-key`, så den skal ikke sættes igen. Kør fra repository-roden:
+
+```powershell
+dotnet run --project src/Bifrost/Backend/MimirService/MimirService.Evals
+```
+
+Standardmodellen står i `appsettings.json`. En anden model vælges ved kørslen:
+
+```powershell
+dotnet run --project src/Bifrost/Backend/MimirService/MimirService.Evals -- --Gemini:Models:0=gemini-3.5-flash
+```
+
+- Modellen kaldes én gang pr. case, undtagen ved tom kø. Den gratis kvote er 15 kald i minuttet pr. model, så harnessen venter 5 sekunder mellem kaldene (`Eval:DelaySeconds`). En kørsel tager ca. 8 minutter.
+- Svarer modellen ikke, venter harnessen 60 sekunder og prøver casen igen. Fejler det igen, tælles casen under `No model responded` og ikke som overset. Senere cases prøves så ikke igen, fordi dagskvoten typisk er brugt.
+- Ugyldig JSON tælles også under `No model responded`, fordi Gemini-klienten afviser den. Mimirs advarsler er slået fra, så de ikke drukner resultatet. Se dem med `-- --Logging:LogLevel:MimirService=Warning`.
+- Resultatet skrives også som Markdown med tabeller i `results/<tidspunkt>-<model>.md`. Git ignorerer mappen, så kopiér de kørsler, der skal bruges i rapporten.
+- De korrekte `pair`-svar står til sidst sammen med `example` til den manuelle vurdering.
 
 ## Nye cases
 
