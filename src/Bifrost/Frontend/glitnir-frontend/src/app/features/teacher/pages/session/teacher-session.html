@@ -188,37 +188,12 @@
   </div>
 </bifrost-dialog>
 
-<bifrost-dialog
-  [open]="faqDialogOpen()"
-  [title]="faqEditTarget() ? 'Rediger FAQ' : 'Tilføj FAQ'"
-  (closed)="closeFaqDialog()"
->
-  <form class="faq-form" (submit)="submitFaq($event)">
-    <label class="faq-form__field">
-      <span>Spørgsmål</span>
-      <textarea class="input-field" [formField]="faqForm.question" rows="3"></textarea>
-    </label>
-    <label class="faq-form__field">
-      <span>Svar</span>
-      <textarea class="input-field" [formField]="faqForm.answer" rows="5"></textarea>
-    </label>
-    @if (faqDialogError()) {
-      <p class="faq-form__error">{{ faqDialogError() }}</p>
-    }
-    <div class="form-actions">
-      <button type="button" class="btn btn--secondary" (click)="closeFaqDialog()">
-        Annuller
-      </button>
-      <button
-        type="submit"
-        class="btn btn--primary"
-        [disabled]="faqForm().invalid() || faqSubmitting()"
-      >
-        {{ faqSubmitting() ? 'Gemmer...' : 'Gem' }}
-      </button>
-    </div>
-  </form>
-</bifrost-dialog>
+<bifrost-faq-form-dialog
+  [state]="faqDialogState()"
+  [sessionId]="id()"
+  (saved)="onFaqSaved($event)"
+  (cancelled)="closeFaqDialog()"
+/>
 
 <bifrost-dialog
   [open]="faqDeleteTarget() !== null"
@@ -228,8 +203,8 @@
 >
   <p>Er du sikker på at du vil slette denne FAQ?</p>
   <p class="faq-delete-question">{{ faqDeleteTarget()?.question }}</p>
-  @if (faqDialogError()) {
-    <p class="faq-form__error">{{ faqDialogError() }}</p>
+  @if (faqDeleteError()) {
+    <p class="faq-form__error">{{ faqDeleteError() }}</p>
   }
   <div class="form-actions">
     <button type="button" class="btn btn--secondary" (click)="cancelDeleteFaq()">

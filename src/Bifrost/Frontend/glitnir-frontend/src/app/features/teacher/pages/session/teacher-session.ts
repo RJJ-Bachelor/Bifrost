@@ -1,6 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { FormField, form, validate } from '@angular/forms/signals';
 import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
@@ -8,6 +7,7 @@ import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
+import { FaqDialogState, FaqFormDialog, FaqSavedEvent } from '../../../faq/components/faq-form-dialog/faq-form-dialog';
 import { FaqList } from '../../../faq/components/faq-list/faq-list';
 import { FaqItem } from '../../../faq/faq-item.model';
 import { FaqApi } from '../../../faq/services/faq-api';
@@ -15,13 +15,8 @@ import { HelpRequestApi } from '../../../help-request/services/help-request-api'
 import { SessionApi } from '../../../session/services/session-api';
 import { SessionGeneration } from '../../../session/session.model';
 
-interface FaqFormModel {
-  question: string;
-  answer: string;
-}
-
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqArchiveList, Dialog, StatusDialog, FormField],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, Dialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -71,28 +66,12 @@ export class TeacherSession {
   protected readonly archiving = signal(false);
   protected readonly archiveError = signal<string | null>(null);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
-  protected readonly faqDialogOpen = signal(false);
-  protected readonly faqEditTarget = signal<FaqItem | null>(null);
-  protected readonly faqSubmitting = signal(false);
-  protected readonly faqDialogError = signal<string | null>(null);
+  protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
   protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
   protected readonly faqDeleting = signal(false);
+  protected readonly faqDeleteError = signal<string | null>(null);
   protected readonly faqStatusOpen = signal(false);
   protected readonly faqStatusMessage = signal('');
-
-  protected readonly faqModel = signal<FaqFormModel>({ question: '', answer: '' });
-  protected readonly faqForm = form(this.faqModel, (path) => {
-    validate(path.question, ({ value }) =>
-      value().trim().length === 0
-        ? { kind: 'required', message: 'Skriv et spørgsmål' }
-        : null,
-    );
-    validate(path.answer, ({ value }) =>
-      value().trim().length === 0
-        ? { kind: 'required', message: 'Skriv et svar' }
-        : null,
-    );
-  });
 
   protected switchSession(): void {
     this.router.navigateByUrl('/teacher');
@@ -132,59 +111,31 @@ export class TeacherSession {
   }
 
   protected openCreateFaq(): void {
-    this.faqEditTarget.set(null);
-    this.faqModel.set({ question: '', answer: '' });
-    this.faqDialogError.set(null);
-    this.faqDialogOpen.set(true);
+    this.faqDialogState.set({ mode: 'create' });
   }
 
   protected openEditFaq(item: FaqItem): void {
-    this.faqEditTarget.set(item);
-    this.faqModel.set({ question: item.question, answer: item.answer });
-    this.faqDialogError.set(null);
-    this.faqDialogOpen.set(true);
+    this.faqDialogState.set({ mode: 'edit', item });
   }
 
   protected closeFaqDialog(): void {
-    this.faqDialogOpen.set(false);
-    this.faqDialogError.set(null);
+    this.faqDialogState.set({ mode: 'closed' });
   }
 
-  protected submitFaq(event: Event): void {
-    event.preventDefault();
-    if (this.faqForm().invalid() || this.faqSubmitting()) return;
-
-    this.faqSubmitting.set(true);
-    this.faqDialogError.set(null);
-
-    const { question, answer } = this.faqModel();
-    const target = this.faqEditTarget();
-    const request$ = target
-      ? this.faqApi.updateFaq(target.id, question, answer)
-      : this.faqApi.createFaq(this.id(), question, answer);
-
-    request$.subscribe({
-      next: () => {
-        this.faqSubmitting.set(false);
-        this.faqDialogOpen.set(false);
-        this.showFaqStatus(target ? 'FAQ opdateret.' : 'FAQ oprettet.');
-        this.faqs.reload();
-      },
-      error: () => {
-        this.faqSubmitting.set(false);
-        this.faqDialogError.set('Kunne ikke gemme FAQ. Prøv igen.');
-      },
-    });
+  protected onFaqSaved(event: FaqSavedEvent): void {
+    this.showFaqStatus(event.mode === 'edit' ? 'FAQ opdateret.' : 'FAQ oprettet.');
+    this.faqDialogState.set({ mode: 'closed' });
+    this.faqs.reload();
   }
 
   protected requestDeleteFaq(item: FaqItem): void {
-    this.faqDialogError.set(null);
+    this.faqDeleteError.set(null);
     this.faqDeleteTarget.set(item);
   }
 
   protected cancelDeleteFaq(): void {
     this.faqDeleteTarget.set(null);
-    this.faqDialogError.set(null);
+    this.faqDeleteError.set(null);
   }
 
   protected confirmDeleteFaq(): void {
@@ -201,7 +152,7 @@ export class TeacherSession {
       },
       error: () => {
         this.faqDeleting.set(false);
-        this.faqDialogError.set('Kunne ikke slette FAQ. Prøv igen.');
+        this.faqDeleteError.set('Kunne ikke slette FAQ. Prøv igen.');
       },
     });
   }
