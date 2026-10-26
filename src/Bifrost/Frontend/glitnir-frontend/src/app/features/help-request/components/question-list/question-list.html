@@ -12,9 +12,9 @@
           {{ label(item.status) }}
         </span>
         @if (isOpen(item.status)) {
-          <span right class="question-list__icon question-list__icon--chevron"></span>
+          <span right class="icon-mask question-list__icon question-list__icon--chevron"></span>
         } @else if (isDigitalCompleted(item)) {
-          <span right class="question-list__icon question-list__icon--chat"></span>
+          <span right class="icon-mask question-list__icon question-list__icon--chat"></span>
         }
       </bifrost-list-row>
     }

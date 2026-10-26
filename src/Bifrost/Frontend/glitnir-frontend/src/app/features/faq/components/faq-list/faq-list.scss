@@ -45,19 +45,8 @@
 }
 
 .faq-list__chevron {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 1rem;
-  height: 1rem;
-  background-color: currentColor;
   mask-image: url('/arrow-right.svg');
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
   -webkit-mask-image: url('/arrow-right.svg');
-  -webkit-mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-position: center;
   transition: transform 0.15s ease;
 
   &--open {

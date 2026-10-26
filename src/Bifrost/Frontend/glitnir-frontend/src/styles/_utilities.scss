@@ -28,6 +28,20 @@
   border-radius: var(--radius-lg);
 }
 
+.icon-mask {
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--icon-size, 1rem);
+  height: var(--icon-size, 1rem);
+  background-color: currentColor;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
