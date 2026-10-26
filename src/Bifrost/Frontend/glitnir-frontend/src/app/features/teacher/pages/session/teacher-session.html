@@ -228,6 +228,9 @@
 >
   <p>Er du sikker på at du vil slette denne FAQ?</p>
   <p class="faq-delete-question">{{ faqDeleteTarget()?.question }}</p>
+  @if (faqDialogError()) {
+    <p class="faq-form__error">{{ faqDialogError() }}</p>
+  }
   <div class="form-actions">
     <button type="button" class="btn btn--secondary" (click)="cancelDeleteFaq()">
       Annuller

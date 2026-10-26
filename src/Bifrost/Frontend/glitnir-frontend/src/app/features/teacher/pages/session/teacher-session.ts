@@ -178,11 +178,13 @@ export class TeacherSession {
   }
 
   protected requestDeleteFaq(item: FaqItem): void {
+    this.faqDialogError.set(null);
     this.faqDeleteTarget.set(item);
   }
 
   protected cancelDeleteFaq(): void {
     this.faqDeleteTarget.set(null);
+    this.faqDialogError.set(null);
   }
 
   protected confirmDeleteFaq(): void {
