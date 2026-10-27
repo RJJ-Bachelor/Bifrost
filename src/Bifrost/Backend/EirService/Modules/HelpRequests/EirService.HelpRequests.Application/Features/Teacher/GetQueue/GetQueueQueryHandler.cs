@@ -15,6 +15,7 @@ public sealed class GetQueueQueryHandler(IHelpRequestRepository repository, Help
         var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
         var active = requests.Where(request => request.Status == HelpRequestStatus.Active).ToArray();
         return new TeacherQueueResult(session.Id, session.Generation, waiting.Length,
+            waiting.Count(request => request.AssignedTeacherId is null),
             waiting.Select(request => request.ToResult()).ToArray(), active.Select(request => request.ToResult()).ToArray());
     }
 }

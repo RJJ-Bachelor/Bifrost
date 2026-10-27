@@ -59,11 +59,11 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         var session = await sessions.ExecuteAsync(new GetHelpRequestSessionQuery(request.SessionId), cancellationToken);
         if (session is null || session.Generation != request.Generation) return;
 
-        // Reservations and resolved FAQ confirmations leave other students' queue position,
-        // waiting count and estimated wait unchanged. Teachers and the owner still refresh.
+        // Resolved FAQ confirmations leave other students' queue data unchanged.
+        // Reservations change the shared unreserved count, so all participants refresh.
         var changesSharedQueue = change.Change switch
         {
-            "Reserved" or "FaqAccepted" => false,
+            "FaqAccepted" => false,
             "Cancelled" when request.FaqAnswerId is not null => false,
             _ => true
         };

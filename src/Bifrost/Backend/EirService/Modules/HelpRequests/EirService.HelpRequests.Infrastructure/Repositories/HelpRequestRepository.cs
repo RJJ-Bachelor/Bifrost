@@ -1,3 +1,4 @@
+using EirService.Contracts.HelpRequests.GetWaitingCounts;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
@@ -38,27 +39,32 @@ public sealed class HelpRequestRepository(
                 request.Status == HelpRequestStatus.Pending && request.StudentId != null)
             .Select(request => request.StudentId!).Distinct().ToArrayAsync(cancellationToken);
 
-    public async Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
+    public async Task<IReadOnlyDictionary<Guid, WaitingCounts>> GetWaitingCountsAsync(
         IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken)
     {
-        if (sessionGenerations.Count == 0) return new Dictionary<Guid, int>();
+        if (sessionGenerations.Count == 0) return new Dictionary<Guid, WaitingCounts>();
 
-        IQueryable<Guid>? waitingSessionIds = null;
+        IQueryable<HelpRequest>? waitingRequests = null;
         foreach (var group in sessionGenerations.GroupBy(session => session.Value))
         {
             var generation = group.Key;
             var sessionIds = group.Select(session => session.Key).ToArray();
             var requests = dbContext.Requests.AsNoTracking()
                 .Where(request => request.Status == HelpRequestStatus.Pending && request.Generation == generation &&
-                    sessionIds.Contains(request.SessionId))
-                .Select(request => request.SessionId);
-            waitingSessionIds = waitingSessionIds is null ? requests : waitingSessionIds.Concat(requests);
+                    sessionIds.Contains(request.SessionId));
+            waitingRequests = waitingRequests is null ? requests : waitingRequests.Concat(requests);
         }
 
         // Aggregate exact session/generation pairs in one SQL query, without loading requests or messages.
-        return await waitingSessionIds!.GroupBy(sessionId => sessionId)
-            .Select(group => new { SessionId = group.Key, Count = group.Count() })
-            .ToDictionaryAsync(group => group.SessionId, group => group.Count, cancellationToken);
+        return await waitingRequests!.GroupBy(request => request.SessionId)
+            .Select(group => new
+            {
+                SessionId = group.Key,
+                WaitingCount = group.Count(),
+                UnreservedWaitingCount = group.Count(request => request.AssignedTeacherId == null)
+            })
+            .ToDictionaryAsync(group => group.SessionId,
+                group => new WaitingCounts(group.WaitingCount, group.UnreservedWaitingCount), cancellationToken);
     }
 
     public async Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>

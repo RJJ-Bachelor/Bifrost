@@ -71,7 +71,7 @@ Alle modtagne notifikationer vises i en modal i testfrontenden, også almindelig
 
 Ældre eller ukendte eventtyper vises som en almindelig notifikation. Annullerede anmodninger får ikke nye FAQ-svar.
 
-Eirs HelpRequests-outbox og Gnas leverings-outbox kontrolleres hvert 500 ms. Tidligere brugte begge 5 sekunder, hvilket kunne lægge næsten 10 sekunders ventetid oven i transport og behandling. Øvrige outboxes beholder deres eksisterende interval.
+Eirs HelpRequests-outbox og Gnas leverings-outbox kontrolleres hvert 500 ms. Gnas `NotificationOutboxDispatcher` læser leveringsopgaver direkte fra databasen og kalder `NotificationDispatcher`, som sender via SignalR eller anvender den tilladte push-fallback. Der er ingen intern RabbitMQ-runde fra Gna til sig selv. Notifikation og leveringsopgave gemmes stadig atomisk, og allerede behandlede opgaver genafsendes ikke. En utilgængelig klient afslutter leveringsforsøget; ved genforbindelse henter frontenden den aktuelle tilstand. Uventede fejl i outboxbehandlingen genforsøges. Dette er backendens outboxpolling, mens kødata i frontenden fortsat opdateres ved hændelser. Web Push-afsendelsen er endnu ikke implementeret.
 
 API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udviklingsproxyen i `proxy.conf.json` videresender `/api` og WebSockets til Heimdall. Se [Gna-notifikationer](../../../../docs/gna-notifications.md).
 

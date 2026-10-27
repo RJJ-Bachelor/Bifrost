@@ -4,9 +4,11 @@ namespace EirService.Sessions.Application.Features.Teacher.GetSessions;
 
 public sealed record SessionListResult(
     Guid Id, string Title, string Code, string TeacherCode, string CreatedByTeacherId, string? CreatedByDisplayName,
-    DateTimeOffset CreatedAtUtc, int CurrentGeneration, DateTimeOffset? LastClearedAtUtc, int WaitingCount)
+    DateTimeOffset CreatedAtUtc, int CurrentGeneration, DateTimeOffset? LastClearedAtUtc,
+    int WaitingCount, int UnreservedWaitingCount)
 {
-    public static SessionListResult From(Session session, int waitingCount) => new(
+    public static SessionListResult From(Session session, int waitingCount, int unreservedWaitingCount) => new(
         session.Id, session.Title, session.Code.Value, session.TeacherCode.Value, session.CreatedByTeacherId,
-        session.CreatedByDisplayName, session.CreatedAtUtc, session.CurrentGeneration, session.LastClearedAtUtc, waitingCount);
+        session.CreatedByDisplayName, session.CreatedAtUtc, session.CurrentGeneration, session.LastClearedAtUtc,
+        waitingCount, unreservedWaitingCount);
 }

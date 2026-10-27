@@ -5,6 +5,7 @@ using GnaService.Application.Services.Messaging;
 using GnaService.Domain.Entities;
 using GnaService.Infrastructure;
 using GnaService.Infrastructure.Persistence;
+using GnaService.Infrastructure.Persistence.Outbox;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
@@ -192,11 +193,11 @@ public sealed partial class NotificationPersistenceTests : IAsyncLifetime
         await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
         while (!app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(student)) await Task.Delay(10, token);
         var assembly = typeof(GnaNotificationDbContext).Assembly;
-        var subscribers = new[] { "NotificationMessageSubscriber", "NotificationDeliverySubscriber" }
+        var subscribers = new[] { "NotificationMessageSubscriber" }
             .Select(name => (IHostedService)ActivatorUtilities.CreateInstance(app.Services,
                 assembly.GetType("GnaService.Infrastructure.Messaging." + name)!)).ToArray();
         foreach (var subscriber in subscribers) await subscriber.StartAsync(token);
-        using var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<GnaNotificationDbContext>>(
+        using var dispatcher = ActivatorUtilities.CreateInstance<NotificationOutboxDispatcher>(
             app.Services, TimeSpan.FromMilliseconds(500));
         await dispatcher.StartAsync(token);
         try
