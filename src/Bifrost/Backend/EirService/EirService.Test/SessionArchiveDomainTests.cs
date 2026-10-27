@@ -43,13 +43,51 @@ public sealed class SessionArchiveDomainTests
         var session = Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt);
         session.Clear(1, CreatedAt.AddMinutes(30));
         Assert.Empty(session.Archives);
-        var first = session.Archive(2, CreatedAt.AddHours(1));
-        var second = session.Archive(3, CreatedAt.AddHours(2));
+        var first = session.Archive(2, CreatedAt.AddHours(1), "  First lesson  ");
+        var second = session.Archive(3, CreatedAt.AddHours(2), "Second lesson");
         Assert.Equal(2, first.Generation);
+        Assert.Equal("First lesson", first.Title);
         Assert.Equal(CreatedAt.AddMinutes(30), first.StartedAtUtc);
         Assert.Equal(3, second.Generation);
+        Assert.Equal("Second lesson", second.Title);
         Assert.Equal(first.ArchivedAtUtc, second.StartedAtUtc);
         Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal(new[] { first, second }, session.Archives);
+        Assert.Equal("Title", session.Title);
         Assert.Equal(4, session.CurrentGeneration);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t\n")]
+    public void ArchiveRejectsBlankTitleWithoutChangingSession(string title)
+    {
+        var session = Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt);
+
+        Assert.ThrowsAny<ArgumentException>(() => session.Archive(1, CreatedAt.AddHours(1), title));
+
+        Assert.Empty(session.Archives);
+        Assert.Empty(session.GetDomainEvents());
+        Assert.Equal(1, session.CurrentGeneration);
+        Assert.Equal(CreatedAt, session.CurrentGenerationStartedAtUtc);
+        Assert.Null(session.LastClearedAtUtc);
+        Assert.Equal("Title", session.Title);
+    }
+
+    [Fact]
+    public void ArchiveTitleLengthIsValidatedAfterTrimmingWithoutChangingSessionOnFailure()
+    {
+        var session = Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt);
+
+        Assert.Throws<ArgumentException>(() => session.Archive(1, CreatedAt.AddHours(1), new string('x', 201)));
+        Assert.Empty(session.Archives);
+        Assert.Empty(session.GetDomainEvents());
+        Assert.Equal(1, session.CurrentGeneration);
+        Assert.Equal(CreatedAt, session.CurrentGenerationStartedAtUtc);
+
+        var archive = session.Archive(1, CreatedAt.AddHours(1), " " + new string('x', 200) + " ");
+        Assert.Equal(new string('x', 200), archive.Title);
+        Assert.Equal("Title", session.Title);
     }
 }

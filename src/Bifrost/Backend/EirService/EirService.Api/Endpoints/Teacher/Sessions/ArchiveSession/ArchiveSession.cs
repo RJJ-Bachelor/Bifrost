@@ -16,7 +16,7 @@ internal sealed class ArchiveSession : Endpoint<ArchiveSessionRequest, ArchiveSe
 
     public override async Task HandleAsync(ArchiveSessionRequest request, CancellationToken cancellationToken)
     {
-        var command = new ArchiveSessionCommand(Route<Guid>("sessionId"), User.GetRequiredUserId(), request.ExpectedGeneration);
+        var command = new ArchiveSessionCommand(Route<Guid>("sessionId"), User.GetRequiredUserId(), request.ExpectedGeneration, request.Title);
         await Send.OkAsync(await command.ExecuteAsync(cancellationToken), cancellationToken);
     }
 }

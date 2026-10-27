@@ -13,9 +13,17 @@ public sealed class SessionArchive : Entity<Guid>
     public DateTimeOffset ArchivedAtUtc { get; private set; }
 
     internal static SessionArchive Create(Guid sessionId, string title, int generation,
-        DateTimeOffset startedAtUtc, DateTimeOffset archivedAtUtc) => new()
+        DateTimeOffset startedAtUtc, DateTimeOffset archivedAtUtc)
     {
-        Id = Guid.NewGuid(), SessionId = sessionId, Title = title, Generation = generation,
-        StartedAtUtc = startedAtUtc.ToUniversalTime(), ArchivedAtUtc = archivedAtUtc.ToUniversalTime()
-    };
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        var trimmedTitle = title.Trim();
+        if (trimmedTitle.Length > 200)
+            throw new ArgumentException("An archive title cannot exceed 200 characters.", nameof(title));
+
+        return new SessionArchive
+        {
+            Id = Guid.NewGuid(), SessionId = sessionId, Title = trimmedTitle, Generation = generation,
+            StartedAtUtc = startedAtUtc.ToUniversalTime(), ArchivedAtUtc = archivedAtUtc.ToUniversalTime()
+        };
+    }
 }

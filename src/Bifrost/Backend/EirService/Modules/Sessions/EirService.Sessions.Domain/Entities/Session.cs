@@ -60,13 +60,13 @@ public sealed class Session : AggregateRoot<Guid>
         RaiseDomainEvent(new SessionClearedDomainEvent(Id, previousGeneration, CurrentGeneration, LastClearedAtUtc.Value));
     }
 
-    public SessionArchive Archive(int expectedGeneration, DateTimeOffset now)
+    public SessionArchive Archive(int expectedGeneration, DateTimeOffset now, string? title = null)
     {
         if (CurrentGeneration != expectedGeneration)
             throw new InvalidOperationException("The session generation has changed.");
 
         var nextGeneration = checked(CurrentGeneration + 1);
-        var archive = SessionArchive.Create(Id, Title, CurrentGeneration, CurrentGenerationStartedAtUtc, now);
+        var archive = SessionArchive.Create(Id, title ?? Title, CurrentGeneration, CurrentGenerationStartedAtUtc, now);
         archives.Add(archive);
         CurrentGeneration = nextGeneration;
         CurrentGenerationStartedAtUtc = archive.ArchivedAtUtc;

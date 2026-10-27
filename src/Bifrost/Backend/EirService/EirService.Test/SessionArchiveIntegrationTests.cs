@@ -34,8 +34,10 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var archived = (await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!;
         Assert.Equal(session.Id, archived.SessionId);
+        Assert.Equal(session.Title, archived.Title);
         Assert.Equal(1, archived.Generation);
         Assert.Equal(2, archived.CurrentGeneration);
+        Assert.Equal(session.CreatedAtUtc, archived.StartedAtUtc);
         Assert.Equal(clock.Now, archived.ArchivedAtUtc);
         var list = (await teacher.GetFromJsonAsync<SessionArchiveSummary[]>($"/api/teachers/sessions/{session.Id}/archives"))!;
         Assert.Equal(archived.ArchiveId, Assert.Single(list).Id);
@@ -65,6 +67,98 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(message.MessageId, update.EventId);
         Assert.Equal(clock.Now, update.UpdatedAtUtc);
         Assert.False(db.Database.HasPendingModelChanges());
+    }
+
+    [PostgresFact]
+    public async Task ArchivesKeepIndividualTitlesAndGenerationBoundariesAcrossArchivesAndClear()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        var expected = new List<ArchiveSessionResult>();
+
+        clock.Now = clock.Now.AddHours(1);
+        using (var response = await ArchiveAsync(session.Id, 1, "  First lesson  "))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            expected.Add((await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!);
+        }
+        clock.Now = clock.Now.AddHours(1);
+        using (var response = await ArchiveAsync(session.Id, 2, "Second lesson"))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            expected.Add((await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!);
+        }
+        clock.Now = clock.Now.AddHours(1);
+        var clearedAt = clock.Now;
+        using (var response = await ClearAsync(session.Id, 3))
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        clock.Now = clock.Now.AddHours(1);
+        using (var response = await ArchiveAsync(session.Id, 4, "After clear"))
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            expected.Add((await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!);
+        }
+
+        Assert.Equal(new[] { "First lesson", "Second lesson", "After clear" }, expected.Select(archive => archive.Title));
+        Assert.Equal(new[] { 1, 2, 4 }, expected.Select(archive => archive.Generation));
+        Assert.Equal(new[] { session.CreatedAtUtc, expected[0].ArchivedAtUtc, clearedAt },
+            expected.Select(archive => archive.StartedAtUtc));
+        Assert.Equal(new[] { session.CreatedAtUtc.AddHours(1), session.CreatedAtUtc.AddHours(2), clock.Now },
+            expected.Select(archive => archive.ArchivedAtUtc));
+
+        foreach (var (client, role) in new[] { (teacher, "teachers"), (student, "students") })
+        {
+            var archives = (await client.GetFromJsonAsync<SessionArchiveSummary[]>(
+                $"/api/{role}/sessions/{session.Id}/archives"))!;
+            Assert.Equal(expected.AsEnumerable().Reverse().Select(archive => archive.ArchiveId), archives.Select(archive => archive.Id));
+            foreach (var archive in archives)
+            {
+                var original = expected.Single(item => item.ArchiveId == archive.Id);
+                Assert.Equal((original.Title, original.Generation, original.StartedAtUtc, original.ArchivedAtUtc),
+                    (archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc));
+                var detail = (await client.GetFromJsonAsync<SessionArchiveResult>(
+                    $"/api/{role}/sessions/{session.Id}/archives/{archive.Id}"))!;
+                Assert.Equal((archive.Id, archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc),
+                    (detail.Id, detail.Title, detail.Generation, detail.StartedAtUtc, detail.ArchivedAtUtc));
+            }
+        }
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        var saved = await db.Sessions.AsNoTracking().SingleAsync();
+        Assert.Equal(session.Title, saved.Title);
+        Assert.Equal(5, saved.CurrentGeneration);
+        Assert.Equal(clearedAt, saved.LastClearedAtUtc);
+        Assert.Equal(clock.Now, saved.CurrentGenerationStartedAtUtc);
+        Assert.Equal(3, await db.Archives.CountAsync());
+    }
+
+    [PostgresFact]
+    public async Task ArchiveRejectsInvalidTitlesWithoutMutationAndAcceptsTrimmedLimitAndNullFallback()
+    {
+        var session = await CreateAsync();
+        foreach (var title in new[] { "", " \t ", new string('x', 201) })
+        {
+            using var response = await ArchiveAsync(session.Id, 1, title);
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            var saved = await db.Sessions.AsNoTracking().SingleAsync();
+            Assert.Equal(1, saved.CurrentGeneration);
+            Assert.Equal(session.CreatedAtUtc, saved.CurrentGenerationStartedAtUtc);
+            Assert.Empty(await db.Archives.ToArrayAsync());
+            Assert.Empty(await db.Outbox.ToArrayAsync());
+        }
+
+        using var maximum = await ArchiveAsync(session.Id, 1, " " + new string('x', 200) + " ");
+        Assert.Equal(HttpStatusCode.OK, maximum.StatusCode);
+        Assert.Equal(new string('x', 200), (await maximum.Content.ReadFromJsonAsync<ArchiveSessionResult>())!.Title);
+        using var fallback = await teacher.PostAsJsonAsync($"/api/teachers/sessions/{session.Id}/archive",
+            new { ExpectedGeneration = 2, Title = (string?)null });
+        Assert.Equal(HttpStatusCode.OK, fallback.StatusCode);
+        Assert.Equal(session.Title, (await fallback.Content.ReadFromJsonAsync<ArchiveSessionResult>())!.Title);
     }
 
     [PostgresFact]
@@ -230,6 +324,8 @@ public sealed partial class SessionIntegrationTests
         Assert.Empty(await db.Archives.ToArrayAsync());
     }
 
-    private Task<HttpResponseMessage> ArchiveAsync(Guid id, int generation) =>
-        teacher.PostAsJsonAsync($"/api/teachers/sessions/{id}/archive", new { ExpectedGeneration = generation });
+    private Task<HttpResponseMessage> ArchiveAsync(Guid id, int generation, string? title = null) =>
+        title is null
+            ? teacher.PostAsJsonAsync($"/api/teachers/sessions/{id}/archive", new { ExpectedGeneration = generation })
+            : teacher.PostAsJsonAsync($"/api/teachers/sessions/{id}/archive", new { ExpectedGeneration = generation, Title = title });
 }
