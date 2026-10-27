@@ -20,7 +20,7 @@ public sealed class ArchiveSessionCommandHandler(
         if (session.CurrentGeneration != command.ExpectedGeneration)
             throw new OperationConflictException("The session generation has changed. Refresh before archiving.");
 
-        var archive = session.Archive(command.ExpectedGeneration, timeProvider.GetUtcNow());
+        var archive = session.Archive(command.ExpectedGeneration, timeProvider.GetUtcNow(), command.Title);
         try
         {
             await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -30,7 +30,7 @@ public sealed class ArchiveSessionCommandHandler(
             throw new OperationConflictException("The session was changed by another operation.");
         }
 
-        return new ArchiveSessionResult(archive.Id, session.Id, archive.Generation,
-            session.CurrentGeneration, archive.ArchivedAtUtc);
+        return new ArchiveSessionResult(archive.Id, session.Id, archive.Title, archive.Generation,
+            session.CurrentGeneration, archive.StartedAtUtc, archive.ArchivedAtUtc);
     }
 }

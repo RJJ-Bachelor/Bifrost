@@ -9,7 +9,8 @@ http:
     type: json
     data: |-
       {
-        "expectedGeneration": {{sessionGeneration}}
+        "expectedGeneration": {{sessionGeneration}},
+        "title": "Algorithms - lesson 1"
       }
 runtime:
   assertions:
@@ -22,5 +23,8 @@ settings:
   followRedirects: false
 docs: |-
   Archives the current generation and starts the next generation with an empty queue.
+  The optional title names this archive; omitting it or using null keeps the session title.
+  Titles must contain 1-200 characters after trimming. Blank titles are rejected.
+  The response and archive queries include title, startedAtUtc and archivedAtUtc.
   Saves archiveId for the archive detail requests and updates sessionGeneration.
   GetSession refreshes sessionGeneration if another teacher archived the session first (409).
