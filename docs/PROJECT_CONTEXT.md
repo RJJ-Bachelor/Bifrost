@@ -315,3 +315,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Real-time notification contracts introduce explicit delivery modes (`NotificationDeliveryType.RealtimeOrPush` versus `RealtimeOnly`) to control whether fallback push channels are engaged.
 - Session lifecycle transitions (clearing, archiving, and deletion) automatically broadcast `SessionChanged` real-time events to all session participants and associated teachers.
 - The frontend implements a granular notification-driven refresh strategy using bitmasked refresh flags (`SessionRefresh`) to selectively reload view state based on specific real-time event categories rather than relying on polling.
+
+---
+
+## Update 2026-10-27
+
+- `EirService` session queue summaries and listings now differentiate between total waiting help requests and unreserved requests (`UnreservedWaitingCount`) to support multi-teacher load balancing.
+- `GnaService` notification delivery processing has been refactored to use a local `NotificationOutboxDispatcher` worker that reads notification outbox records directly, eliminating internal RabbitMQ round-trips.
+- Notification delivery outbox entries are processed locally with terminal state marking and idempotency protections to ensure reliable dispatch over active SignalR connections.
+- Cross-module waiting count queries aggregate generation-specific metrics efficiently using single-pass database groupings.
+- Notification infrastructure separates broker-bound integration event handling from local outbox-driven notification delivery.
