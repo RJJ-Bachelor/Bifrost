@@ -103,7 +103,7 @@ public sealed class FaqDomainTests
         Assert.Throws<HelpRequestRuleException>(() => request.AcceptFaq("another-student", Now));
         request.AcceptFaq("student", Now.AddMinutes(3));
 
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByFaq, request.Status);
         Assert.Equal(HelpType.Physical, request.HelpType);
         Assert.Equal(faqId, request.FaqAnswerId);
         Assert.Equal(Now, request.QueuedAt);
@@ -138,7 +138,7 @@ public sealed class FaqDomainTests
         Assert.Throws<HelpRequestRuleException>(() => request.Answer("teacher", new MessageText("Individual answer"), Now));
         request.Start("teacher", Now.AddMinutes(7));
         request.Complete("teacher", Now.AddMinutes(8));
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByPhysical, request.Status);
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public sealed class FaqDomainTests
         Assert.Equal(id, request.FaqAnswerId);
         request.Reserve("other-teacher", Now);
         request.Answer("other-teacher", new MessageText("Answer"), Now);
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByDigital, request.Status);
         Assert.Equal(new[] { HelpRequestMessageType.FaqQuestion, HelpRequestMessageType.FaqAnswer },
             request.Messages.Select(message => message.MessageType));
     }

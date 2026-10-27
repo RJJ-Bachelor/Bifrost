@@ -1,3 +1,5 @@
+using EirService.Contracts.Sessions.GetSessionTeacherNames;
+using EirService.Sessions.Application.Features.Internal.GetSessionTeacherNames;
 using EirService.Sessions.Application.Repositories;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
 using EirService.Contracts.Sessions.GetSessionGenerations;
@@ -28,6 +30,7 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
+        services.AddScoped<ICommandHandler<GetSessionTeacherNamesQuery, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, string?>>>, GetSessionTeacherNamesQueryHandler>();
         services.AddScoped<ICommandHandler<GetSessionGenerationsQuery, IReadOnlyDictionary<Guid, int>>, GetSessionGenerationsQueryHandler>();
         services.AddScoped<IUnitOfWork<ISessionRepository>, SessionUnitOfWork>();
         services.AddRabbitMqMessageBus(configuration);

@@ -1,3 +1,7 @@
+using EirService.Contracts.Participants.GetSessionTeachers;
+using EirService.Contracts.Participants.RememberSessionTeacher;
+using EirService.Participants.Application.Features.Internal.GetSessionTeachers;
+using EirService.Participants.Application.Features.Internal.RememberSessionTeacher;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Participants.Application.Features.Internal.GetSessionParticipantIds;
 using EirService.Participants.Application.Repositories;
@@ -24,6 +28,8 @@ public static class DependencyInjection
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
         services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
+        services.AddScoped<ICommandHandler<GetSessionTeachersQuery, IReadOnlyList<SessionTeacher>>, GetSessionTeachersQueryHandler>();
+        services.AddScoped<ICommandHandler<RememberSessionTeacherCommand>, RememberSessionTeacherCommandHandler>();
         services.AddScoped<ICommandHandler<GetSessionParticipantIdsQuery, string[]>, GetSessionParticipantIdsQueryHandler>();
         return services;
     }

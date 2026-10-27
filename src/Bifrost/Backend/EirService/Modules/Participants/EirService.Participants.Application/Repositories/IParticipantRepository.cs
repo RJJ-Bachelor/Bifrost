@@ -9,4 +9,5 @@ public interface IParticipantRepository
     Task<Guid[]> GetSessionIdsAsync(string subjectId, ParticipantRole role, CancellationToken cancellationToken);
     Task<string[]> GetParticipantIdsAsync(Guid sessionId, CancellationToken cancellationToken);
     Task<string[]> GetSubjectIdsAsync(Guid sessionId, ParticipantRole role, CancellationToken cancellationToken);
+    Task<IReadOnlyList<SessionParticipant>> GetTeachersAsync(Guid[] sessionIds, CancellationToken cancellationToken);
 }

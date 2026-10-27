@@ -45,7 +45,9 @@ internal sealed class MemoryParticipantRepository : IParticipantRepository
     private readonly List<SessionParticipant> participants = [];
     public Task JoinAsync(SessionParticipant participant, CancellationToken cancellationToken)
     {
-        if (!participants.Any(existing => existing.Id == participant.Id)) participants.Add(participant);
+        var existing = participants.SingleOrDefault(existing => existing.Id == participant.Id);
+        if (existing is null) participants.Add(participant);
+        else existing.UpdateDisplayName(participant.DisplayName);
         return Task.CompletedTask;
     }
     public Task<bool> IsParticipantAsync(Guid sessionId, string subjectId, ParticipantRole role, CancellationToken cancellationToken) =>
@@ -57,6 +59,9 @@ internal sealed class MemoryParticipantRepository : IParticipantRepository
             .Select(participant => participant.SubjectId).Distinct().Order().ToArray());
     public Task<string[]> GetSubjectIdsAsync(Guid sessionId, ParticipantRole role, CancellationToken cancellationToken) =>
         Task.FromResult(participants.Where(participant => participant.SessionId == sessionId && participant.Role == role).Select(participant => participant.SubjectId).ToArray());
+    public Task<IReadOnlyList<SessionParticipant>> GetTeachersAsync(Guid[] sessionIds, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<SessionParticipant>>(participants.Where(participant => sessionIds.Contains(participant.SessionId) &&
+            participant.Role == ParticipantRole.Teacher).ToArray());
 }
 
 [CollectionDefinition("FastEndpoints", DisableParallelization = true)]

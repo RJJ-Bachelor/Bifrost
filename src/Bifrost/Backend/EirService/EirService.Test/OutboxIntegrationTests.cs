@@ -366,7 +366,7 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         var requestId = Guid.NewGuid();
         var sessionId = Guid.NewGuid();
         var updated = new HelpRequestUpdatedIntegrationEvent(Guid.NewGuid(), requestId, sessionId, 2,
-            "student", "Answered", "Completed", "Digital", "teacher", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            "student", "Answered", "CompletedByDigital", "Digital", "teacher", DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
         var answered = new HelpRequestAnsweredMessage(requestId, sessionId, 2, "Question", "Answer");
         var notificationId = Guid.NewGuid();
         var notification = new NotificationCreatedMessage("student", "Answer available", sessionId, 2, requestId);

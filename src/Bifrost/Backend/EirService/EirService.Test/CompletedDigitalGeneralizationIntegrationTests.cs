@@ -199,7 +199,7 @@ public sealed partial class SessionIntegrationTests
         using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{requestId}/messages",
             new { Text = answerText });
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
-        Assert.Equal(HelpRequestStatus.Completed,
+        Assert.Equal(HelpRequestStatus.CompletedByDigital,
             (await answer.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
     }
 
@@ -208,7 +208,7 @@ public sealed partial class SessionIntegrationTests
         var current = (await client.GetFromJsonAsync<HelpRequestResult>(
             $"/api/students/requests/{original.Id}", FaqJsonOptions))!;
         Assert.Equal(HelpType.Digital, current.HelpType);
-        Assert.Equal(HelpRequestStatus.Completed, current.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByDigital, current.Status);
         Assert.NotNull(original.ClosedAt);
         Assert.Equal(original.ClosedAt, current.ClosedAt);
         Assert.Equal(original.AssignedTeacherId, current.AssignedTeacherId);

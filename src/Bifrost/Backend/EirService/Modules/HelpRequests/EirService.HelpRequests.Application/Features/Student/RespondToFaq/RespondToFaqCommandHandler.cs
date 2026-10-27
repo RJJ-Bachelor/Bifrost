@@ -15,6 +15,6 @@ public sealed class RespondToFaqCommandHandler(HelpRequestAccess access, IUnitOf
         if (command.Accept!.Value) request.AcceptFaq(command.StudentId, clock.GetUtcNow());
         else request.RejectFaq(command.StudentId, clock.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }

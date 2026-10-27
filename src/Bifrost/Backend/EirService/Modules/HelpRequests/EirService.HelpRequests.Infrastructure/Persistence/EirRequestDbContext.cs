@@ -38,6 +38,7 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
             entity.Property(request => request.Status).HasConversion<string>().HasMaxLength(30);
             entity.Property<uint>("xmin").IsRowVersion();
             entity.Ignore(request => request.IsOpen);
+            entity.Ignore(request => request.IsCompleted);
             entity.Ignore(request => request.IsFaq);
             entity.Ignore(request => request.CanLinkToFaq);
             entity.Ignore(request => request.DisplayNumber);

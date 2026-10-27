@@ -16,6 +16,6 @@ public sealed class AddStudentMessageCommandHandler(HelpRequestAccess access, IU
         var now = timeProvider.GetUtcNow();
         request.AddStudentMessage(command.StudentId, new MessageText(command.Text), now);
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }

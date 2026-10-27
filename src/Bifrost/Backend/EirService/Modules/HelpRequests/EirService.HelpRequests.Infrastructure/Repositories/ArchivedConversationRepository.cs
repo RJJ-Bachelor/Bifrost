@@ -71,7 +71,8 @@ public sealed class ArchivedConversationRepository(EirRequestDbContext dbContext
     private IQueryable<HelpRequest> ArchivedRequests(Guid sessionId, string? studentId) =>
         dbContext.Requests.AsNoTracking().Where(request => request.SessionId == sessionId &&
             request.StudentId != null && (studentId == null || request.StudentId == studentId) &&
-            (request.Status == HelpRequestStatus.Completed || request.Status == HelpRequestStatus.Cancelled ||
+            (request.Status == HelpRequestStatus.CompletedByFaq || request.Status == HelpRequestStatus.CompletedByDigital ||
+             request.Status == HelpRequestStatus.CompletedByPhysical || request.Status == HelpRequestStatus.Cancelled ||
              request.Messages.Any(message => message.AuthorRole == AuthorRole.Teacher && !message.IsRejected)));
 
     private IQueryable<ArchivedConversationSnapshot> ArchivedSnapshots(Guid sessionId, string? studentId) =>

@@ -17,7 +17,7 @@ internal sealed class TakeNextHelpRequest : EndpointWithoutRequest<HelpRequestRe
 
     public override async Task HandleAsync(CancellationToken cancellationToken)
     {
-        var result = await new TakeNextHelpRequestCommand(Route<Guid>("sessionId"), User.GetRequiredUserId()).ExecuteAsync(cancellationToken);
+        var result = await new TakeNextHelpRequestCommand(Route<Guid>("sessionId"), User.GetRequiredUserId(), User.Identity?.Name).ExecuteAsync(cancellationToken);
         if (result is null) await Send.NoContentAsync(cancellationToken);
         else await Send.OkAsync(result, cancellationToken);
     }

@@ -14,7 +14,7 @@ public sealed class JoinTeacherSessionCommandHandler(IParticipantRepository repo
         var session = await new FindSessionByCodeQuery(command.Code, SessionCodeType.Teacher).ExecuteAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
         await repository.JoinAsync(SessionParticipant.Join(session.Id, command.TeacherId,
-            ParticipantRole.Teacher, timeProvider.GetUtcNow()), cancellationToken);
+            ParticipantRole.Teacher, timeProvider.GetUtcNow(), command.DisplayName), cancellationToken);
         return session.Id;
     }
 }

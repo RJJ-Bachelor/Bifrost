@@ -26,6 +26,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public Guid? FaqAnswerId { get; private set; }
     public IReadOnlyCollection<HelpRequestMessage> Messages => messages.AsReadOnly();
     public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or HelpRequestStatus.AwaitingFaq or HelpRequestStatus.AwaitingConfirmation;
+    public bool IsCompleted => Status is HelpRequestStatus.CompletedByFaq or HelpRequestStatus.CompletedByDigital or HelpRequestStatus.CompletedByPhysical;
 
     public static HelpRequest Create(Guid sessionId, int generation, string studentId,
         HelpType helpType, MessageText question, DateTimeOffset now)
@@ -110,7 +111,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     {
         RequireTeacher(teacherId);
         Require(HelpType == HelpType.Physical && Status == HelpRequestStatus.Active, "Only active physical help can be completed. Digital help requires an answer.");
-        Close(HelpRequestStatus.Completed, now);
+        Close(HelpRequestStatus.CompletedByPhysical, now);
         Changed("Completed", now);
     }
 
@@ -121,15 +122,15 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         AddMessage(teacherId, AuthorRole.Teacher,
             IsFaq ? HelpRequestMessageType.FaqAnswer : HelpRequestMessageType.TeacherAnswer, text, now);
         StartedAt = now.ToUniversalTime();
-        Close(HelpRequestStatus.Completed, now);
+        Close(HelpRequestStatus.CompletedByDigital, now);
         Changed("Answered", now);
     }
 
     public void AddStudentMessage(string studentId, MessageText text, DateTimeOffset now)
     {
         Require(StudentId == studentId, "The request belongs to another student.");
-        Require(Status is HelpRequestStatus.Pending or HelpRequestStatus.Completed, "A message cannot be added while help is active, paused or cancelled.");
-        Require(Status == HelpRequestStatus.Completed || AssignedTeacherId is null, "The request has already been reserved.");
+        Require(Status == HelpRequestStatus.Pending || IsCompleted, "A message cannot be added while help is active, paused or cancelled.");
+        Require(IsCompleted || AssignedTeacherId is null, "The request has already been reserved.");
         AddMessage(studentId, AuthorRole.Student, HelpRequestMessageType.FollowUpQuestion, text, now);
         ResetForQueue();
         QueuedAt = now.ToUniversalTime();
@@ -159,7 +160,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
     public void AcceptFaq(string studentId, DateTimeOffset now)
     {
         RequireFaqConfirmation(studentId);
-        Close(HelpRequestStatus.Completed, now);
+        Close(HelpRequestStatus.CompletedByFaq, now);
         Changed("FaqAccepted", now);
     }
 

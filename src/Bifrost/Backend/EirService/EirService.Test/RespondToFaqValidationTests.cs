@@ -32,9 +32,9 @@ public sealed partial class CommandBusTests
     }
 
     [Theory]
-    [InlineData(HelpType.Digital, true, HelpRequestStatus.Completed)]
+    [InlineData(HelpType.Digital, true, HelpRequestStatus.CompletedByFaq)]
     [InlineData(HelpType.Digital, false, HelpRequestStatus.Pending)]
-    [InlineData(HelpType.Physical, true, HelpRequestStatus.Completed)]
+    [InlineData(HelpType.Physical, true, HelpRequestStatus.CompletedByFaq)]
     [InlineData(HelpType.Physical, false, HelpRequestStatus.Pending)]
     public async Task ExplicitFaqDecisionPassesApplicationValidationAndUpdatesTheRequest(
         HelpType helpType, bool accept, HelpRequestStatus expected)

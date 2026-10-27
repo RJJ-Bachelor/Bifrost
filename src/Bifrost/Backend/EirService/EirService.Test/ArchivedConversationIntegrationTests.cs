@@ -100,7 +100,7 @@ public sealed partial class SessionIntegrationTests
         await using var verify = app.Services.CreateAsyncScope();
         var stored = await verify.ServiceProvider.GetRequiredService<EirRequestDbContext>().Requests
             .Include(request => request.Messages).SingleAsync(request => request.Id == requestId);
-        Assert.Equal(HelpRequestStatus.Completed, stored.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByDigital, stored.Status);
         Assert.Equal(new[] { "Question", "Archived answer" }, stored.Messages.OrderBy(message => message.SequenceNumber)
             .Select(message => message.Text.Value));
     }
