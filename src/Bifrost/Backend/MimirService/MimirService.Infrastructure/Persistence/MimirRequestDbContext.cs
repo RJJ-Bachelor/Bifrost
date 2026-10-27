@@ -32,6 +32,8 @@ public sealed class MimirRequestDbContext(
             entity.HasOne<Generalization>()
                 .WithMany()
                 .HasForeignKey(request => request.GeneralizationId);
+            // Concurrent handlers cannot link the same waiting request. The later save fails and the message is redelivered.
+            entity.Property<uint>("xmin").IsRowVersion();
         });
         modelBuilder.Entity<Generalization>(entity =>
         {
