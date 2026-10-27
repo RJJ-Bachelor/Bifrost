@@ -13,7 +13,7 @@ namespace VarService.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20261006180757_init")]
-    partial class init
+    partial class Init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
