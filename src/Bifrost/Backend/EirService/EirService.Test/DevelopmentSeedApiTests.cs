@@ -1,3 +1,9 @@
+using EirService.Contracts.Sessions.GetSessionTeacherNames;
+using EirService.Sessions.Application.Features.Internal.GetSessionTeacherNames;
+using EirService.Contracts.Participants.GetSessionTeachers;
+using EirService.Contracts.Participants.RememberSessionTeacher;
+using EirService.Participants.Application.Features.Internal.GetSessionTeachers;
+using EirService.Participants.Application.Features.Internal.RememberSessionTeacher;
 using System.Net;
 using System.Net.Http.Json;
 using EirService.Api.Development;
@@ -177,8 +183,11 @@ public sealed class DevelopmentSeedApiTests
         builder.Services.AddSingleton<MemoryParticipantRepository>();
         builder.Services.AddScoped<IParticipantRepository>(provider => provider.GetRequiredService<MemoryParticipantRepository>());
         builder.Services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionTeachersQuery, IReadOnlyList<SessionTeacher>>, GetSessionTeachersQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<RememberSessionTeacherCommand>, RememberSessionTeacherCommandHandler>();
         builder.Services.AddScoped<ICommandHandler<GetSessionParticipantIdsQuery, string[]>, GetSessionParticipantIdsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionTeacherNamesQuery, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, string?>>>, GetSessionTeacherNamesQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
         if (builder.Environment.IsDevelopment()) builder.Services.AddScoped<DevelopmentDataSeeder>();
         builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();

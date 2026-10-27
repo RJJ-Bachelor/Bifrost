@@ -19,7 +19,7 @@ internal sealed class JoinTeacherSession : Endpoint<JoinTeacherSessionRequest, S
     public override async Task HandleAsync(JoinTeacherSessionRequest request, CancellationToken cancellationToken)
     {
         var teacherId = User.GetRequiredUserId();
-        var sessionId = await new JoinTeacherSessionCommand(request.Code, teacherId).ExecuteAsync(cancellationToken);
+        var sessionId = await new JoinTeacherSessionCommand(request.Code, teacherId, User.Identity?.Name).ExecuteAsync(cancellationToken);
         var result = await new GetSessionQuery(sessionId, teacherId).ExecuteAsync(cancellationToken);
         await Send.OkAsync(result, cancellationToken);
     }

@@ -29,6 +29,6 @@ public sealed class ChangeHelpRequestStatusCommandHandler(
                 throw new ArgumentOutOfRangeException(nameof(command.Action));
         }
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }

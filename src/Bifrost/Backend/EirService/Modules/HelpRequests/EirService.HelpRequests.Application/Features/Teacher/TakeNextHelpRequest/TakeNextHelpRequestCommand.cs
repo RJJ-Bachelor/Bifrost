@@ -3,4 +3,4 @@ using FastEndpoints;
 
 namespace EirService.HelpRequests.Application.Features.Teacher.TakeNextHelpRequest;
 
-public sealed record TakeNextHelpRequestCommand(Guid SessionId, string TeacherId) : ICommand<HelpRequestResult?>;
+public sealed record TakeNextHelpRequestCommand(Guid SessionId, string TeacherId, string? DisplayName = null) : ICommand<HelpRequestResult?>;

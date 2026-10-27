@@ -974,9 +974,9 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var studentId = (await answer.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("studentId").GetString();
         var answered = Assert.Single(await ReadNotificationsAsync(), notification => notification.Message.UserId == studentId);
         Assert.Equal(new NotificationCreatedMessage(studentId!, "Der er kommet svar på din hjælpeanmodning.",
-            session.Id, 1, id, "Answered", "Completed", NotificationEventType.HelpRequestAnswered), answered.Message);
+            session.Id, 1, id, "Answered", "CompletedByDigital", NotificationEventType.HelpRequestAnswered), answered.Message);
         var conversation = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
-        Assert.Equal("Completed", conversation.GetProperty("status").GetString());
+        Assert.Equal("CompletedByDigital", conversation.GetProperty("status").GetString());
         Assert.Equal(new[] { 1, 2 }, conversation.GetProperty("messages").EnumerateArray().Select(message => message.GetProperty("sequenceNumber").GetInt32()));
         Assert.Equal(new[] { "StudentQuestion", "TeacherAnswer" }, conversation.GetProperty("messages")
             .EnumerateArray().Select(message => message.GetProperty("messageType").GetString()));
@@ -1074,7 +1074,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         using var reopen = await student.PostAsJsonAsync($"/api/students/requests/{id}/messages", new { Text = "Reopen" });
         Assert.Equal(HttpStatusCode.Conflict, reopen.StatusCode);
         var saved = await student.GetFromJsonAsync<JsonElement>($"/api/students/requests/{id}");
-        Assert.Equal("Completed", saved.GetProperty("status").GetString());
+        Assert.Equal("CompletedByDigital", saved.GetProperty("status").GetString());
         Assert.Equal(3, saved.GetProperty("messages").GetArrayLength());
     }
 

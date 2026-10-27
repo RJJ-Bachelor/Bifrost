@@ -95,7 +95,7 @@ public sealed partial class SessionIntegrationTests
         using var accept = await student.PatchAsJsonAsync($"/api/students/requests/{physicalId}/faq", new { Accept = true });
         Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
         var completed = (await accept.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
-        Assert.Equal(HelpRequestStatus.Completed, completed.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByFaq, completed.Status);
         Assert.Equal(HelpType.Physical, completed.HelpType);
         Assert.Equal(physicalBefore.RequestNumber, completed.RequestNumber);
         Assert.Equal(physicalBefore.QueuedAt, completed.QueuedAt);
@@ -204,7 +204,7 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(HelpRequestStatus.Active, (await start.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
         using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{firstId}/status", new { Action = "Complete" });
         Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
-        Assert.Equal(HelpRequestStatus.Completed, (await complete.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByPhysical, (await complete.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
     }
 
     [PostgresFact]

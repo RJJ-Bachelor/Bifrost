@@ -15,6 +15,6 @@ public sealed class CancelHelpRequestCommandHandler(
         var request = await access.ForRequestAsync(command.Id, command.StudentId, AuthorRole.Student, true, cancellationToken);
         request.Cancel(command.StudentId, AuthorRole.Student, timeProvider.GetUtcNow());
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }

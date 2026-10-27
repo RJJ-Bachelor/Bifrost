@@ -22,7 +22,7 @@ public sealed class HelpRequestDomainTests
         Assert.Equal(HelpRequestStatus.Active, request.Status);
         Assert.Throws<HelpRequestRuleException>(() => request.Cancel("student", AuthorRole.Student, Now));
         request.Complete("teacher", Now.AddMinutes(5));
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByPhysical, request.Status);
         Assert.Equal(Now.AddMinutes(1), request.StartedAt);
         Assert.Equal(Now.AddMinutes(5), request.ClosedAt);
         Assert.Throws<HelpRequestRuleException>(() => request.Complete("teacher", Now));
@@ -35,7 +35,7 @@ public sealed class HelpRequestDomainTests
         request.Reserve("teacher", Now);
         Assert.Throws<HelpRequestRuleException>(() => request.Start("teacher", Now));
         request.Answer("teacher", new MessageText("Answer"), Now.AddMinutes(1));
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByDigital, request.Status);
         request.AddStudentMessage("student", new MessageText("Follow-up"), Now.AddMinutes(2));
         Assert.Equal(HelpRequestStatus.Pending, request.Status);
         Assert.Equal(Now.AddMinutes(2), request.QueuedAt);
@@ -46,6 +46,54 @@ public sealed class HelpRequestDomainTests
         Assert.Equal(new[] { HelpRequestMessageType.StudentQuestion, HelpRequestMessageType.TeacherAnswer,
             HelpRequestMessageType.FollowUpQuestion }, request.Messages.Select(message => message.MessageType));
         Assert.All(request.Messages, message => Assert.Equal(request.Id, message.HelpRequestId));
+    }
+
+    [Theory]
+    [InlineData(HelpType.Digital, HelpRequestStatus.CompletedByDigital)]
+    [InlineData(HelpType.Physical, HelpRequestStatus.CompletedByPhysical)]
+    [InlineData(HelpType.Digital, HelpRequestStatus.CompletedByFaq)]
+    [InlineData(HelpType.Physical, HelpRequestStatus.CompletedByFaq)]
+    public void AllCompletionOutcomesAllowAStudentFollowUpToRejoinTheQueue(
+        HelpType helpType, HelpRequestStatus completion)
+    {
+        var request = Create(helpType);
+        if (completion == HelpRequestStatus.CompletedByFaq)
+        {
+            var faqId = Guid.NewGuid();
+            request.LinkToFaq(faqId, new MessageText("Shared question"), Now);
+            request.SuggestFaq(faqId, "teacher", new MessageText("Shared answer"), Now.AddMinutes(1));
+            request.AcceptFaq("student", Now.AddMinutes(2));
+        }
+        else
+        {
+            request.Reserve("teacher", Now);
+            if (helpType == HelpType.Physical)
+            {
+                request.Start("teacher", Now.AddMinutes(1));
+                request.Complete("teacher", Now.AddMinutes(2));
+            }
+            else request.Answer("teacher", new MessageText("Answer"), Now.AddMinutes(2));
+        }
+        var previousMessages = request.Messages.ToArray();
+        Assert.Equal(completion, request.Status);
+        Assert.True(request.IsCompleted);
+        Assert.False(request.IsOpen);
+        Assert.Throws<HelpRequestRuleException>(() => request.Reserve("other-teacher", Now));
+        Assert.Throws<HelpRequestRuleException>(() => request.Cancel("student", AuthorRole.Student, Now));
+
+        request.AddStudentMessage("student", new MessageText("Follow-up"), Now.AddMinutes(3));
+
+        Assert.Equal(HelpRequestStatus.Pending, request.Status);
+        Assert.True(request.IsOpen);
+        Assert.False(request.IsCompleted);
+        Assert.Equal(Now.AddMinutes(3), request.QueuedAt);
+        Assert.Null(request.AssignedTeacherId);
+        Assert.Null(request.FaqAnswerId);
+        Assert.Null(request.StartedAt);
+        Assert.Null(request.ClosedAt);
+        Assert.Equal(previousMessages, request.Messages.Take(previousMessages.Length));
+        Assert.Equal(HelpRequestMessageType.FollowUpQuestion, request.Messages.Last().MessageType);
+        request.Reserve("other-teacher", Now.AddMinutes(4));
     }
 
     [Fact]
@@ -111,7 +159,7 @@ public sealed class HelpRequestDomainTests
         request.LinkToFaq(secondFaqId, new MessageText("Another shared question"), Now.AddMinutes(2));
         request.SuggestFaq(secondFaqId, "teacher", new MessageText("Another shared answer"), Now.AddMinutes(3));
         request.AcceptFaq("student", Now.AddMinutes(3));
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByFaq, request.Status);
     }
 
     [Theory]

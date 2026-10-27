@@ -124,7 +124,7 @@ public sealed partial class SessionIntegrationTests
         {
             var current = (await client.GetFromJsonAsync<HelpRequestResult>(
                 $"/api/{role}/requests/{firstId}", FaqJsonOptions))!;
-            Assert.Equal(HelpRequestStatus.Completed, current.Status);
+            Assert.Equal(HelpRequestStatus.CompletedByDigital, current.Status);
             Assert.Equal(new[] { HelpRequestMessageType.StudentQuestion, HelpRequestMessageType.TeacherAnswer,
                 HelpRequestMessageType.FollowUpQuestion, HelpRequestMessageType.TeacherAnswer },
                 current.Messages.Select(message => message.MessageType));
@@ -178,7 +178,7 @@ public sealed partial class SessionIntegrationTests
         using var accept = await student.PatchAsJsonAsync($"/api/students/requests/{firstId}/faq", new { Accept = true });
         Assert.Equal(HttpStatusCode.OK, accept.StatusCode);
         var accepted = (await accept.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
-        Assert.Equal(HelpRequestStatus.Completed, accepted.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByFaq, accepted.Status);
         Assert.Equal(new[] { "Question", "The second shared question.", "The second shared answer." },
             accepted.Messages.Select(message => message.Text));
         using var followUp = await student.PostAsJsonAsync($"/api/students/requests/{firstId}/messages",

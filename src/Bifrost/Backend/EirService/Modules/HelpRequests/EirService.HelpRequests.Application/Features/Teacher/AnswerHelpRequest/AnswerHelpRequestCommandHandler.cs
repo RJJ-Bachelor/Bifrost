@@ -23,6 +23,6 @@ public sealed class AnswerHelpRequestCommandHandler(HelpRequestAccess access, IH
                 source.SuggestFaq(request.Id, command.TeacherId, new MessageText(command.Text), now);
         }
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }

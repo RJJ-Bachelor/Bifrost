@@ -16,7 +16,7 @@ public sealed class GetStudentQueueQueryHandler(IHelpRequestRepository repositor
         var activeCount = requests.Count(request => request.Status == HelpRequestStatus.Active);
         var own = requests.SingleOrDefault(request => request.StudentId == query.StudentId && request.IsOpen);
         var index = Array.FindIndex(waiting, request => request.Id == own?.Id);
-        var durations = requests.Where(request => request.Status == HelpRequestStatus.Completed &&
+        var durations = requests.Where(request => request.Status == HelpRequestStatus.CompletedByPhysical &&
                 request.StartedAt is not null && request.ClosedAt > request.StartedAt)
             .Select(request => (request.ClosedAt!.Value - request.StartedAt!.Value).TotalMinutes).ToArray();
         var averageMinutes = durations.Length == 0 ? 5 : durations.Average();

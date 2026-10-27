@@ -2,6 +2,7 @@
 @teacherToken = REPLACE_WITH_TEACHER_ACCESS_TOKEN
 @sessionId = REPLACE_WITH_CREATED_SESSION_ID
 @sessionCode = REPLACE_WITH_CREATED_SESSION_CODE
+@requestId = REPLACE_WITH_CREATED_REQUEST_ID
 
 ### Anonymous monitoring
 GET {{EirService.Api_HostAddress}}/api/monitoring/alive
@@ -54,5 +55,9 @@ Content-Type: application/json
 
 {"expectedGeneration":1}
 
-### Current session requests
+### Current session requests: queuedAt ascending, then id; includes assignedTeacherId and assignedTeacherName
 GET {{EirService.Api_HostAddress}}/api/students/requests?sessionId={{sessionId}}
+
+### Student conversation: assignedTeacherName can be null when no name was supplied by the identity provider
+# Completed statuses: CompletedByFaq (accepted FAQ), CompletedByDigital (teacher answer), CompletedByPhysical (physical help)
+GET {{EirService.Api_HostAddress}}/api/students/requests/{{requestId}}

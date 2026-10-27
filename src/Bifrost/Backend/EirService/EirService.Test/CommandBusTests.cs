@@ -1,3 +1,9 @@
+using EirService.Contracts.Sessions.GetSessionTeacherNames;
+using EirService.Sessions.Application.Features.Internal.GetSessionTeacherNames;
+using EirService.Contracts.Participants.GetSessionTeachers;
+using EirService.Contracts.Participants.RememberSessionTeacher;
+using EirService.Participants.Application.Features.Internal.GetSessionTeachers;
+using EirService.Participants.Application.Features.Internal.RememberSessionTeacher;
 using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
 using EirService.HelpRequests.Domain.DomainEvents;
@@ -99,8 +105,11 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         builder.Services.AddSingleton<IUnitOfWork<ISessionRepository>>(provider => provider.GetRequiredService<MemorySessionRepository>());
         builder.Services.AddSingleton<IParticipantRepository, MemoryParticipantRepository>();
         builder.Services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionTeachersQuery, IReadOnlyList<SessionTeacher>>, GetSessionTeachersQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<RememberSessionTeacherCommand>, RememberSessionTeacherCommandHandler>();
         builder.Services.AddScoped<ICommandHandler<GetSessionParticipantIdsQuery, string[]>, GetSessionParticipantIdsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionTeacherNamesQuery, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, string?>>>, GetSessionTeacherNamesQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
         var dataProtection = new EphemeralDataProtectionProvider();
         builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

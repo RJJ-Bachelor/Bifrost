@@ -115,7 +115,7 @@ public sealed partial class SessionIntegrationTests
         Assert.All(notifications, item => Assert.DoesNotContain("A private answer", item.Message.Messages));
         var personal = Assert.Single(notifications, item => item.Message.UserId == source.StudentId).Message;
         Assert.Equal("Answered", personal.Change);
-        Assert.Equal("Completed", personal.Status);
+        Assert.Equal("CompletedByDigital", personal.Status);
         before = await NotificationCursorAsync();
         using var retry = await teacher.PostAsJsonAsync($"/api/teachers/requests/{id}/messages", new { Text = "Duplicate answer" });
         Assert.Equal(HttpStatusCode.Conflict, retry.StatusCode);

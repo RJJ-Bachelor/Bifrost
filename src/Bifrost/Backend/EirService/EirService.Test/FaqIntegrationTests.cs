@@ -111,7 +111,7 @@ public sealed partial class SessionIntegrationTests
         var faqs = (await student.GetFromJsonAsync<FaqResult[]>($"/api/students/sessions/{session.Id}/faqs"))!;
         Assert.Equal("Check the loop condition.", Assert.Single(faqs).Answer);
         using var accept = await student.PatchAsJsonAsync($"/api/students/requests/{firstId}/faq", new { Accept = true });
-        Assert.Equal(HelpRequestStatus.Completed, (await accept.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByFaq, (await accept.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Status);
         using var reject = await second.PatchAsJsonAsync($"/api/students/requests/{secondId}/faq", new { Accept = false });
         var returned = (await reject.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
         Assert.Equal(HelpRequestStatus.Pending, returned.Status);

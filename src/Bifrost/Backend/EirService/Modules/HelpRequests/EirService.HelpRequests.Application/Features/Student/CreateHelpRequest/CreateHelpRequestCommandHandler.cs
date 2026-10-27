@@ -27,6 +27,6 @@ public sealed class CreateHelpRequestCommandHandler(
         
         await unitOfWork.SaveChangesAsync(cancellationToken);
         
-        return request.ToResult();
+        return await request.ToResultAsync(cancellationToken);
     }
 }
