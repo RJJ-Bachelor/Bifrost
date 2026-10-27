@@ -143,6 +143,7 @@ describe('HelpRequestApi', () => {
           { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z', assignedTeacherId: null },
           { id: 'request-2', queuedAt: '2026-10-25T10:05:00Z', assignedTeacherId: null },
         ],
+        activeRequests: [],
       });
 
       await TestBed.inject(ApplicationRef).whenStable();
