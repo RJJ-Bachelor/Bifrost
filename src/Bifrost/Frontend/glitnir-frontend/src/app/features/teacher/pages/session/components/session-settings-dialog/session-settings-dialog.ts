@@ -26,10 +26,12 @@ export class SessionSettingsDialog {
   });
 
   protected readonly renaming = signal(false);
-  protected readonly renameError = signal<string | null>(null);
+  protected readonly renameError = linkedSignal<boolean, string | null>({
+    source: () => this.open(),
+    computation: () => null,
+  });
 
   protected onClose(): void {
-    this.renameError.set(null);
     this.closed.emit();
   }
 
