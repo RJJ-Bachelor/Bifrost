@@ -35,6 +35,8 @@ public sealed partial class SessionIntegrationTests
         var faq = HelpRequest.CreateFaq(Guid.NewGuid(), owned.Id, 1, new MessageText("Generalized question"), clock.Now);
         var reserved = QueueCountRequest(owned.Id, 1, HelpType.Physical);
         reserved.Reserve(owned.CreatedByTeacherId, clock.Now);
+        var reservedFaq = HelpRequest.CreateFaq(Guid.NewGuid(), owned.Id, 1, new MessageText("Reserved FAQ"), clock.Now);
+        reservedFaq.Reserve(owned.CreatedByTeacherId, clock.Now);
         var active = QueueCountRequest(owned.Id, 1, HelpType.Physical);
         active.Reserve(owned.CreatedByTeacherId, clock.Now);
         active.Start(owned.CreatedByTeacherId, clock.Now);
@@ -49,7 +51,7 @@ public sealed partial class SessionIntegrationTests
         completed.Answer(owned.CreatedByTeacherId, new MessageText("Answer"), clock.Now);
         var cancelled = QueueCountRequest(owned.Id, 1);
         cancelled.Cancel(cancelled.StudentId!, AuthorRole.Student, clock.Now);
-        await SeedQueueCountRequestsAsync(physical, digital, faq, reserved, active, awaitingFaq,
+        await SeedQueueCountRequestsAsync(physical, digital, faq, reserved, reservedFaq, active, awaitingFaq,
             awaitingConfirmation, completed, cancelled,
             QueueCountRequest(shared.Id, 1), QueueCountRequest(shared.Id, 1, HelpType.Physical),
             QueueCountRequest(hidden.Id, 1));
@@ -57,13 +59,22 @@ public sealed partial class SessionIntegrationTests
         var sessions = (await teacher.GetFromJsonAsync<SessionListResult[]>("/api/teachers/sessions"))!;
         Assert.Equal(new[] { empty.Id, owned.Id, shared.Id }.Order(), sessions.Select(session => session.Id).Order());
         Assert.Equal(0, sessions.Single(session => session.Id == empty.Id).WaitingCount);
-        Assert.Equal(4, sessions.Single(session => session.Id == owned.Id).WaitingCount);
+        Assert.Equal(0, sessions.Single(session => session.Id == empty.Id).UnreservedWaitingCount);
+        Assert.Equal(5, sessions.Single(session => session.Id == owned.Id).WaitingCount);
+        Assert.Equal(3, sessions.Single(session => session.Id == owned.Id).UnreservedWaitingCount);
         Assert.Equal(2, sessions.Single(session => session.Id == shared.Id).WaitingCount);
+        Assert.Equal(2, sessions.Single(session => session.Id == shared.Id).UnreservedWaitingCount);
         foreach (var session in sessions)
         {
             var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
             Assert.Equal(queue.GetProperty("waitingCount").GetInt32(), session.WaitingCount);
+            Assert.Equal(queue.GetProperty("unreservedWaitingCount").GetInt32(), session.UnreservedWaitingCount);
         }
+
+        await JoinAsync(owned.Code);
+        var studentQueue = await student.GetFromJsonAsync<JsonElement>($"/api/students/sessions/{owned.Id}/queue");
+        Assert.Equal(5, studentQueue.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(3, studentQueue.GetProperty("unreservedWaitingCount").GetInt32());
     }
 
     [PostgresFact]
@@ -81,22 +92,36 @@ public sealed partial class SessionIntegrationTests
 
         var emptyGenerations = (await teacher.GetFromJsonAsync<SessionListResult[]>("/api/teachers/sessions"))!;
         Assert.Equal(2, emptyGenerations.Length);
-        Assert.All(emptyGenerations, session => Assert.Equal(0, session.WaitingCount));
+        Assert.All(emptyGenerations, session =>
+        {
+            Assert.Equal(0, session.WaitingCount);
+            Assert.Equal(0, session.UnreservedWaitingCount);
+        });
 
         // Generation 2 is stale for one session and current for the other.
+        var staleClearedReservation = QueueCountRequest(cleared.Id, 2);
+        staleClearedReservation.Reserve(cleared.CreatedByTeacherId, clock.Now);
+        var currentClearedReservation = QueueCountRequest(cleared.Id, 3);
+        currentClearedReservation.Reserve(cleared.CreatedByTeacherId, clock.Now);
+        var staleArchivedReservation = QueueCountRequest(archived.Id, 1);
+        staleArchivedReservation.Reserve(archived.CreatedByTeacherId, clock.Now);
+        var currentArchivedReservation = QueueCountRequest(archived.Id, 2);
+        currentArchivedReservation.Reserve(archived.CreatedByTeacherId, clock.Now);
         await SeedQueueCountRequestsAsync(
             QueueCountRequest(cleared.Id, 2), QueueCountRequest(cleared.Id, 3),
             QueueCountRequest(archived.Id, 1),
-            QueueCountRequest(archived.Id, 2), QueueCountRequest(archived.Id, 2, HelpType.Physical));
+            QueueCountRequest(archived.Id, 2), QueueCountRequest(archived.Id, 2, HelpType.Physical),
+            staleClearedReservation, currentClearedReservation, staleArchivedReservation, currentArchivedReservation);
         var sessions = (await teacher.GetFromJsonAsync<SessionListResult[]>("/api/teachers/sessions"))!;
-        Assert.Equal((3, 1), sessions.Where(session => session.Id == cleared.Id)
-            .Select(session => (session.CurrentGeneration, session.WaitingCount)).Single());
-        Assert.Equal((2, 2), sessions.Where(session => session.Id == archived.Id)
-            .Select(session => (session.CurrentGeneration, session.WaitingCount)).Single());
+        Assert.Equal((3, 2, 1), sessions.Where(session => session.Id == cleared.Id)
+            .Select(session => (session.CurrentGeneration, session.WaitingCount, session.UnreservedWaitingCount)).Single());
+        Assert.Equal((2, 3, 2), sessions.Where(session => session.Id == archived.Id)
+            .Select(session => (session.CurrentGeneration, session.WaitingCount, session.UnreservedWaitingCount)).Single());
         foreach (var session in sessions)
         {
             var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
             Assert.Equal(queue.GetProperty("waitingCount").GetInt32(), session.WaitingCount);
+            Assert.Equal(queue.GetProperty("unreservedWaitingCount").GetInt32(), session.UnreservedWaitingCount);
         }
     }
 

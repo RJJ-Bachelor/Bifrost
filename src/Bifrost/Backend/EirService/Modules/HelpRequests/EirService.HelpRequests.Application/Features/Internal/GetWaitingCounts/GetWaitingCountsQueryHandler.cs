@@ -5,9 +5,9 @@ using FastEndpoints;
 namespace EirService.HelpRequests.Application.Features.Internal.GetWaitingCounts;
 
 public sealed class GetWaitingCountsQueryHandler(IHelpRequestRepository repository)
-    : ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, int>>
+    : ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, WaitingCounts>>
 {
-    public Task<IReadOnlyDictionary<Guid, int>> ExecuteAsync(
+    public Task<IReadOnlyDictionary<Guid, WaitingCounts>> ExecuteAsync(
         GetWaitingCountsQuery query, CancellationToken cancellationToken) =>
         repository.GetWaitingCountsAsync(query.SessionGenerations, cancellationToken);
 }

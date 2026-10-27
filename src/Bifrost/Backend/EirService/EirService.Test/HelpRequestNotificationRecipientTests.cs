@@ -12,7 +12,7 @@ namespace EirService.Test;
 public sealed partial class CommandBusTests
 {
     [Theory]
-    [InlineData("Reserved", false)]
+    [InlineData("Reserved", true)]
     [InlineData("FaqAccepted", false)]
     [InlineData("AwaitingFaqCancelled", false)]
     [InlineData("AwaitingConfirmationCancelled", false)]
@@ -77,6 +77,8 @@ public sealed partial class CommandBusTests
 
         var after = await new GetStudentQueueQuery(session.Id, "observer").ExecuteAsync();
         if (!affectsOtherStudents) Assert.Equal(before, after);
+        if (action == "Reserved")
+            Assert.Equal(before with { UnreservedWaitingCount = before.UnreservedWaitingCount - 1 }, after);
         if (action == "Completed") Assert.NotEqual(before.EstimatedWaitMinutes, after.EstimatedWaitMinutes);
         var expected = action == "Completed" ? new[] { "colleague", "observer", "owner", "student" } : affectsOtherStudents
             ? new[] { "colleague", "idle", "observer", "owner", "student" }

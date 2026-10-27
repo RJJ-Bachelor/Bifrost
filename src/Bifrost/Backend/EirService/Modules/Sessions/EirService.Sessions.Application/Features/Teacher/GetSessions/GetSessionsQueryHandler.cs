@@ -20,6 +20,10 @@ public sealed class GetSessionsQueryHandler(ISessionRepository repository)
 
         var counts = await new GetWaitingCountsQuery(sessions.ToDictionary(session => session.Id, session => session.CurrentGeneration))
             .ExecuteAsync(cancellationToken);
-        return sessions.Select(session => SessionListResult.From(session, counts.GetValueOrDefault(session.Id))).ToArray();
+        return sessions.Select(session =>
+        {
+            var waiting = counts.GetValueOrDefault(session.Id);
+            return SessionListResult.From(session, waiting.WaitingCount, waiting.UnreservedWaitingCount);
+        }).ToArray();
     }
 }

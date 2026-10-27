@@ -12,7 +12,7 @@ namespace EirService.Test;
 public sealed partial class SessionIntegrationTests
 {
     [PostgresFact]
-    public async Task PhysicalQueueChangesNotifyAllButReservationOnlyNotifiesTeachersAndTheOwner()
+    public async Task PhysicalQueueChangesAndReservationsNotifyAllParticipants()
     {
         var session = await CreateAsync();
         using var colleague = await JoinTeacherAsync(session.TeacherCode);
@@ -71,7 +71,7 @@ public sealed partial class SessionIntegrationTests
             using var response = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal(id, (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
-            AssertPhysicalBroadcast(await NotificationsSinceAsync(cursor), session.Id, ["provider|opaque-teacher", "colleague", studentId], genericChanges: ["Reserved"]);
+            AssertPhysicalBroadcast(await NotificationsSinceAsync(cursor), session.Id, recipients, genericChanges: ["Reserved"]);
         }
 
         async Task StatusAsync(string action, Dictionary<string, (NotificationEventType, Guid)>? personal = null)

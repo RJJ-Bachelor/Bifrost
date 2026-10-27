@@ -29,6 +29,7 @@ using EirService.Contracts.Participants.GetSessionTeacherIds;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Participants.Application.Features.Internal.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Contracts.HelpRequests.GetWaitingCounts;
 using EirService.Participants.Application.Features.Internal.GetSessionTeacherIds;
 using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
 using FastEndpoints;
@@ -574,12 +575,14 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             Task.FromResult(Saved.Where(request => request.SessionId == sessionId && request.Generation == generation &&
                     request.Status == HelpRequestStatus.Pending && request.StudentId != null)
                 .Select(request => request.StudentId!).Distinct().ToArray());
-        public Task<IReadOnlyDictionary<Guid, int>> GetWaitingCountsAsync(
+        public Task<IReadOnlyDictionary<Guid, WaitingCounts>> GetWaitingCountsAsync(
             IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyDictionary<Guid, int>>(Saved.Where(request =>
+            Task.FromResult<IReadOnlyDictionary<Guid, WaitingCounts>>(Saved.Where(request =>
                     request.Status == HelpRequestStatus.Pending &&
                     sessionGenerations.TryGetValue(request.SessionId, out var generation) && request.Generation == generation)
-                .GroupBy(request => request.SessionId).ToDictionary(group => group.Key, group => group.Count()));
+                .GroupBy(request => request.SessionId).ToDictionary(group => group.Key,
+                    group => new WaitingCounts(
+                        group.Count(), group.Count(request => request.AssignedTeacherId is null))));
         public Task<IReadOnlyList<HelpRequest>> GetLinkedToFaqAsync(Guid faqId, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => !request.IsFaq && request.FaqAnswerId == faqId).ToArray());
         public Task<bool> HasOpenAsync(Guid sessionId, int generation, string studentId, CancellationToken cancellationToken) =>

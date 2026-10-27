@@ -23,7 +23,7 @@ public static class DependencyInjection
     {
         services.AddScoped<HelpRequestAccess>();
         services.AddScoped<ICommandHandler<GetFaqAnswerRecipientsQuery, IReadOnlyList<FaqAnswerRecipient>>, GetFaqAnswerRecipientsQueryHandler>();
-        services.AddScoped<ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, int>>, GetWaitingCountsQueryHandler>();
+        services.AddScoped<ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, WaitingCounts>>, GetWaitingCountsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedConversationCountsQuery, IReadOnlyDictionary<int, int>>, GetArchivedConversationCountsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedConversationsQuery, IReadOnlyList<ArchivedConversation>>, GetArchivedConversationsQueryHandler>();
         services.AddScoped<ICommandHandler<CanApplyGeneralizationQuery, bool>, CanApplyGeneralizationQueryHandler>();
