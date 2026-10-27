@@ -15,11 +15,12 @@ import { FaqApi } from '../../../faq/services/faq-api';
 import { HelpRequestApi } from '../../../help-request/services/help-request-api';
 import { SessionApi } from '../../../session/services/session-api';
 import { SessionGeneration } from '../../../session/session.model';
+import { ArchiveConfirmDialog } from './components/archive-confirm-dialog/archive-confirm-dialog';
 import { SessionDeleteDialog } from './components/session-delete-dialog/session-delete-dialog';
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, SessionSettingsDialog, SessionDeleteDialog, Dialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, Dialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -61,9 +62,6 @@ export class TeacherSession {
   protected readonly settingsOpen = signal(false);
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly archiveDialogOpen = signal(false);
-  protected readonly archiveTitle = signal('');
-  protected readonly archiving = signal(false);
-  protected readonly archiveError = signal<string | null>(null);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
   protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
@@ -159,10 +157,6 @@ export class TeacherSession {
     this.settingsOpen.set(false);
   }
 
-  protected onArchiveTitleInput(event: Event): void {
-    this.archiveTitle.set((event.target as HTMLInputElement).value);
-  }
-
   protected onDeleteRequested(): void {
     this.settingsOpen.set(false);
     this.deleteConfirmOpen.set(true);
@@ -178,40 +172,19 @@ export class TeacherSession {
   }
 
   protected openArchiveConfirm(): void {
-    this.archiveTitle.set('');
-    this.archiveError.set(null);
     this.archiveDialogOpen.set(true);
   }
 
   protected closeArchiveConfirm(): void {
     this.archiveDialogOpen.set(false);
-    this.archiveError.set(null);
   }
 
-  protected confirmArchive(): void {
-    const title = this.archiveTitle().trim();
-    if (title.length === 0 || this.archiving()) return;
-
-    const generation = this.session.value()?.currentGeneration;
-    if (generation === undefined) return;
-
-    this.archiving.set(true);
-    this.archiveError.set(null);
-
-    this.sessionApi.archiveSession(this.id(), generation, title).subscribe({
-      next: () => {
-        this.archiving.set(false);
-        this.archiveDialogOpen.set(false);
-        this.session.reload();
-        this.queue.reload();
-        this.faqs.reload();
-        this.archives.reload();
-      },
-      error: () => {
-        this.archiving.set(false);
-        this.archiveError.set('Kunne ikke arkivere. Prøv igen.');
-      },
-    });
+  protected onArchived(): void {
+    this.archiveDialogOpen.set(false);
+    this.session.reload();
+    this.queue.reload();
+    this.faqs.reload();
+    this.archives.reload();
   }
 
   private showFaqStatus(message: string): void {

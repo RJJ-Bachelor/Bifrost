@@ -1,0 +1,35 @@
+<bifrost-dialog
+  [open]="open()"
+  title="Arkiver FAQ og nulstil kø"
+  (closed)="onCancel()"
+>
+  <p class="state-message">
+    Dette arkiverer den nuværende FAQ og starter en ny. <br> Køen og FAQ'en nulstilles.
+  </p>
+  <label class="archive-form__field">
+    <span>Navn på arkiveringen</span>
+    <input
+      type="text"
+      class="input-field"
+      [value]="title()"
+      (input)="onTitleInput($event)"
+      placeholder="Fx Lek 8 - SQL vs Mongo"
+    />
+  </label>
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="onCancel()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="title().trim().length === 0 || archiving()"
+      (click)="onConfirm()"
+    >
+      {{ archiving() ? 'Arkiverer...' : 'Arkiver' }}
+    </button>
+  </div>
+</bifrost-dialog>

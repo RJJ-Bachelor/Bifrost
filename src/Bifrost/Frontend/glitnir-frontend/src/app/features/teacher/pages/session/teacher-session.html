@@ -153,41 +153,13 @@
   </p>
 </bifrost-dialog>
 
-<bifrost-dialog
+<bifrost-archive-confirm-dialog
   [open]="archiveDialogOpen()"
-  title="Arkiver FAQ og nulstil kø"
-  (closed)="closeArchiveConfirm()"
->
-  <p class="state-message">
-    Dette arkiverer den nuværende FAQ og starter en ny. <br> Køen og FAQ'en nulstilles.
-  </p>
-  <label class="faq-form__field">
-    <span>Navn på arkiveringen</span>
-    <input
-      type="text"
-      class="input-field"
-      [value]="archiveTitle()"
-      (input)="onArchiveTitleInput($event)"
-      placeholder="Fx Lek 8 - SQL vs Mongo"
-    />
-  </label>
-  @if (archiveError()) {
-    <p class="form-error">{{ archiveError() }}</p>
-  }
-  <div class="form-actions">
-    <button type="button" class="btn btn--secondary" (click)="closeArchiveConfirm()">
-      Annuller
-    </button>
-    <button
-      type="button"
-      class="btn btn--danger"
-      [disabled]="archiveTitle().trim().length === 0 || archiving()"
-      (click)="confirmArchive()"
-    >
-      {{ archiving() ? 'Arkiverer...' : 'Arkiver' }}
-    </button>
-  </div>
-</bifrost-dialog>
+  [sessionId]="id()"
+  [generation]="session.value()?.currentGeneration"
+  (archived)="onArchived()"
+  (cancelled)="closeArchiveConfirm()"
+/>
 
 <bifrost-status-dialog
   [open]="faqStatusOpen()"
