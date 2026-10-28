@@ -29,6 +29,7 @@ using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.Sessions.Application.Features.Teacher.CreateSession;
+using EirService.Sessions.Application.Features.Teacher.UpdateSession;
 using EirService.Sessions.Application.Repositories;
 using EirService.Participants.Application.Repositories;
 using EirService.Participants.Application.Features.Student.JoinSession;
@@ -92,6 +93,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<UpdateSessionCommand>, UpdateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddHelpRequestsApplication();
         builder.Services.AddInsightsApplication();

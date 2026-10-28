@@ -1,0 +1,21 @@
+info:
+  name: UpdateSession
+  type: http
+  seq: 1
+
+http:
+  method: PATCH
+  url: "{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}"
+  body:
+    type: json
+    data: |-
+      {
+        "title": "Omdøbt session"
+      }
+
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
