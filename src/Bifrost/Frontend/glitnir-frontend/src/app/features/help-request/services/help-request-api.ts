@@ -23,6 +23,7 @@ interface HelpRequestDto {
   helpType: string;
   requestNumber: number;
   queuedAt: string;
+  assignedTeacherName: string | null;
 }
 
 const STATUS_MAP: Record<string, HelpRequestStatus> = {
@@ -139,6 +140,7 @@ function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
     helpType: normalizeHelpType(dto.helpType),
     requestNumber: dto.requestNumber,
     queuedAt: dto.queuedAt,
+    assignedTeacherName: dto.assignedTeacherName ?? null,
   };
 }
 

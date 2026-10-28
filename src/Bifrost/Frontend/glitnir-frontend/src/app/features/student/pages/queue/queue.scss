@@ -182,7 +182,13 @@
 
 .queue-turn__message {
   margin: var(--space-3) 0 0;
-  font-size: var(--font-size-xl);
-  font-weight: 600;
+  font-size: var(--font-size-lg);
+  font-weight: 400;
   color: var(--color-primary-dark);
+  line-height: 1.4;
+}
+
+.queue-turn__message strong {
+  color: var(--color-primary);
+  font-weight: 700;
 }

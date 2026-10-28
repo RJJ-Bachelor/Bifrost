@@ -61,7 +61,13 @@
             <span class="badge">Underviser på vej</span>
             <span class="queue-turn__label">Dit nummer</span>
             <span class="queue-turn__number">{{ displayNumber() }}</span>
-            <p class="queue-turn__message">Ræk hånden op — underviseren er på vej hen til dig.</p>
+            @if (request.assignedTeacherName) {
+              <p class="queue-turn__message">
+                Ræk hånden op, så <strong>{{ request.assignedTeacherName }}</strong> kan finde dig.
+              </p>
+            } @else {
+              <p class="queue-turn__message">Ræk hånden op, så underviseren kan finde dig.</p>
+            }
           </div>
         } @else if (viewState() === 'awaiting-confirmation') {
           <div class="queue-card-body">

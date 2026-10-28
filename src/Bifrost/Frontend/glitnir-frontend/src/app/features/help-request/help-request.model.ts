@@ -23,6 +23,7 @@ export interface HelpRequest {
   helpType: HelpType;
   requestNumber: number;
   queuedAt: string;
+  assignedTeacherName: string | null;
 }
 
 export type AuthorRole = 'student' | 'teacher' | 'system';
