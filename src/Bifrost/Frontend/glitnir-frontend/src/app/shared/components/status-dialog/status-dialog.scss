@@ -7,19 +7,17 @@
 }
 
 .status-icon {
-  width: 5rem;
-  height: 5rem;
+  --icon-size: 5rem;
   margin-bottom: var(--space-5);
   background-color: var(--color-primary);
   mask-image: url('/check-circle.svg');
-  mask-size: contain;
-  mask-repeat: no-repeat;
-  mask-position: center;
+  -webkit-mask-image: url('/check-circle.svg');
 }
 
 .status--error .status-icon {
   background-color: var(--color-red);
   mask-image: url('/alert-circle.svg');
+  -webkit-mask-image: url('/alert-circle.svg');
 }
 
 .status-title {

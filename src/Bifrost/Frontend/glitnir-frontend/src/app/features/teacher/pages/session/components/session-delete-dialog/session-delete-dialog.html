@@ -1,0 +1,27 @@
+<bifrost-dialog
+  [open]="open()"
+  title="Slet session"
+  size="sm"
+  (closed)="onCancel()"
+>
+  <p class="state-message">
+    Dette sletter sessionen permanent.
+    <br>Alle FAQ, arkiver og samtaler går tabt.
+  </p>
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="onCancel()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="deleting()"
+      (click)="onConfirm()"
+    >
+      {{ deleting() ? 'Sletter...' : 'Slet session' }}
+    </button>
+  </div>
+</bifrost-dialog>

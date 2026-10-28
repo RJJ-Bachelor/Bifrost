@@ -353,6 +353,10 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 
 ## Sprog & Tone
 * Selve anmeldelsen og forklaringerne skrives på **dansk**, men alle tekniske begreber holdes på **engelsk** (f.eks. "Dependency Injection", "PR", "Controller", "Domain Model", "Repository", "DTO", "Race Condition").
+* **Sprog-reglen for kodebasen** skelner mellem:
+  - **Developer-facing tekst** (kommentarer, variabel-/klassenavne, logbeskeder, exception-beskeder, commit-beskeder, dokumentation) — SKAL være engelsk.
+  - **User-facing tekst** (UI-labels, knaptekster, fejlbeskeder vist i UI, placeholder-tekster, statusbeskeder) — MÅ gerne være dansk, fordi appen er dansk-sproget og resten af UI'et er dansk. Dansk UI-tekst i HTML-templates eller som strenge i TypeScript/C# der sendes til en view er IKKE et brud på sprogreglen.
+  - **Testdata** (fx hardkodede testspørgsmål, fixtures, mocks med menneskeligt-læsbar content) — MÅ gerne være dansk.
 * Vær grundig, kritisk og direkte: Fokuser primært på fejl, potentielle edge cases, manglende validering og arkitekturbrud.
 * Drop overfladisk ros eller høflighedsfraser. Hvis der ikke er fejl, godkendes koden kortfattet med en kort rosende kommentar om hvad der var godt og nøgternt.
 * **INGEN STØJ:** Find ALDRIG på ligegyldige nitpicks. Hvis koden er god, så godkend den kortfattet.${fileContextSection}
@@ -362,7 +366,7 @@ Du er en erfaren softwarearkitekt og tech lead, der anmelder et bachelorprojekt 
 * Brug KUN "APPROVE", hvis koden rent faktisk er robust, uden arkitekturbrud og fri for logiske fejl.
 
 ## Fokusområder
-1. **Engelsk i kodebasen:** Verificer at alle kodekommentarer, logbeskeder, fejltekster, variabel-/klassenavne og dokumentation i koden er skrevet 100% på **engelsk**.
+1. **Engelsk i kodebasen (developer-facing):** Verificer at alle kodekommentarer, logbeskeder, exception-beskeder, variabel-/klassenavne, commit-beskeder og dokumentation er skrevet 100% på **engelsk**. **Undtaget:** user-facing UI-tekst (labels, knapper, fejlbeskeder vist til brugeren, placeholder-tekster, statusbeskeder) og testdata må gerne være dansk, fordi appen er en dansk-sproget applikation med dansk UI.
 2. **Logiske fejl, edge cases & bugs:** Led aktivt efter ubeskyttede null-referencer, manglende fejlhåndtering, manglende grænseværditjek, concurrency-problemer, off-by-one errors og async/await-fejl. Antag ikke at eksterne kald eller input altid lykkes.
 3. **Clean Architecture & Mappestruktur:** Tjek at afhængigheder peger indad. Ingen databasekald i controllers eller forretningslogik i forkerte lag. Hvis noget ikke overholder det SÅ SKAL DET kommenteres, også selvom resten af branchen overholder det!
 4. **Tests (Non-blocking):** Gør venligt opmærksom på manglende tests ved ændret kerneforretningslogik.
@@ -702,6 +706,65 @@ function matchSnippetToLine(fileLinesMap, rawPath, snippet) {
   return partialMatches.length === 1 ? partialMatches[0].line : null;
 }
 
+/**
+ * Groups inline review comments with their replies so the AI sees full threads.
+ * GitHub stores replies as separate comments with `in_reply_to_id`. Author replies
+ * to a bot comment often explain why a finding is intentional, tracked in Jira, or
+ * out of scope — the AI must see these to avoid re-raising the same issue.
+ */
+function formatReviewThreads(comments) {
+  if (!Array.isArray(comments) || comments.length === 0) return "";
+
+  const byId = new Map();
+  const rootComments = [];
+
+  for (const c of comments) {
+    byId.set(c.id, c);
+  }
+
+  for (const c of comments) {
+    if (c.in_reply_to_id && byId.has(c.in_reply_to_id)) {
+      const parent = byId.get(c.in_reply_to_id);
+      if (!parent._replies) parent._replies = [];
+      parent._replies.push(c);
+    } else {
+      rootComments.push(c);
+    }
+  }
+
+  const lines = [];
+  for (const root of rootComments) {
+    const header = `[File: ${root.path}${root.line ? ` Line: ${root.line}` : ""}]`;
+    lines.push(`${header} ${root.user?.login || "unknown"}: ${root.body}`);
+    if (root._replies) {
+      for (const reply of root._replies) {
+        lines.push(`  ↳ Reply (${reply.user?.login || "unknown"}): ${reply.body}`);
+      }
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * If today's heading already exists (e.g. another PR already appended an
+ * "## Update 2026-10-28" section), returns " (2)", " (3)", etc. so the new
+ * section can be appended with a distinct heading instead of duplicating the
+ * exact same heading. Avoids visual duplicates without merging content, which
+ * keeps per-PR changes reviewable in the file.
+ */
+function computeTodayHeadingSuffix(currentContext, today) {
+  if (!currentContext.includes(`## Update ${today}`)) return "";
+  const escaped = today.replace(/-/g, "\\-");
+  const regex = new RegExp(`^## Update ${escaped} \\((\\d+)\\)`, "gm");
+  let maxN = 1;
+  let match;
+  while ((match = regex.exec(currentContext)) !== null) {
+    maxN = Math.max(maxN, parseInt(match[1], 10));
+  }
+  return ` (${maxN + 1})`;
+}
+
 async function updateContextFile(diff, prBranch) {
   let currentContext = "";
   if (fs.existsSync(CONTEXT_FILE_PATH)) {
@@ -724,7 +787,9 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' has grown large and is now in CONSOLIDATION mode.
 
 Rules:
-1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
+   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
+   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
 2. Otherwise, output the COMPLETE consolidated Markdown file.
 3. You MAY merge duplicate or overlapping sections, remove outdated entries, and reorder for clarity. The goal is a clean, accurate, high-level architecture document.
 4. You MUST NOT lose factual information: every architecture concept, module, endpoint, dependency rule, and integration that is still true must remain present — either in its original form or in a clearly equivalent consolidated form.
@@ -736,8 +801,11 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, reorder, or remove existing content — only append a new section at the very end.
 
 Rules:
-1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
+   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
+   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
+   IMPORTANT: You MAY read the existing sections above as reference to avoid duplicating facts, but you MUST NOT modify, reorder, or remove any of them. Only add genuinely new or changed facts.
 3. The new section MUST begin with a level-2 heading in EXACTLY this form: ## Update ${today}
    Do NOT add a PR reference, PR number, topic, or any placeholder text to the heading.
 4. Apply this test to EVERY bullet BEFORE including it:
@@ -836,10 +904,16 @@ ${diff}
         return;
       }
 
+      const suffix = computeTodayHeadingSuffix(currentContext, today);
+      const headingRegex = new RegExp(`^## Update ${today.replace(/-/g, "\\-")}$`, "m");
+      const adjustedResponse = suffix
+        ? cleanedResponse.replace(headingRegex, `## Update ${today}${suffix}`)
+        : cleanedResponse;
+
       const separator = currentContext.trim().length > 0 ? "\n\n---\n\n" : "";
-      newFileContent = currentContext.trimEnd() + separator + cleanedResponse + "\n";
+      newFileContent = currentContext.trimEnd() + separator + adjustedResponse + "\n";
       commitMessage = "docs: auto-append to PROJECT_CONTEXT.md [skip review]";
-      logLabel = "appended";
+      logLabel = suffix ? `appended as "Update ${today}${suffix}"` : "appended";
     }
 
     if (newFileContent && newFileContent !== currentContext) {
@@ -934,9 +1008,7 @@ async function run() {
   }
 
   const previousComments = await githubFetch(`/repos/${REPO}/pulls/${PR_NUMBER}/comments`);
-  const historicalFeedback = Array.isArray(previousComments)
-    ? previousComments.map((c) => `[File: ${c.path} Line: ${c.line}]: ${c.body}`).join("\n")
-    : "";
+  const historicalFeedback = formatReviewThreads(previousComments);
 
   let commitHistoryText = "";
   try {
@@ -976,8 +1048,10 @@ ${projectContext || "No additional project context provided."}
 
 Note on Project Context format: The document is append-only. Later sections (nearer the bottom) override earlier sections when facts conflict. When reading it, treat the bottom-most statement about a given topic as the current truth.
 
-Historical Review Feedback:
+Historical Review Feedback (threaded; author replies are indicated with ↳ Reply):
 ${historicalFeedback || "No previous review comments."}
+
+Note on Historical Feedback: If an author has replied to a previous review comment explaining that a finding is intentional (e.g. documented TODO, tracked in a Jira ticket, or explicitly out of scope), treat that as resolved context and do NOT re-raise the same finding as a blocker unless new evidence contradicts the explanation.
 
 Repository Files (Exact relative paths available for requested_files):
 \`\`\`text

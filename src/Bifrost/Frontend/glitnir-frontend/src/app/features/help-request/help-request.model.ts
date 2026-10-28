@@ -24,3 +24,21 @@ export interface HelpRequest {
 export interface SessionQueue {
   ownRequestId: string | null;
 }
+
+export interface TeacherHelpRequest {
+  id: string;
+}
+
+export interface TeacherQueueEntry {
+  id: string;
+  assignedTeacherId: string | null;
+}
+
+export interface TeacherQueue {
+  waitingCount: number;
+  availableCount: number;
+  generation: number;
+  frontQueuedAt: string | null;
+  pendingRequests: TeacherQueueEntry[];
+  activeRequests: TeacherQueueEntry[];
+}

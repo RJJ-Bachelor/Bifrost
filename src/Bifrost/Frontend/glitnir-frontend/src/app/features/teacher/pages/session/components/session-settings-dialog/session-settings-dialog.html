@@ -1,0 +1,46 @@
+<bifrost-dialog
+  [open]="open()"
+  title="Sessionindstillinger"
+  (closed)="onClose()"
+>
+  <div class="settings-codes">
+    <div class="settings-code surface-box">
+      <span class="settings-code__label">Studerende-kode</span>
+      <span class="settings-code__value">{{ studentCode() }}</span>
+    </div>
+    <div class="settings-code surface-box">
+      <span class="settings-code__label">Underviser-kode</span>
+      <span class="settings-code__value">{{ teacherCode() }}</span>
+    </div>
+  </div>
+
+  <form class="settings-section" (submit)="onSubmitRename($event)">
+    <span class="settings-section__label">Omdøb session</span>
+    <div class="settings-rename-row">
+      <input
+        type="text"
+        class="input-field settings-rename-input"
+        [value]="renameModel()"
+        (input)="onRenameInput($event)"
+      />
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="renameModel().trim().length === 0 || renaming()"
+      >
+        {{ renaming() ? 'Gemmer...' : 'Gem' }}
+      </button>
+    </div>
+    @if (renameError()) {
+      <p class="form-error">{{ renameError() }}</p>
+    }
+  </form>
+
+  <div class="settings-section settings-section--divider">
+    <div class="settings-actions">
+      <button type="button" class="btn btn--danger" (click)="onRequestDelete()">
+        Slet session
+      </button>
+    </div>
+  </div>
+</bifrost-dialog>

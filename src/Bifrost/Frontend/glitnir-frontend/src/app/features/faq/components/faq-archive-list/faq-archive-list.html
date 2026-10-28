@@ -5,7 +5,7 @@
     @for (item of visible(); track item.generation) {
       <bifrost-list-row (click)="generationSelected.emit(item)">
         <span left>{{ item.title }}</span>
-        <span right class="faq-archive-list__icon"></span>
+        <span right class="icon-mask faq-archive-list__icon"></span>
       </bifrost-list-row>
     }
     @if (hasMore()) {

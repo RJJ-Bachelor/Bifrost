@@ -1,12 +1,12 @@
 <form class="create-form" (submit)="onSubmit($event)">
   <input
     type="text"
-    class="create-form__input"
+    class="input-field create-form__input"
     placeholder="Navn på session..."
     [formField]="createForm.title"
   />
   <div class="create-form__error">{{ error() }}</div>
-  <div class="create-form__actions">
+  <div class="form-actions">
     @if (showCancel()) {
       <button
         type="button"

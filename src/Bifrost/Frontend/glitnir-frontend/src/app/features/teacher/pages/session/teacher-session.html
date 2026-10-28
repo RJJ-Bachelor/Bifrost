@@ -1,0 +1,168 @@
+<bifrost-topbar>
+  <button topbar-center class="topbar-pill topbar-pill--button" (click)="openSettings()">
+    <span class="topbar-pill__text">{{ sessionTitle() }}</span>
+    <span class="icon-mask topbar-pill__icon"></span>
+  </button>
+  <button topbar-right class="topbar-btn" (click)="switchSession()">
+    <span class="btn__label-long">Skift session</span>
+    <span class="btn__label-short">Skift</span>
+  </button>
+  <button topbar-right class="topbar-btn dashboard-button" (click)="openDashboard()">
+    Åbn dashboard
+    <span class="icon-mask dashboard-button__icon" aria-hidden="true"></span>
+  </button>
+</bifrost-topbar>
+
+<div class="page-container">
+  <bifrost-card title="Kø">
+    <div class="queue-stats">
+      <bifrost-stat-tile
+        class="surface-box"
+        [items]="[{ value: queue.value().waitingCount, label: 'Studerende i kø' }]"
+      />
+      @if (frontWaitMinutes() !== null) {
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{ value: frontWaitMinutes() + ' min', label: 'Tid i kø (forreste)' }]"
+        />
+      }
+    </div>
+    <div class="queue-actions">
+      <div class="queue-messages">
+        @if (myReservedRequestId() === null && queue.value().waitingCount > 0 && queue.value().availableCount === 0) {
+          <p class="queue-info">Alle spørgsmål i køen er reserveret af andre undervisere.</p>
+        }
+        @if (takeError()) {
+          <p class="queue-error">{{ takeError() }}</p>
+        }
+      </div>
+      @if (myReservedRequestId() !== null) {
+        <button class="btn btn--primary" (click)="resumeOwnRequest()">
+          Fortsæt med spørgsmålet
+        </button>
+      } @else {
+        <button
+          class="btn btn--primary"
+          [disabled]="queue.value().availableCount === 0 || taking()"
+          (click)="takeNext()"
+        >
+          {{ taking() ? 'Henter...' : 'Tag næste i køen' }}
+        </button>
+      }
+    </div>
+  </bifrost-card>
+
+  <bifrost-card title="FAQ">
+    @if (faqs.isLoading()) {
+      <p class="state-message">Indlæser FAQ...</p>
+    } @else if (faqs.error()) {
+      <p class="state-message">Kunne ikke hente FAQ.</p>
+    } @else {
+      <bifrost-faq-list
+        [items]="faqs.value()"
+        [editable]="true"
+        (faqEditRequested)="openEditFaq($event)"
+        (faqDeleteRequested)="requestDeleteFaq($event)"
+      />
+    }
+    <div class="faq-actions">
+      <button class="btn btn--outline" (click)="openCreateFaq()">
+        + Tilføj FAQ-spørgsmål og svar
+      </button>
+    </div>
+  </bifrost-card>
+
+  <div class="session-columns">
+    <bifrost-card title="Dagens statistik">
+      <div class="statistics-tiles">
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{ value: statistics().helpedStudentCount, label: 'Studerende hjulpet' }]"
+        />
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{
+            value: statistics().averageWaitMinutes !== null ? statistics().averageWaitMinutes + ' min' : '—',
+            label: 'Gns. ventetid'
+          }]"
+        />
+        <bifrost-stat-tile
+          class="surface-box statistics-tiles__full"
+          [items]="[
+            { value: statistics().physicalCount, label: 'Fysisk' },
+            { value: statistics().digitalCount, label: 'Digitalt' },
+            { value: statistics().physicalCount + statistics().digitalCount, label: 'I alt' }
+          ]"
+        />
+      </div>
+    </bifrost-card>
+
+    <bifrost-card title="FAQ-Arkivet">
+      @if (archives.isLoading()) {
+        <p class="state-message">Indlæser arkiv...</p>
+      } @else if (archives.error()) {
+        <p class="state-message">Kunne ikke hente arkiv.</p>
+      } @else {
+        <bifrost-faq-archive-list
+          [items]="archives.value()"
+          (generationSelected)="onArchiveSelected($event)"
+        />
+      }
+    </bifrost-card>
+  </div>
+
+  <button class="btn btn--danger archive-button" (click)="openArchiveConfirm()">
+    Arkiver FAQ og nulstil kø
+  </button>
+</div>
+
+<bifrost-session-settings-dialog
+  [open]="settingsOpen()"
+  [session]="session.value()"
+  (closed)="closeSettings()"
+  (deleteRequested)="onDeleteRequested()"
+/>
+
+<bifrost-session-delete-dialog
+  [open]="deleteConfirmOpen()"
+  [sessionId]="id()"
+  (deleted)="onSessionDeleted()"
+  (cancelled)="closeDeleteConfirm()"
+/>
+
+<bifrost-faq-form-dialog
+  [state]="faqDialogState()"
+  [sessionId]="id()"
+  (saved)="onFaqSaved($event)"
+  (cancelled)="closeFaqDialog()"
+/>
+
+<bifrost-faq-delete-dialog
+  [item]="faqDeleteTarget()"
+  (deleted)="onFaqDeleted()"
+  (cancelled)="cancelDeleteFaq()"
+/>
+
+<bifrost-dialog
+  [open]="selectedArchive() !== null"
+  [title]="'Generation ' + (selectedArchive()?.generation ?? '')"
+  (closed)="closeArchiveDialog()"
+>
+  <p class="state-message">
+    FAQ og samtaler for denne generation kommer her.
+  </p>
+</bifrost-dialog>
+
+<bifrost-archive-confirm-dialog
+  [open]="archiveDialogOpen()"
+  [sessionId]="id()"
+  [generation]="session.value()?.currentGeneration"
+  (archived)="onArchived()"
+  (cancelled)="closeArchiveConfirm()"
+/>
+
+<bifrost-status-dialog
+  [open]="faqStatusOpen()"
+  [message]="faqStatusMessage()"
+  (closed)="closeFaqStatus()"
+/>

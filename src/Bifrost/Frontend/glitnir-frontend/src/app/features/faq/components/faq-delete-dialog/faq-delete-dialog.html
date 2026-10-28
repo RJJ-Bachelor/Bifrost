@@ -1,0 +1,24 @@
+<bifrost-dialog
+  [open]="dialogOpen()"
+  title="Slet FAQ"
+  (closed)="onCancel()"
+>
+  <p class="faq-delete-message">Er du sikker på at du vil slette denne FAQ?</p>
+  <p class="faq-delete-question">{{ item()?.question }}</p>
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions faq-delete-actions">
+    <button type="button" class="btn btn--secondary" (click)="onCancel()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="deleting()"
+      (click)="onConfirm()"
+    >
+      {{ deleting() ? 'Sletter...' : 'Slet' }}
+    </button>
+  </div>
+</bifrost-dialog>

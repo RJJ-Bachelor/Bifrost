@@ -1,7 +1,7 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject, signal, Signal } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Session, SessionGeneration, SessionStatus } from '../session.model';
+import { ArchiveResult, Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
 
 @Service()
 export class SessionApi {
@@ -37,10 +37,18 @@ export class SessionApi {
     }));
   }
 
+  getTeacherSession(id: () => string): HttpResourceRef<Session | undefined> {
+    return httpResource<Session>(() => ({
+      url: `/api/teachers/sessions/${id()}`,
+      method: 'GET',
+      withCredentials: true,
+    }));
+  }
+
   getStudentGenerations(id: () => string): Signal<SessionGeneration[]> {
     // TODO(BF-J2/J3): replace with real endpoint when available.
     // return httpResource<SessionGeneration[]>(() => ({
-    //   url: `/api/students/sessions/${id()}/generations`,
+    //   url: `/api/students/sessions/${id()}/archives`,
     //   method: 'GET',
     //   withCredentials: true,
     // }), { defaultValue: [] });
@@ -48,13 +56,50 @@ export class SessionApi {
     void id;
     void httpResource;
 
-    return signal([
-      { generation: 8, title: 'Lek 8 - SQL vs Mongo' },
-      { generation: 7, title: 'Lek 7 - Cache og optimering' },
-      { generation: 6, title: 'Lek 6 - Persistering af databaser' },
-      { generation: 5, title: 'Lek 5 - REST API design' },
-      { generation: 4, title: 'Lek 4 - Autentificering' },
-    ]);
+    const mockArchives: SessionGeneration[] = [
+      { id: '1', sessionId: 'mock', title: 'Generation 8', generation: 8, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '2', sessionId: 'mock', title: 'Generation 7', generation: 7, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '3', sessionId: 'mock', title: 'Generation 6', generation: 6, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '4', sessionId: 'mock', title: 'Generation 5', generation: 5, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+      { id: '5', sessionId: 'mock', title: 'Generation 4', generation: 4, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
+    ];
+    return signal(mockArchives);
+  }
+
+  getTeacherArchives(id: () => string): HttpResourceRef<SessionGeneration[]> {
+    return httpResource<SessionGeneration[]>(
+      () => ({
+        url: `/api/teachers/sessions/${id()}/archives`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: [],
+        // Backend Title is the session title (same for all generations). Show generation instead.
+        parse: (raw) =>
+          (raw as SessionGeneration[]).map((item) => ({
+            ...item,
+            title: `Generation ${item.generation}`,
+          })),
+      },
+    );
+  }
+
+  getTeacherStatistics(id: () => string): Signal<TeacherStatistics> {
+    // TODO(BF-35): replace with real endpoint when available.
+    // return httpResource<TeacherStatistics>(() => ({
+    //   url: `/api/teachers/sessions/${id()}/statistics`,
+    //   method: 'GET',
+    //   withCredentials: true,
+    // }), { defaultValue: { physicalCount: 0, digitalCount: 0, helpedStudentCount: 0, averageWaitMinutes: null } });
+
+    void id;
+    return signal({
+      physicalCount: 12,
+      digitalCount: 2,
+      helpedStudentCount: 11,
+      averageWaitMinutes: 10,
+    });
   }
 
   getSessionStatus(id: () => string): Signal<SessionStatus> {
@@ -66,6 +111,22 @@ export class SessionApi {
     // }), { defaultValue: { waitingCount: 0, estimatedWaitMinutes: 0 } });
 
     return signal({ waitingCount: 4, estimatedWaitMinutes: 10 });
+  }
+
+  deleteSession(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/teachers/sessions/${id}`, {
+      withCredentials: true,
+    });
+  }
+
+  archiveSession(id: string, expectedGeneration: number, _title: string): Observable<ArchiveResult> {
+    // TODO(BF-J2/J3): send title when backend ArchiveSessionRequest supports ArchivedTitle.
+    void _title;
+    return this.http.post<ArchiveResult>(
+      `/api/teachers/sessions/${id}/archive`,
+      { expectedGeneration },
+      { withCredentials: true },
+    );
   }
 
   joinSession(code: string): Observable<Session> {

@@ -3,20 +3,39 @@
 } @else {
   <ul class="faq-list">
     @for (item of items(); track item.id) {
-      <li class="faq-list__item" (click)="toggle(item.id)">
+      <li class="faq-list__item">
         <button
           type="button"
           class="faq-list__question"
+          (click)="toggle(item.id)"
           [attr.aria-expanded]="isOpen(item.id)"
         >
           <span class="faq-list__question-text">{{ item.question }}</span>
           <span
-            class="faq-list__chevron"
+            class="icon-mask faq-list__chevron"
             [class.faq-list__chevron--open]="isOpen(item.id)"
           ></span>
         </button>
         @if (isOpen(item.id)) {
           <div class="faq-list__answer">{{ item.answer }}</div>
+          @if (editable()) {
+            <div class="faq-list__actions">
+              <button
+                type="button"
+                class="btn btn--outline"
+                (click)="onEdit($event, item)"
+              >
+                Rediger
+              </button>
+              <button
+                type="button"
+                class="btn btn--danger"
+                (click)="onDelete($event, item)"
+              >
+                Slet
+              </button>
+            </div>
+          }
         }
       </li>
     }

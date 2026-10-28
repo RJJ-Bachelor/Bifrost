@@ -7,9 +7,12 @@ import {
   HelpRequestStatus,
   HelpType,
   SessionQueue,
+  TeacherHelpRequest,
+  TeacherQueue,
+  TeacherQueueEntry,
 } from '../help-request.model';
 
-interface BackendHelpRequest {
+interface HelpRequestDto {
   id: string;
   displayNumber: string;
   status: string;
@@ -30,6 +33,19 @@ const HELP_TYPE_MAP: Record<string, HelpType> = {
   Digital: 'digital',
   Physical: 'physical',
 };
+
+interface TeacherQueueEntryDto {
+  id: string;
+  queuedAt: string;
+  assignedTeacherId: string | null;
+}
+
+interface TeacherQueueDto {
+  generation: number;
+  waitingCount: number;
+  requests: TeacherQueueEntryDto[];
+  activeRequests: TeacherQueueEntryDto[];
+}
 
 function normalizeStatus(raw: string): HelpRequestStatus {
   const mapped = STATUS_MAP[raw];
@@ -63,7 +79,7 @@ export class HelpRequestApi {
       {
         defaultValue: [],
         parse: (raw) =>
-          (raw as BackendHelpRequest[]).map((item) => ({
+          (raw as HelpRequestDto[]).map((item) => ({
             id: item.id,
             displayNumber: item.displayNumber,
             status: normalizeStatus(item.status),
@@ -87,6 +103,54 @@ export class HelpRequestApi {
     return this.http.post<HelpRequest>(
       `/api/students/sessions/${sessionId}/requests`,
       input,
+      { withCredentials: true },
+    );
+  }
+
+  getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {
+    return httpResource<TeacherQueue>(
+      () => ({
+        url: `/api/teachers/sessions/${sessionId()}/queue`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          waitingCount: 0,
+          availableCount: 0,
+          generation: 0,
+          frontQueuedAt: null,
+          pendingRequests: [],
+          activeRequests: [],
+        },
+        parse: (raw) => {
+          const dto = raw as TeacherQueueDto;
+          const requests = dto.requests ?? [];
+          const activeRequests = dto.activeRequests ?? [];
+          // TODO(BF-46): read availableCount and myReservedRequestId from backend.
+          return {
+            waitingCount: dto.waitingCount,
+            availableCount: requests.filter((item) => item.assignedTeacherId === null).length,
+            generation: dto.generation,
+            frontQueuedAt: requests[0]?.queuedAt ?? null,
+            pendingRequests: requests.map((item) => ({
+              id: item.id,
+              assignedTeacherId: item.assignedTeacherId,
+            })),
+            activeRequests: activeRequests.map((item) => ({
+              id: item.id,
+              assignedTeacherId: item.assignedTeacherId,
+            })),
+          };
+        },
+      },
+    );
+  }
+
+  takeNext(sessionId: string): Observable<TeacherHelpRequest | null> {
+    return this.http.post<TeacherHelpRequest | null>(
+      `/api/teachers/sessions/${sessionId}/queue/take-next`,
+      null,
       { withCredentials: true },
     );
   }

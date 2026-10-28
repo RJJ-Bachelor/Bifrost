@@ -9,14 +9,14 @@ export const teacherRoutes: Routes = [
       ),
   },
   {
-    path: 'dashboard',
-    loadComponent: () =>
-      import('./pages/dashboard/dashboard').then((m) => m.Dashboard),
-  },
-  {
     path: 'sessions/:id',
     loadComponent: () =>
-      import('./pages/session/session').then((m) => m.Session),
+      import('./pages/session/teacher-session').then((m) => m.TeacherSession),
+  },
+  {
+    path: 'sessions/:id/dashboard',
+    loadComponent: () =>
+      import('./pages/dashboard/dashboard').then((m) => m.Dashboard),
   },
   {
     path: 'sessions/:id/answer/:requestId',

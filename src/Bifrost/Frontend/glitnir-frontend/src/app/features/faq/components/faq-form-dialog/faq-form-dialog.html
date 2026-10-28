@@ -1,0 +1,27 @@
+<bifrost-dialog [open]="dialogOpen()" [title]="title()" (closed)="onCancel()">
+  <form class="faq-form" (submit)="onSubmit($event)">
+    <label class="faq-form__field">
+      <span>Spørgsmål</span>
+      <textarea class="input-field" [formField]="faqForm.question" rows="3"></textarea>
+    </label>
+    <label class="faq-form__field">
+      <span>Svar</span>
+      <textarea class="input-field" [formField]="faqForm.answer" rows="5"></textarea>
+    </label>
+    @if (error()) {
+      <p class="form-error">{{ error() }}</p>
+    }
+    <div class="form-actions">
+      <button type="button" class="btn btn--secondary" (click)="onCancel()">
+        Annuller
+      </button>
+      <button
+        type="submit"
+        class="btn btn--primary"
+        [disabled]="faqForm().invalid() || submitting()"
+      >
+        {{ submitting() ? 'Gemmer...' : 'Gem' }}
+      </button>
+    </div>
+  </form>
+</bifrost-dialog>
