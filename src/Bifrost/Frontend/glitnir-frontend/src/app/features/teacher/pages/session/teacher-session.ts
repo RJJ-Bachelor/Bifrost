@@ -148,7 +148,7 @@ export class TeacherSession {
   }
 
   protected takeNext(): void {
-    if (this.taking() || this.queue.value().availableCount === 0) return;
+    if (this.taking() || this.queue.value().unreservedWaitingCount === 0) return;
 
     this.taking.set(true);
     this.takeError.set(null);

@@ -9,7 +9,6 @@ import {
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
-  TeacherQueueEntry,
 } from '../help-request.model';
 
 interface HelpRequestDto {
@@ -19,6 +18,7 @@ interface HelpRequestDto {
   message: string;
   helpType: string;
   requestNumber: number;
+  queuedAt: string;
 }
 
 const STATUS_MAP: Record<string, HelpRequestStatus> = {
@@ -91,6 +91,7 @@ export class HelpRequestApi {
             message: item.message,
             helpType: normalizeHelpType(item.helpType),
             requestNumber: item.requestNumber,
+            queuedAt: item.queuedAt,
           })),
       },
     );

@@ -7,7 +7,6 @@ export type {
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
-  TeacherQueueEntry,
 } from './help-request.model';
 export { HelpTypeToggle } from './components/help-type-toggle/help-type-toggle';
 export { MessageForm } from './components/message-form/message-form';

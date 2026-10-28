@@ -22,6 +22,7 @@ export interface HelpRequest {
   message: string;
   helpType: HelpType;
   requestNumber: number;
+  queuedAt: string;
 }
 
 export interface SessionQueue {
