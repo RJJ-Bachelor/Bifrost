@@ -1,16 +1,17 @@
-import { Component, DestroyRef, computed, inject, input } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
+import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
 
 type QueueViewState = 'in-queue' | 'my-turn' | 'none';
 
 @Component({
-  imports: [Topbar, Card],
+  imports: [Topbar, Card, Dialog],
   selector: 'bifrost-queue',
   styleUrl: './queue.scss',
   templateUrl: './queue.html',
@@ -68,11 +69,43 @@ export class Queue {
   protected readonly position = computed(() => this.queue.value().position);
   protected readonly estimatedWait = computed(() => this.queue.value().estimatedWaitMinutes);
 
+  protected readonly cancelDialogOpen = signal(false);
+  protected readonly cancelling = signal(false);
+  protected readonly cancelError = signal<string | null>(null);
+
   protected backToSession(): void {
     this.router.navigate(['..'], { relativeTo: this.route });
   }
 
   protected cancelRequest(): void {
-    // TODO: implement confirm dialog + API call.
+    this.cancelError.set(null);
+    this.cancelDialogOpen.set(true);
+  }
+
+  protected closeCancelDialog(): void {
+    if (this.cancelling()) return;
+    this.cancelDialogOpen.set(false);
+    this.cancelError.set(null);
+  }
+
+  protected confirmCancel(): void {
+    const request = this.activeRequest();
+    if (request === null || this.cancelling()) return;
+
+    this.cancelling.set(true);
+    this.cancelError.set(null);
+
+    this.helpRequestApi.cancelRequest(request.id).subscribe({
+      next: () => {
+        this.cancelling.set(false);
+        this.cancelDialogOpen.set(false);
+        this.queue.reload();
+        this.router.navigate(['..'], { relativeTo: this.route });
+      },
+      error: () => {
+        this.cancelling.set(false);
+        this.cancelError.set('Kunne ikke trække dig ud af køen. Prøv igen.');
+      },
+    });
   }
 }

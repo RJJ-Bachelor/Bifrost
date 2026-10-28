@@ -128,6 +128,14 @@ export class HelpRequestApi {
     );
   }
 
+  cancelRequest(requestId: string): Observable<HelpRequest> {
+    return this.http.patch<HelpRequest>(
+      `/api/students/requests/${requestId}/status`,
+      { action: 'Cancel' },
+      { withCredentials: true },
+    );
+  }
+
   getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {
     return httpResource<TeacherQueue>(
       () => ({

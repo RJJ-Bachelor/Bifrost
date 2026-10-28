@@ -60,3 +60,25 @@
     </div>
   }
 </div>
+
+<bifrost-dialog
+  [open]="cancelDialogOpen()"
+  title="Forlad køen?"
+  size="sm"
+  (closed)="closeCancelDialog()"
+>
+  <p class="state-message">
+    Hvis du forlader køen, mister du din plads og skal stille spørgsmålet igen.
+  </p>
+  @if (cancelError()) {
+    <p class="form-error">{{ cancelError() }}</p>
+  }
+  <div class="form-actions">
+    <button class="btn btn--secondary" [disabled]="cancelling()" (click)="closeCancelDialog()">
+      Behold min plads
+    </button>
+    <button class="btn btn--danger" [disabled]="cancelling()" (click)="confirmCancel()">
+      {{ cancelling() ? 'Forlader...' : 'Forlad køen' }}
+    </button>
+  </div>
+</bifrost-dialog>
