@@ -1,9 +1,10 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
 import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
+import { RealtimeService } from '../../../../core/realtime/realtime.service';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
@@ -37,6 +38,8 @@ export class TeacherSession {
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly faqApi = inject(FaqApi);
   private readonly authStore = inject(AuthStore);
+  private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
 
@@ -96,6 +99,49 @@ export class TeacherSession {
   protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
   protected readonly faqStatusOpen = signal(false);
   protected readonly faqStatusMessage = signal('');
+
+  constructor() {
+    this.realtime.notifications$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        if (notification.sessionId !== this.id()) return;
+
+        if (
+          notification.eventType === 'SessionChanged' ||
+          notification.eventType === 'HelpRequestCreated' ||
+          notification.eventType === 'StudentMessageAdded'
+        ) {
+          this.queue.reload();
+        }
+
+        if (notification.eventType === 'SessionChanged') {
+          if (notification.change === 'Answered' || notification.change === 'Completed' || notification.change === 'FaqAccepted') {
+            this.statistics.reload();
+          }
+
+          if (notification.change === 'FaqAnswered') {
+            this.faqs.reload();
+          }
+
+          if (notification.change === 'Cleared') {
+            this.session.reload();
+            this.faqs.reload();
+            this.statistics.reload();
+          }
+
+          if (notification.change === 'Archived') {
+            this.session.reload();
+            this.faqs.reload();
+            this.statistics.reload();
+            this.archives.reload();
+          }
+        }
+
+        if (notification.eventType === 'FaqCreated') {
+          this.faqs.reload();
+        }
+      });
+  }
 
   protected switchSession(): void {
     this.router.navigateByUrl('/teacher');
