@@ -51,18 +51,10 @@
             </div>
           </div>
         } @else if (viewState() === 'my-turn') {
-          <div class="queue-turn">
-            <span class="badge">Underviser på vej</span>
-            <span class="queue-turn__label">Dit nummer</span>
-            <span class="queue-turn__number">{{ displayNumber() }}</span>
-            @if (request.assignedTeacherName) {
-              <p class="queue-turn__message">
-                Ræk hånden op, så <strong>{{ request.assignedTeacherName }}</strong> kan finde dig.
-              </p>
-            } @else {
-              <p class="queue-turn__message">Ræk hånden op, så underviseren kan finde dig.</p>
-            }
-          </div>
+          <bifrost-queue-my-turn
+            [displayNumber]="displayNumber()"
+            [teacherName]="request.assignedTeacherName"
+          />
         } @else if (viewState() === 'awaiting-confirmation') {
           <div class="queue-card-body">
             <div class="queue-faq">

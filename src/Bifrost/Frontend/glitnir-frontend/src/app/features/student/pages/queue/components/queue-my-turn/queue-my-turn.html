@@ -1,0 +1,12 @@
+<div class="queue-turn">
+  <span class="badge">Underviser på vej</span>
+  <span class="queue-turn__label">Dit nummer</span>
+  <span class="queue-turn__number">{{ displayNumber() }}</span>
+  @if (teacherName(); as name) {
+    <p class="queue-turn__message">
+      Ræk hånden op, så <strong>{{ name }}</strong> kan finde dig.
+    </p>
+  } @else {
+    <p class="queue-turn__message">Ræk hånden op, så underviseren kan finde dig.</p>
+  }
+</div>
