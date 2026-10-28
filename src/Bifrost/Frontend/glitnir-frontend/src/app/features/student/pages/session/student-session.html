@@ -80,9 +80,19 @@
   title="Samtale"
   (closed)="closeRequestDialog()"
 >
-  <p class="state-message">
-    Samtale-visning kommer her.
-  </p>
+  @if (selectedRequestDetail.value(); as detail) {
+    <bifrost-chat
+      [messages]="detail.messages"
+      viewerRole="student"
+      [canSend]="true"
+      [sending]="sendingMessage()"
+      [error]="sendError()"
+      (sent)="onMessageSent($event)"
+      (closed)="closeRequestDialog()"
+    />
+  } @else {
+    <p class="state-message">Indlæser samtale...</p>
+  }
 </bifrost-dialog>
 
 <bifrost-dialog

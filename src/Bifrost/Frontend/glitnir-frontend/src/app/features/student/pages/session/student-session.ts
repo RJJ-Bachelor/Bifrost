@@ -7,6 +7,7 @@ import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { FaqApi, FaqArchiveList, FaqList } from '../../../faq';
 import {
+  Chat,
   HelpRequestApi,
   HelpTypeToggle,
   MessageForm,
@@ -17,7 +18,7 @@ import {
 import { SessionApi, type SessionGeneration } from '../../../session';
 
 @Component({
-  imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, FaqArchiveList, QuestionList],
+  imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, FaqArchiveList, QuestionList, Chat],
   selector: 'bifrost-student-session',
   styleUrl: './student-session.scss',
   templateUrl: './student-session.html',
@@ -54,6 +55,12 @@ export class StudentSession {
   protected readonly submitError = signal<string | null>(null);
   protected readonly selectedRequest = signal<HelpRequest | null>(null);
   protected readonly selectedGeneration = signal<SessionGeneration | null>(null);
+
+  private readonly selectedRequestId = computed(() => this.selectedRequest()?.id ?? null);
+  protected readonly selectedRequestDetail = this.helpRequestApi.getStudentRequest(() => this.selectedRequestId());
+
+  protected readonly sendingMessage = signal(false);
+  protected readonly sendError = signal<string | null>(null);
 
   constructor() {
     this.realtime.notifications$
@@ -101,6 +108,29 @@ export class StudentSession {
 
   protected closeRequestDialog(): void {
     this.selectedRequest.set(null);
+    this.sendError.set(null);
+  }
+
+  protected onMessageSent(text: string): void {
+    const request = this.selectedRequest();
+    if (request === null || this.sendingMessage()) return;
+
+    this.sendingMessage.set(true);
+    this.sendError.set(null);
+
+    this.helpRequestApi.addStudentMessage(request.id, text).subscribe({
+      next: () => {
+        this.sendingMessage.set(false);
+        this.selectedRequest.set(null);
+        this.requests.reload();
+        this.queue.reload();
+        this.goToQueue();
+      },
+      error: () => {
+        this.sendingMessage.set(false);
+        this.sendError.set('Kunne ikke sende beskeden. Prøv igen.');
+      },
+    });
   }
 
   protected onGenerationSelected(generation: SessionGeneration): void {

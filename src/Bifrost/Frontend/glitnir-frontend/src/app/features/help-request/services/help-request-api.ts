@@ -235,6 +235,16 @@ export class HelpRequestApi {
       .pipe(map((dto) => mapDetail(dto)));
   }
 
+  addStudentMessage(requestId: string, text: string): Observable<HelpRequestDetail> {
+    return this.http
+      .post<HelpRequestDetailDto>(
+        `/api/students/requests/${requestId}/messages`,
+        { text },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
+  }
+
   getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {
     return httpResource<TeacherQueue>(
       () => ({
