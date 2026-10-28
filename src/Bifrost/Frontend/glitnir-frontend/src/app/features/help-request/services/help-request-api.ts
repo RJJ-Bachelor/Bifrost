@@ -95,11 +95,26 @@ export class HelpRequestApi {
   }
 
   getStudentQueue(sessionId: () => string): HttpResourceRef<SessionQueue> {
-    return httpResource<SessionQueue>(() => ({
-      url: `/api/students/sessions/${sessionId()}/queue`,
-      method: 'GET',
-      withCredentials: true,
-    }), { defaultValue: { ownRequestId: null } });
+    return httpResource<SessionQueue>(
+      () => ({
+        url: `/api/students/sessions/${sessionId()}/queue`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          sessionId: '',
+          generation: 0,
+          waitingCount: 0,
+          unreservedWaitingCount: 0,
+          ownRequestId: null,
+          position: null,
+          estimatedWaitMinutes: null,
+          requestNumber: null,
+          displayNumber: null,
+        },
+      },
+    );
   }
 
   createHelpRequest(sessionId: string, input: CreateHelpRequestInput): Observable<HelpRequest> {

@@ -25,7 +25,15 @@ export interface HelpRequest {
 }
 
 export interface SessionQueue {
+  sessionId: string;
+  generation: number;
+  waitingCount: number;
+  unreservedWaitingCount: number;
   ownRequestId: string | null;
+  position: number | null;
+  estimatedWaitMinutes: number | null;
+  requestNumber: number | null;
+  displayNumber: string | null;
 }
 
 export interface TeacherHelpRequest {
