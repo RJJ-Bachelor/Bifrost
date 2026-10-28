@@ -3,12 +3,14 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
-import { SessionList } from '../../../session/components/session-list/session-list';
-import { SessionJoinForm } from '../../../session/components/session-join-form/session-join-form';
-import { SessionCreateForm } from '../../../session/components/session-create-form/session-create-form';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
-import { SessionApi } from '../../../session/services/session-api';
-import { Session } from '../../../session/session.model';
+import {
+  SessionApi,
+  SessionCreateForm,
+  SessionJoinForm,
+  SessionList,
+  type Session,
+} from '../../../session';
 
 @Component({
   imports: [
