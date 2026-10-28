@@ -63,6 +63,9 @@ export class StudentSession {
         if (notification.eventType === 'SessionChanged' && notification.change === 'FaqAnswered') {
           this.faq.reload();
         }
+        if (notification.eventType === 'HelpRequestAnswered') {
+          this.requests.reload();
+        }
       });
   }
 
@@ -75,7 +78,7 @@ export class StudentSession {
   }
 
   protected onQuestionSelected(request: HelpRequest): void {
-    if (request.status === 'completed' && request.helpType === 'digital') {
+    if (request.status === 'completedByDigital') {
       this.selectedRequest.set(request);
       return;
     }

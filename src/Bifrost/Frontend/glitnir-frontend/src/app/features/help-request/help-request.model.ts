@@ -4,7 +4,10 @@ export type HelpRequestStatus =
   | 'pending'
   | 'active'
   | 'awaitingConfirmation'
-  | 'completed'
+  | 'awaitingFaq'
+  | 'completedByFaq'
+  | 'completedByDigital'
+  | 'completedByPhysical'
   | 'cancelled';
 
 export interface CreateHelpRequestInput {

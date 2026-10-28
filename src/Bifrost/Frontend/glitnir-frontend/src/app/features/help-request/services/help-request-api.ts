@@ -25,7 +25,10 @@ const STATUS_MAP: Record<string, HelpRequestStatus> = {
   Pending: 'pending',
   Active: 'active',
   AwaitingConfirmation: 'awaitingConfirmation',
-  Completed: 'completed',
+  AwaitingFaq: 'awaitingFaq',
+  CompletedByFaq: 'completedByFaq',
+  CompletedByDigital: 'completedByDigital',
+  CompletedByPhysical: 'completedByPhysical',
   Cancelled: 'cancelled',
 };
 
