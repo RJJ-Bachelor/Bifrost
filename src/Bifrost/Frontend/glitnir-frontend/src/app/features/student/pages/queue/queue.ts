@@ -7,13 +7,14 @@ import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
+import { QueueAwaitingConfirmation } from './components/queue-awaiting-confirmation/queue-awaiting-confirmation';
 import { QueueInQueue } from './components/queue-in-queue/queue-in-queue';
 import { QueueMyTurn } from './components/queue-my-turn/queue-my-turn';
 
 type QueueViewState = 'in-queue' | 'my-turn' | 'awaiting-confirmation' | 'none';
 
 @Component({
-  imports: [Topbar, Card, Dialog, QueueMyTurn, QueueInQueue],
+  imports: [Topbar, Card, Dialog, QueueMyTurn, QueueInQueue, QueueAwaitingConfirmation],
   selector: 'bifrost-queue',
   styleUrl: './queue.scss',
   templateUrl: './queue.html',
