@@ -6,16 +6,16 @@ import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { RealtimeService } from '../../../../core/realtime/realtime.service';
-import { HelpRequestApi, type HelpRequest } from '../../../help-request';
+import { Chat, HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
 import { QueueAwaitingConfirmation } from './components/queue-awaiting-confirmation/queue-awaiting-confirmation';
 import { QueueInQueue } from './components/queue-in-queue/queue-in-queue';
 import { QueueMyTurn } from './components/queue-my-turn/queue-my-turn';
 
-type QueueViewState = 'in-queue' | 'my-turn' | 'awaiting-confirmation' | 'none';
+type QueueViewState = 'in-queue' | 'my-turn' | 'awaiting-confirmation' | 'completed-digital' | 'none';
 
 @Component({
-  imports: [Topbar, Card, Dialog, QueueMyTurn, QueueInQueue, QueueAwaitingConfirmation],
+  imports: [Topbar, Card, Dialog, QueueMyTurn, QueueInQueue, QueueAwaitingConfirmation, Chat],
   selector: 'bifrost-queue',
   styleUrl: './queue.scss',
   templateUrl: './queue.html',
@@ -42,6 +42,7 @@ export class Queue {
   });
 
   protected readonly viewState = computed<QueueViewState>(() => {
+    if (this.answeredRequestId() !== null) return 'completed-digital';
     const request = this.activeRequest();
     if (request === null) return 'none';
     switch (request.status) {
@@ -49,6 +50,8 @@ export class Queue {
         return 'my-turn';
       case 'awaitingConfirmation':
         return 'awaiting-confirmation';
+      case 'completedByDigital':
+        return 'completed-digital';
       case 'pending':
       case 'awaitingFaq':
         return 'in-queue';
@@ -57,11 +60,17 @@ export class Queue {
     }
   });
 
-  private readonly faqRequestId = computed(() =>
-    this.viewState() === 'awaiting-confirmation' ? (this.activeRequest()?.id ?? null) : null,
-  );
+  private readonly detailRequestId = computed(() => {
+    if (this.viewState() === 'completed-digital') {
+      return this.answeredRequestId();
+    }
+    if (this.viewState() === 'awaiting-confirmation') {
+      return this.activeRequest()?.id ?? null;
+    }
+    return null;
+  });
 
-  protected readonly activeDetail = this.helpRequestApi.getStudentRequest(() => this.faqRequestId());
+  protected readonly activeDetail = this.helpRequestApi.getStudentRequest(() => this.detailRequestId());
 
   protected readonly faqQuestion = computed<string | null>(() => {
     const messages = this.activeDetail.value()?.messages ?? [];
@@ -110,6 +119,8 @@ export class Queue {
         return 'Det er din tur!';
       case 'awaiting-confirmation':
         return 'Generelt svar';
+      case 'completed-digital':
+        return 'Samtale';
       default:
         return 'Du er i køen';
     }
@@ -140,8 +151,20 @@ export class Queue {
 
         if (
           notification.eventType === 'SessionChanged' ||
-          notification.eventType === 'HelpRequestStarted'
+          notification.eventType === 'HelpRequestStarted' ||
+          notification.eventType === 'HelpRequestAnswered'
         ) {
+          const wasOurs =
+            notification.helpRequestId !== null &&
+            notification.helpRequestId === this.queue.value().ownRequestId;
+
+          if (
+            notification.eventType === 'HelpRequestAnswered' &&
+            notification.helpRequestId !== null
+          ) {
+            this.answeredRequestId.set(notification.helpRequestId);
+          }
+
           this.queue.reload();
           this.requests.reload();
         }
@@ -171,6 +194,37 @@ export class Queue {
     this.cancelDialogOpen.set(false);
     this.cancelError.set(null);
   }
+
+  protected sendFollowUp(text: string): void {
+    const requestId = this.answeredRequestId();
+    if (requestId === null || this.sendingMessage()) return;
+
+    this.sendingMessage.set(true);
+    this.sendError.set(null);
+
+    this.helpRequestApi.addStudentMessage(requestId, text).subscribe({
+      next: () => {
+        this.sendingMessage.set(false);
+        this.answeredRequestId.set(null);
+        this.queue.reload();
+        this.requests.reload();
+      },
+      error: () => {
+        this.sendingMessage.set(false);
+        this.sendError.set('Kunne ikke sende beskeden. Prøv igen.');
+      },
+    });
+  }
+
+  protected closeChat(): void {
+    this.answeredRequestId.set(null);
+    this.backToSession();
+  }
+
+  protected readonly sendingMessage = signal(false);
+  protected readonly sendError = signal<string | null>(null);
+
+  private readonly answeredRequestId = signal<string | null>(null);
 
   protected respondToFaq(accept: boolean): void {
     const request = this.activeRequest();
