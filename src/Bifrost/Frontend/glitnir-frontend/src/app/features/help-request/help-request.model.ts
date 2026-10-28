@@ -40,16 +40,10 @@ export interface TeacherHelpRequest {
   id: string;
 }
 
-export interface TeacherQueueEntry {
-  id: string;
-  assignedTeacherId: string | null;
-}
-
 export interface TeacherQueue {
   waitingCount: number;
-  availableCount: number;
+  unreservedWaitingCount: number;
   generation: number;
   frontQueuedAt: string | null;
-  pendingRequests: TeacherQueueEntry[];
-  activeRequests: TeacherQueueEntry[];
+  myReservedRequestId: string | null;
 }

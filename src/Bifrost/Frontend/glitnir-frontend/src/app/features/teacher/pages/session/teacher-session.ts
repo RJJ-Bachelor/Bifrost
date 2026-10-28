@@ -2,7 +2,6 @@ import { Component, DestroyRef, computed, inject, input, signal } from '@angular
 import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
-import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { RealtimeService } from '../../../../core/realtime/realtime.service';
 import { Card } from '../../../../shared/components/card/card';
@@ -37,7 +36,6 @@ export class TeacherSession {
   private readonly sessionApi = inject(SessionApi);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly faqApi = inject(FaqApi);
-  private readonly authStore = inject(AuthStore);
   private readonly realtime = inject(RealtimeService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -71,16 +69,7 @@ export class TeacherSession {
     if (Number.isNaN(queuedAtMs)) return null;
     return Math.max(0, Math.floor((this.now() - queuedAtMs) / 60_000));
   });
-  // TODO(BF-46): replace with backend-provided myReservedRequestId.
-  protected readonly myReservedRequestId = computed(() => {
-    const me = this.authStore.user()?.userId;
-    if (!me) return null;
-    const queue = this.queue.value();
-    const pending = queue.pendingRequests.find((item) => item.assignedTeacherId === me);
-    if (pending) return pending.id;
-    const active = queue.activeRequests.find((item) => item.assignedTeacherId === me);
-    return active?.id ?? null;
-  });
+  protected readonly myReservedRequestId = computed(() => this.queue.value().myReservedRequestId);
   protected readonly taking = signal(false);
   protected readonly takeError = signal<string | null>(null);
 

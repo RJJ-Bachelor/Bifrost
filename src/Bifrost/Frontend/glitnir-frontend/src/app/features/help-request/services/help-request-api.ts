@@ -46,6 +46,8 @@ interface TeacherQueueEntryDto {
 interface TeacherQueueDto {
   generation: number;
   waitingCount: number;
+  unreservedWaitingCount: number;
+  myReservedRequestId: string | null;
   requests: TeacherQueueEntryDto[];
   activeRequests: TeacherQueueEntryDto[];
 }
@@ -135,30 +137,20 @@ export class HelpRequestApi {
       {
         defaultValue: {
           waitingCount: 0,
-          availableCount: 0,
+          unreservedWaitingCount: 0,
           generation: 0,
           frontQueuedAt: null,
-          pendingRequests: [],
-          activeRequests: [],
+          myReservedRequestId: null,
         },
         parse: (raw) => {
           const dto = raw as TeacherQueueDto;
           const requests = dto.requests ?? [];
-          const activeRequests = dto.activeRequests ?? [];
-          // TODO(BF-46): read availableCount and myReservedRequestId from backend.
           return {
             waitingCount: dto.waitingCount,
-            availableCount: requests.filter((item) => item.assignedTeacherId === null).length,
+            unreservedWaitingCount: dto.unreservedWaitingCount,
             generation: dto.generation,
             frontQueuedAt: requests[0]?.queuedAt ?? null,
-            pendingRequests: requests.map((item) => ({
-              id: item.id,
-              assignedTeacherId: item.assignedTeacherId,
-            })),
-            activeRequests: activeRequests.map((item) => ({
-              id: item.id,
-              assignedTeacherId: item.assignedTeacherId,
-            })),
+            myReservedRequestId: dto.myReservedRequestId,
           };
         },
       },
