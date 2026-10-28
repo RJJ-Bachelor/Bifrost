@@ -13,43 +13,15 @@
     <div class="queue-card-wrapper">
       <bifrost-card [title]="cardTitle()">
         @if (viewState() === 'in-queue') {
-          <div class="queue-card-body">
-            @if (isAwaitingFaq()) {
-              <div class="queue-faq-notice">
-                <p class="queue-faq-notice__text">
-                  Du er ikke den eneste, der spørger til dette. <br> Der bliver skrevet et generelt svar.
-                </p>
-              </div>
-            } @else {
-              <div class="queue-hero">
-                <h2 class="queue-hero__title">
-                  Du er nummer <strong>{{ position() ?? '—' }}</strong> i køen
-                </h2>
-              </div>
-
-              <div class="queue-badges">
-                <span class="badge">Ventetid: {{ waitLabel() ?? '0:00' }}</span>
-                @if (estimatedWait() !== null) {
-                  <span class="badge">Forventet: ca. {{ estimatedWait() }} min</span>
-                }
-              </div>
-            }
-
-            <div class="queue-question-preview">
-              <span class="queue-question-preview__label">Dit spørgsmål</span>
-              <p class="queue-question-preview__text">”{{ request.message }}”</p>
-            </div>
-
-            <div class="queue-footer">
-              <div class="queue-ref-row">
-                <span class="queue-ref-label">Kø-nummer:</span>
-                <span class="badge">{{ displayNumber() }}</span>
-              </div>
-              <button type="button" class="btn btn--danger queue-cancel-btn" (click)="cancelRequest()">
-                Forlad køen
-              </button>
-            </div>
-          </div>
+          <bifrost-queue-in-queue
+            [displayNumber]="displayNumber()"
+            [position]="position()"
+            [waitLabel]="waitLabel()"
+            [estimatedWait]="estimatedWait()"
+            [question]="request.message"
+            [awaitingFaq]="isAwaitingFaq()"
+            (cancelled)="cancelRequest()"
+          />
         } @else if (viewState() === 'my-turn') {
           <bifrost-queue-my-turn
             [displayNumber]="displayNumber()"
