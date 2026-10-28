@@ -60,11 +60,23 @@ export class StudentSession {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((notification) => {
         if (notification.sessionId !== this.id()) return;
-        if (notification.eventType === 'SessionChanged' && notification.change === 'FaqAnswered') {
+        if (notification.eventType !== 'SessionChanged') return;
+
+        this.status.reload();
+        this.queue.reload();
+        this.requests.reload();
+
+        if (notification.change === 'FaqAnswered') {
           this.faq.reload();
         }
-        if (notification.eventType === 'HelpRequestAnswered') {
-          this.requests.reload();
+
+        if (notification.change === 'Cleared') {
+          this.session.reload();
+        }
+
+        if (notification.change === 'Archived') {
+          this.session.reload();
+          // TODO: reload generations when getStudentGenerations returns a real httpResource.
         }
       });
   }
