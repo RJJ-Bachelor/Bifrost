@@ -1,5 +1,7 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { RealtimeService } from '../../../../core/realtime/realtime.service';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
@@ -26,6 +28,8 @@ export class StudentSession {
   private readonly sessionApi = inject(SessionApi);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly faqApi = inject(FaqApi);
+  private readonly realtime = inject(RealtimeService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
 
@@ -50,6 +54,17 @@ export class StudentSession {
   protected readonly submitError = signal<string | null>(null);
   protected readonly selectedRequest = signal<HelpRequest | null>(null);
   protected readonly selectedGeneration = signal<SessionGeneration | null>(null);
+
+  constructor() {
+    this.realtime.notifications$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        if (notification.sessionId !== this.id()) return;
+        if (notification.eventType === 'SessionChanged' && notification.change === 'FaqAnswered') {
+          this.faq.reload();
+        }
+      });
+  }
 
   protected switchSession(): void {
     this.router.navigateByUrl('/');
