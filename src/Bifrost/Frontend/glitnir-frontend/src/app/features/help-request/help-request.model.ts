@@ -25,6 +25,28 @@ export interface HelpRequest {
   queuedAt: string;
 }
 
+export type AuthorRole = 'student' | 'teacher' | 'system';
+
+export type HelpRequestMessageType =
+  | 'studentQuestion'
+  | 'followUpQuestion'
+  | 'faqQuestion'
+  | 'faqAnswer'
+  | 'teacherAnswer';
+
+export interface HelpRequestMessage {
+  id: string;
+  authorRole: AuthorRole;
+  messageType: HelpRequestMessageType;
+  text: string;
+  createdAt: string;
+  sequenceNumber: number;
+}
+
+export interface HelpRequestDetail extends HelpRequest {
+  messages: HelpRequestMessage[];
+}
+
 export interface SessionQueue {
   sessionId: string;
   generation: number;

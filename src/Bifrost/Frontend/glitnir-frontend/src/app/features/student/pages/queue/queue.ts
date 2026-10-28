@@ -8,7 +8,7 @@ import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
 
-type QueueViewState = 'in-queue' | 'my-turn' | 'none';
+type QueueViewState = 'in-queue' | 'my-turn' | 'awaiting-confirmation' | 'none';
 
 @Component({
   imports: [Topbar, Card, Dialog],
@@ -39,15 +39,49 @@ export class Queue {
   protected readonly viewState = computed<QueueViewState>(() => {
     const request = this.activeRequest();
     if (request === null) return 'none';
-    if (request.status === 'active') return 'my-turn';
-    return 'in-queue';
+    switch (request.status) {
+      case 'active':
+        return 'my-turn';
+      case 'awaitingConfirmation':
+        return 'awaiting-confirmation';
+      case 'pending':
+      case 'awaitingFaq':
+        return 'in-queue';
+      default:
+        return 'none';
+    }
   });
+
+  private readonly faqRequestId = computed(() =>
+    this.viewState() === 'awaiting-confirmation' ? (this.activeRequest()?.id ?? null) : null,
+  );
+
+  protected readonly activeDetail = this.helpRequestApi.getStudentRequest(() => this.faqRequestId());
+
+  protected readonly faqQuestion = computed<string | null>(() => {
+    const messages = this.activeDetail.value()?.messages ?? [];
+    const faqMessages = messages.filter((m) => m.messageType === 'faqQuestion');
+    if (faqMessages.length === 0) return null;
+    return faqMessages.reduce((a, b) => (a.sequenceNumber > b.sequenceNumber ? a : b)).text;
+  });
+
+  protected readonly faqAnswer = computed<string | null>(() => {
+    const messages = this.activeDetail.value()?.messages ?? [];
+    const faqMessages = messages.filter((m) => m.messageType === 'faqAnswer');
+    if (faqMessages.length === 0) return null;
+    return faqMessages.reduce((a, b) => (a.sequenceNumber > b.sequenceNumber ? a : b)).text;
+  });
+
+  protected readonly responding = signal(false);
+  protected readonly respondError = signal<string | null>(null);
 
   // Second-tick that runs only while the request is pending in the queue.
   private readonly now = toSignal(
     toObservable(this.activeRequest).pipe(
       switchMap((request) => {
-        if (request === null || request.status !== 'pending') return of(Date.now());
+        if (request === null || (request.status !== 'pending' && request.status !== 'awaitingFaq')) {
+          return of(Date.now());
+        }
         return timer(0, 1_000).pipe(map(() => Date.now()));
       }),
     ),
@@ -64,6 +98,19 @@ export class Queue {
     const seconds = totalSeconds % 60;
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   });
+
+  protected readonly cardTitle = computed(() => {
+    switch (this.viewState()) {
+      case 'my-turn':
+        return 'Det er din tur!';
+      case 'awaiting-confirmation':
+        return 'Generelt svar';
+      default:
+        return 'Du er i køen';
+    }
+  });
+
+  protected readonly isAwaitingFaq = computed(() => this.activeRequest()?.status === 'awaitingFaq');
 
   protected readonly displayNumber = computed(() => this.queue.value().displayNumber ?? '—');
   protected readonly position = computed(() => this.queue.value().position);
@@ -86,6 +133,30 @@ export class Queue {
     if (this.cancelling()) return;
     this.cancelDialogOpen.set(false);
     this.cancelError.set(null);
+  }
+
+  protected respondToFaq(accept: boolean): void {
+    const request = this.activeRequest();
+    if (request === null || this.responding()) return;
+
+    this.responding.set(true);
+    this.respondError.set(null);
+
+    this.helpRequestApi.respondToFaq(request.id, accept).subscribe({
+      next: () => {
+        this.responding.set(false);
+        if (accept) {
+          this.router.navigate(['..'], { relativeTo: this.route });
+        } else {
+          this.queue.reload();
+          this.requests.reload();
+        }
+      },
+      error: () => {
+        this.responding.set(false);
+        this.respondError.set('Kunne ikke svare på FAQ-forslaget. Prøv igen.');
+      },
+    });
   }
 
   protected confirmCancel(): void {

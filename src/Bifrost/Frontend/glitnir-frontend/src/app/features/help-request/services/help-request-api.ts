@@ -1,9 +1,13 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import {
+  AuthorRole,
   CreateHelpRequestInput,
   HelpRequest,
+  HelpRequestDetail,
+  HelpRequestMessage,
+  HelpRequestMessageType,
   HelpRequestStatus,
   HelpType,
   SessionQueue,
@@ -36,6 +40,33 @@ const HELP_TYPE_MAP: Record<string, HelpType> = {
   Digital: 'digital',
   Physical: 'physical',
 };
+
+const AUTHOR_ROLE_MAP: Record<string, AuthorRole> = {
+  Student: 'student',
+  Teacher: 'teacher',
+  System: 'system',
+};
+
+const MESSAGE_TYPE_MAP: Record<string, HelpRequestMessageType> = {
+  StudentQuestion: 'studentQuestion',
+  FollowUpQuestion: 'followUpQuestion',
+  FaqQuestion: 'faqQuestion',
+  FaqAnswer: 'faqAnswer',
+  TeacherAnswer: 'teacherAnswer',
+};
+
+interface HelpRequestMessageDto {
+  id: string;
+  authorRole: string;
+  messageType: string;
+  text: string;
+  createdAt: string;
+  sequenceNumber: number;
+}
+
+interface HelpRequestDetailDto extends HelpRequestDto {
+  messages: HelpRequestMessageDto[];
+}
 
 interface TeacherQueueEntryDto {
   id: string;
@@ -70,6 +101,54 @@ function normalizeHelpType(raw: string): HelpType {
   return mapped;
 }
 
+function normalizeAuthorRole(raw: string): AuthorRole {
+  const mapped = AUTHOR_ROLE_MAP[raw];
+  if (mapped === undefined) {
+    console.warn(`Unknown authorRole "${raw}" from backend, falling back to "system"`);
+    return 'system';
+  }
+  return mapped;
+}
+
+function normalizeMessageType(raw: string): HelpRequestMessageType {
+  const mapped = MESSAGE_TYPE_MAP[raw];
+  if (mapped === undefined) {
+    console.warn(`Unknown messageType "${raw}" from backend, falling back to "teacherAnswer"`);
+    return 'teacherAnswer';
+  }
+  return mapped;
+}
+
+function mapMessage(dto: HelpRequestMessageDto): HelpRequestMessage {
+  return {
+    id: dto.id,
+    authorRole: normalizeAuthorRole(dto.authorRole),
+    messageType: normalizeMessageType(dto.messageType),
+    text: dto.text,
+    createdAt: dto.createdAt,
+    sequenceNumber: dto.sequenceNumber,
+  };
+}
+
+function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
+  return {
+    id: dto.id,
+    displayNumber: dto.displayNumber,
+    status: normalizeStatus(dto.status),
+    message: dto.message,
+    helpType: normalizeHelpType(dto.helpType),
+    requestNumber: dto.requestNumber,
+    queuedAt: dto.queuedAt,
+  };
+}
+
+function mapDetail(dto: HelpRequestDetailDto): HelpRequestDetail {
+  return {
+    ...mapHelpRequest(dto),
+    messages: dto.messages.map(mapMessage),
+  };
+}
+
 @Service()
 export class HelpRequestApi {
   private readonly http = inject(HttpClient);
@@ -83,16 +162,24 @@ export class HelpRequestApi {
       }),
       {
         defaultValue: [],
-        parse: (raw) =>
-          (raw as HelpRequestDto[]).map((item) => ({
-            id: item.id,
-            displayNumber: item.displayNumber,
-            status: normalizeStatus(item.status),
-            message: item.message,
-            helpType: normalizeHelpType(item.helpType),
-            requestNumber: item.requestNumber,
-            queuedAt: item.queuedAt,
-          })),
+        parse: (raw) => (raw as HelpRequestDto[]).map(mapHelpRequest),
+      },
+    );
+  }
+
+  getStudentRequest(id: () => string | null): HttpResourceRef<HelpRequestDetail | undefined> {
+    return httpResource<HelpRequestDetail>(
+      () => {
+        const requestId = id();
+        if (requestId === null) return undefined;
+        return {
+          url: `/api/students/requests/${requestId}`,
+          method: 'GET',
+          withCredentials: true,
+        };
+      },
+      {
+        parse: (raw) => mapDetail(raw as HelpRequestDetailDto),
       },
     );
   }
@@ -134,6 +221,16 @@ export class HelpRequestApi {
       { action: 'Cancel' },
       { withCredentials: true },
     );
+  }
+
+  respondToFaq(requestId: string, accept: boolean): Observable<HelpRequestDetail> {
+    return this.http
+      .patch<HelpRequestDetailDto>(
+        `/api/students/requests/${requestId}/faq`,
+        { accept },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
   }
 
   getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {

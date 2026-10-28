@@ -1,7 +1,11 @@
 export { HelpRequestApi } from './services/help-request-api';
 export type {
+  AuthorRole,
   CreateHelpRequestInput,
   HelpRequest,
+  HelpRequestDetail,
+  HelpRequestMessage,
+  HelpRequestMessageType,
   HelpRequestStatus,
   HelpType,
   SessionQueue,
