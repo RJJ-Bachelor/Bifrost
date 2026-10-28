@@ -9,7 +9,7 @@ export interface Session {
 
 export interface SessionStatus {
   waitingCount: number;
-  estimatedWaitMinutes: number;
+  estimatedWaitMinutes: number | null;
 }
 
 export interface SessionGeneration {
