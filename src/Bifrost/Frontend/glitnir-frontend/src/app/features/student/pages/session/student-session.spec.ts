@@ -3,10 +3,14 @@ import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { of } from 'rxjs';
-import { FaqApi } from '../../../faq/services/faq-api';
-import { HelpRequest, HelpRequestStatus, HelpType } from '../../../help-request/help-request.model';
-import { HelpRequestApi } from '../../../help-request/services/help-request-api';
-import { SessionApi } from '../../../session/services/session-api';
+import { FaqApi } from '../../../faq';
+import {
+  HelpRequestApi,
+  type HelpRequest,
+  type HelpRequestStatus,
+  type HelpType,
+} from '../../../help-request';
+import { SessionApi } from '../../../session';
 import { StudentSession } from './student-session';
 
 function fakeResource<T>(initial: T): HttpResourceRef<T> {

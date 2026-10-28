@@ -8,15 +8,18 @@ import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
-import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
-import { FaqDeleteDialog } from '../../../faq/components/faq-delete-dialog/faq-delete-dialog';
-import { FaqDialogState, FaqFormDialog, FaqSavedEvent } from '../../../faq/components/faq-form-dialog/faq-form-dialog';
-import { FaqList } from '../../../faq/components/faq-list/faq-list';
-import { FaqItem } from '../../../faq/faq-item.model';
-import { FaqApi } from '../../../faq/services/faq-api';
-import { HelpRequestApi } from '../../../help-request/services/help-request-api';
-import { SessionApi } from '../../../session/services/session-api';
-import { SessionGeneration } from '../../../session/session.model';
+import {
+  FaqApi,
+  FaqArchiveList,
+  FaqDeleteDialog,
+  FaqFormDialog,
+  FaqList,
+  type FaqDialogState,
+  type FaqItem,
+  type FaqSavedEvent,
+} from '../../../faq';
+import { HelpRequestApi } from '../../../help-request';
+import { SessionApi, type SessionGeneration } from '../../../session';
 import { ArchiveConfirmDialog } from './components/archive-confirm-dialog/archive-confirm-dialog';
 import { SessionDeleteDialog } from './components/session-delete-dialog/session-delete-dialog';
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';

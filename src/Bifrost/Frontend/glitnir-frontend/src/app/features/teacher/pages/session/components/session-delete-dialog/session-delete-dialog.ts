@@ -1,6 +1,6 @@
 import { Component, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { Dialog } from '../../../../../../shared/components/dialog/dialog';
-import { SessionApi } from '../../../../../session/services/session-api';
+import { SessionApi } from '../../../../../session';
 
 @Component({
   selector: 'bifrost-session-delete-dialog',

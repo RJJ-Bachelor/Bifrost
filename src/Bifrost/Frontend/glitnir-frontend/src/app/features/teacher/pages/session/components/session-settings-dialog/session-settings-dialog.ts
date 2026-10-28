@@ -1,6 +1,6 @@
 import { Component, computed, input, linkedSignal, output, signal, untracked } from '@angular/core';
 import { Dialog } from '../../../../../../shared/components/dialog/dialog';
-import { Session } from '../../../../../session/session.model';
+import { type Session } from '../../../../../session';
 
 @Component({
   selector: 'bifrost-session-settings-dialog',

@@ -1,6 +1,6 @@
 import { Component, computed, input, output } from '@angular/core';
 import { ListRow } from '../../../../shared/components/list-row/list-row';
-import { SessionGeneration } from '../../../session/session.model';
+import { SessionGeneration } from '../../../session';
 
 @Component({
   selector: 'bifrost-faq-archive-list',
