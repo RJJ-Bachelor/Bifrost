@@ -125,17 +125,19 @@ export class HelpRequestApi {
         },
         parse: (raw) => {
           const dto = raw as TeacherQueueDto;
+          const requests = dto.requests ?? [];
+          const activeRequests = dto.activeRequests ?? [];
           // TODO(BF-46): read availableCount and myReservedRequestId from backend.
           return {
             waitingCount: dto.waitingCount,
-            availableCount: dto.requests.filter((item) => item.assignedTeacherId === null).length,
+            availableCount: requests.filter((item) => item.assignedTeacherId === null).length,
             generation: dto.generation,
-            frontQueuedAt: dto.requests[0]?.queuedAt ?? null,
-            pendingRequests: dto.requests.map((item) => ({
+            frontQueuedAt: requests[0]?.queuedAt ?? null,
+            pendingRequests: requests.map((item) => ({
               id: item.id,
               assignedTeacherId: item.assignedTeacherId,
             })),
-            activeRequests: dto.activeRequests.map((item) => ({
+            activeRequests: activeRequests.map((item) => ({
               id: item.id,
               assignedTeacherId: item.assignedTeacherId,
             })),

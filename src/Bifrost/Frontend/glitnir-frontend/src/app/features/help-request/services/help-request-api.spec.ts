@@ -182,6 +182,27 @@ describe('HelpRequestApi', () => {
       });
     });
 
+    it('tolerates a payload without requests or activeRequests', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherQueue(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      const req = http.expectOne('/api/teachers/sessions/session-1/queue');
+      req.flush({ generation: 8, waitingCount: 0 });
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()).toEqual({
+        waitingCount: 0,
+        availableCount: 0,
+        generation: 8,
+        frontQueuedAt: null,
+        pendingRequests: [],
+        activeRequests: [],
+      });
+    });
+
     it('excludes reserved requests from availableCount', async () => {
       const resource = TestBed.runInInjectionContext(() =>
         service.getTeacherQueue(() => 'session-1'),
