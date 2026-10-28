@@ -260,3 +260,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
    - Unit tests required for all services and business logic; skip tests for pure shell components.
    - Cookie-based auth only — no tokens in `localStorage` or `sessionStorage`.
    - English codebase rule applies to TypeScript as well.
+
+---
+
+## Update 2026-10-28
+
+- The Angular frontend fully implements the teacher session view (`TeacherSession`), orchestrating queue reservations, live wait-time tracking, and real-time statistics display.
+- Teacher FAQ management is supported through dedicated modal dialogs (`FaqFormDialog`, `FaqDeleteDialog`) for creating, updating, and removing session-scoped knowledge base entries.
+- Session administration features dedicated modal flows for viewing access codes, renaming, archiving generations, and destructive session deletion.
+- The Angular application dynamically switches browser favicons based on user role driven by the global `AuthStore`.
+- Frontend components adopt standardized global utility classes (`.icon-mask`, `.input-field`, `.surface-box`) and button variants across feature modules.
