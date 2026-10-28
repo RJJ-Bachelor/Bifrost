@@ -746,6 +746,25 @@ function formatReviewThreads(comments) {
   return lines.join("\n");
 }
 
+/**
+ * If today's heading already exists (e.g. another PR already appended an
+ * "## Update 2026-10-28" section), returns " (2)", " (3)", etc. so the new
+ * section can be appended with a distinct heading instead of duplicating the
+ * exact same heading. Avoids visual duplicates without merging content, which
+ * keeps per-PR changes reviewable in the file.
+ */
+function computeTodayHeadingSuffix(currentContext, today) {
+  if (!currentContext.includes(`## Update ${today}`)) return "";
+  const escaped = today.replace(/-/g, "\\-");
+  const regex = new RegExp(`^## Update ${escaped} \\((\\d+)\\)`, "gm");
+  let maxN = 1;
+  let match;
+  while ((match = regex.exec(currentContext)) !== null) {
+    maxN = Math.max(maxN, parseInt(match[1], 10));
+  }
+  return ` (${maxN + 1})`;
+}
+
 async function updateContextFile(diff, prBranch) {
   let currentContext = "";
   if (fs.existsSync(CONTEXT_FILE_PATH)) {
@@ -768,7 +787,9 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' has grown large and is now in CONSOLIDATION mode.
 
 Rules:
-1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
+   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
+   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
 2. Otherwise, output the COMPLETE consolidated Markdown file.
 3. You MAY merge duplicate or overlapping sections, remove outdated entries, and reorder for clarity. The goal is a clean, accurate, high-level architecture document.
 4. You MUST NOT lose factual information: every architecture concept, module, endpoint, dependency rule, and integration that is still true must remain present — either in its original form or in a clearly equivalent consolidated form.
@@ -780,8 +801,11 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, reorder, or remove existing content — only append a new section at the very end.
 
 Rules:
-1. If the PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture, return EXACTLY: [NO_CHANGES]
+1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
+   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
+   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
+   IMPORTANT: You MAY read the existing sections above as reference to avoid duplicating facts, but you MUST NOT modify, reorder, or remove any of them. Only add genuinely new or changed facts.
 3. The new section MUST begin with a level-2 heading in EXACTLY this form: ## Update ${today}
    Do NOT add a PR reference, PR number, topic, or any placeholder text to the heading.
 4. Apply this test to EVERY bullet BEFORE including it:
@@ -880,10 +904,16 @@ ${diff}
         return;
       }
 
+      const suffix = computeTodayHeadingSuffix(currentContext, today);
+      const headingRegex = new RegExp(`^## Update ${today.replace(/-/g, "\\-")}$`, "m");
+      const adjustedResponse = suffix
+        ? cleanedResponse.replace(headingRegex, `## Update ${today}${suffix}`)
+        : cleanedResponse;
+
       const separator = currentContext.trim().length > 0 ? "\n\n---\n\n" : "";
-      newFileContent = currentContext.trimEnd() + separator + cleanedResponse + "\n";
+      newFileContent = currentContext.trimEnd() + separator + adjustedResponse + "\n";
       commitMessage = "docs: auto-append to PROJECT_CONTEXT.md [skip review]";
-      logLabel = "appended";
+      logLabel = suffix ? `appended as "Update ${today}${suffix}"` : "appended";
     }
 
     if (newFileContent && newFileContent !== currentContext) {
