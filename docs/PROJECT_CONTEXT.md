@@ -65,7 +65,9 @@ Every service and module strictly adheres to Clean Architecture:
 4. **Idempotent Message Processing:**
    - All RabbitMQ message subscribers must handle redeliveries gracefully without duplicating state or causing fatal errors.
 5. **Language Rule:**
-   - All code, symbols, class/method/variable names, log messages, exception messages, and code comments must be written **100% in English**.
+   - All **developer-facing** code artifacts must be written **100% in English**: identifiers, symbols, class/method/variable names, code comments, log messages, exception messages, commit messages, and documentation.
+   - **User-facing text is Danish** and is not subject to the English rule. This includes UI labels, button text, error/status messages rendered in the UI (whether in `.html` templates or as string literals in `.ts`/`.cs` passed to a view), placeholder text, and validation messages shown to end users.
+   - **Test data** (hardcoded test questions, fixtures, mock content) may be Danish.
 
 ### 3.3 Frontend Architecture
 
@@ -251,7 +253,7 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 3. **Transactional Outbox Usage:** All integration events must be enqueued via `UnitOfWork` / domain event notification rather than published synchronously to RabbitMQ.
 4. **FastEndpoints Pattern:** HTTP endpoints must follow the REPR pattern and validate inputs using FluentValidation classes rather than inline controller logic.
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
-6. **English in Codebase:** All code, identifiers, comments, and log messages must be in English (applies to backend C# as well as frontend TypeScript and shell scripts).
+6. **English in Codebase (developer-facing):** All code identifiers, comments, log messages, exception messages, and documentation must be in English (applies to backend C#, frontend TypeScript, and shell scripts). **User-facing UI text and test data are exempt** and may be Danish, consistent with the rest of the application.
 7. **Frontend Architecture & Testing:**
    - Feature isolation: no cross-feature imports of internal code.
    - No legacy Angular patterns (`NgModule`, constructor injection, `*ngIf`, Karma).
