@@ -1,10 +1,11 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
+import { RealtimeService } from '../../../../core/realtime/realtime.service';
 import { HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
 import { QueueAwaitingConfirmation } from './components/queue-awaiting-confirmation/queue-awaiting-confirmation';
@@ -24,6 +25,7 @@ export class Queue {
   private readonly route = inject(ActivatedRoute);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly sessionApi = inject(SessionApi);
+  private readonly realtime = inject(RealtimeService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();
@@ -130,6 +132,29 @@ export class Queue {
         this.router.navigate(['..'], { relativeTo: this.route });
       }
     });
+
+    this.realtime.notifications$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        if (notification.sessionId !== this.id()) return;
+
+        if (
+          notification.eventType === 'SessionChanged' ||
+          notification.eventType === 'HelpRequestStarted'
+        ) {
+          this.queue.reload();
+          this.requests.reload();
+        }
+
+        if (notification.eventType === 'FaqAnswered') {
+          this.queue.reload();
+          this.requests.reload();
+        }
+
+        if (notification.eventType === 'FaqCreated') {
+          this.requests.reload();
+        }
+      });
   }
 
   protected backToSession(): void {
