@@ -71,8 +71,10 @@ runtime:
 docs: |-
   Afprøver hele flowet uden Mimirs testendpoints: Eir → Mimir → Eir.
   Opretter en ny session med tre nye studerende, som hver sender én digital anmodning.
-  Mimir parrer automatisk de to første til én FAQ med pladsholderspørgsmålet
-  "Dette er et generaliseret spørgsmål.". Den tredje venter alene, til en fjerde kommer.
+  De to første sender samme tekst via CreateDigitalRequest, så Mimir parrer dem automatisk
+  til én FAQ med pladsholderspørgsmålet "Dette er et generaliseret spørgsmål.".
+  Mimir parrer kun ens tekst (uden hensyn til store/små bogstaver og mellemrum i enderne).
+  Den tredje skriver noget andet og venter alene i den almindelige kø.
   Efter svaret venter scriptet op til 20 sekunder på FAQ'en via GetTeacherFaqs og fejler,
   hvis der ikke er præcis én FAQ med to anmodninger, eller hvis den tredje er koblet på.
   Kræver Developer Mode i Bruno og at Heimdall, Eir, Mimir og RabbitMQ kører.
