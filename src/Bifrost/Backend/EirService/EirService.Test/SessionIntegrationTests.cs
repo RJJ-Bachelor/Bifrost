@@ -32,6 +32,7 @@ using EirService.Sessions.Application.Features.Common.GetSessionArchives;
 using EirService.Sessions.Application.Features.Common.GetSessionArchive;
 using EirService.Sessions.Application.Features.Teacher.DeleteSession;
 using EirService.Sessions.Application.Features.Teacher.CreateSession;
+using EirService.Sessions.Application.Features.Teacher.UpdateSession;
 using EirService.Sessions.Application.Features.Teacher.GetSession;
 using EirService.Sessions.Application.Features.Teacher.GetSessions;
 using EirService.Sessions.Application.Features.Student.GetStudentSession;
@@ -145,6 +146,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
                 typeof(GetSessionFaqsQueryHandler).Assembly, typeof(GetSessionStatisticsQueryHandler).Assembly];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<UpdateSessionCommand>, UpdateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ArchiveSessionCommand>, ArchiveSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<GetSessionArchivesQuery>, GetSessionArchivesQueryValidator>();

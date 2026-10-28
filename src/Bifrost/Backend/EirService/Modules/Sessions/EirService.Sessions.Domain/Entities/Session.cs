@@ -23,17 +23,12 @@ public sealed class Session : AggregateRoot<Guid>
     public static Session Create(string title, SessionCode code, SessionCode teacherCode, string createdByTeacherId,
         string? createdByDisplayName, DateTimeOffset now)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        var trimmedTitle = NormalizeTitle(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(createdByTeacherId);
         ArgumentNullException.ThrowIfNull(code);
         ArgumentNullException.ThrowIfNull(teacherCode);
         if (code == teacherCode)
             throw new ArgumentException("Student and teacher codes must be different.", nameof(teacherCode));
-
-        var trimmedTitle = title.Trim();
-        
-        if (trimmedTitle.Length > 200)
-            throw new ArgumentException("A session title cannot exceed 200 characters.", nameof(title));
 
         return new Session
         {
@@ -43,6 +38,15 @@ public sealed class Session : AggregateRoot<Guid>
             CreatedAtUtc = now.ToUniversalTime(), CurrentGeneration = 1,
             CurrentGenerationStartedAtUtc = now.ToUniversalTime()
         };
+    }
+
+    public void Rename(string title)
+    {
+        var trimmedTitle = NormalizeTitle(title);
+        if (Title == trimmedTitle) return;
+
+        Title = trimmedTitle;
+        RaiseDomainEvent(new SessionRenamedDomainEvent(Id, CurrentGeneration));
     }
 
     public void Delete(DateTimeOffset now) =>
@@ -72,5 +76,15 @@ public sealed class Session : AggregateRoot<Guid>
         CurrentGenerationStartedAtUtc = archive.ArchivedAtUtc;
         RaiseDomainEvent(new SessionArchivedDomainEvent(Id, archive.Generation, CurrentGeneration, archive.ArchivedAtUtc));
         return archive;
+    }
+
+    private static string NormalizeTitle(string title)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        var trimmedTitle = title.Trim();
+        if (trimmedTitle.Length > 200)
+            throw new ArgumentException("A session title cannot exceed 200 characters.", nameof(title));
+
+        return trimmedTitle;
     }
 }

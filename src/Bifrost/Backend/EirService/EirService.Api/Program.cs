@@ -16,6 +16,7 @@ using EirService.HelpRequests.Application.Features.Student.GetHelpRequests;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Sessions.Application.Features.Teacher.CreateSession;
+using EirService.Sessions.Application.Features.Teacher.UpdateSession;
 using EirService.Sessions.Application.Features.Teacher.ClearSession;
 using EirService.Sessions.Application.Features.Teacher.ArchiveSession;
 using EirService.Sessions.Application.Features.Common.GetSessionArchives;
@@ -66,6 +67,7 @@ public class Program
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<UpdateSessionCommand>, UpdateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ArchiveSessionCommand>, ArchiveSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<GetSessionArchivesQuery>, GetSessionArchivesQueryValidator>();
