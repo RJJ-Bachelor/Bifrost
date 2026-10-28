@@ -43,7 +43,9 @@ export class SessionSettingsDialog {
     event.preventDefault();
     const title = this.renameModel().trim();
     if (title.length === 0 || this.renaming()) return;
-    // TODO(BF-47): call rename endpoint when backend supports it.
+    // Intentional no-op until BF-47 (backend rename endpoint) is available.
+    // The UI mirrors the "saving" state so the flow can be exercised end-to-end,
+    // but no persistence happens. This will not ship to users before BF-47 lands.
     this.renaming.set(true);
     this.renameError.set(null);
     setTimeout(() => {
