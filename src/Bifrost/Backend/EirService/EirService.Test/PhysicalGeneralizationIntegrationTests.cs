@@ -190,7 +190,8 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(new[] { earlierId, firstId, secondId, laterId },
             queue.GetProperty("requests").EnumerateArray().Select(item => item.GetProperty("id").GetGuid()));
         Assert.Equal(4, queue.GetProperty("waitingCount").GetInt32());
-        using var takeEarlier = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        using var colleague = await JoinTeacherAsync(session.TeacherCode);
+        using var takeEarlier = await colleague.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         Assert.Equal(earlierId, (await takeEarlier.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
         using var takePhysical = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         var reserved = (await takePhysical.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
@@ -212,21 +213,25 @@ public sealed partial class SessionIntegrationTests
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
+        using var activeTeacher = await JoinTeacherAsync(session.TeacherCode);
+        using var reservedTeacher = TeacherClient("reserved-teacher");
+        using var joinReservedTeacher = await reservedTeacher.PostAsJsonAsync("/api/teachers/sessions/join", new { Code = session.TeacherCode });
+        Assert.Equal(HttpStatusCode.OK, joinReservedTeacher.StatusCode);
         using var activeStudent = await OtherStudentAsync(session.Code);
         using var reservedStudent = await OtherStudentAsync(session.Code);
         using var waitingStudent = await OtherStudentAsync(session.Code);
         var completedId = await SubmitAsync(student, session.Id, HelpType.Physical);
-        await ReservePhysicalAsync(completedId);
+        await ReservePhysicalAsync(teacher, completedId);
         using var completedStart = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{completedId}/status", new { Action = "Start" });
         Assert.Equal(HttpStatusCode.OK, completedStart.StatusCode);
         using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{completedId}/status", new { Action = "Complete" });
         Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
         var activeId = await SubmitAsync(activeStudent, session.Id, HelpType.Physical);
-        await ReservePhysicalAsync(activeId);
-        using var activeStart = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{activeId}/status", new { Action = "Start" });
+        await ReservePhysicalAsync(activeTeacher, activeId);
+        using var activeStart = await activeTeacher.PatchAsJsonAsync($"/api/teachers/requests/{activeId}/status", new { Action = "Start" });
         Assert.Equal(HttpStatusCode.OK, activeStart.StatusCode);
         var reservedId = await SubmitAsync(reservedStudent, session.Id, HelpType.Physical);
-        await ReservePhysicalAsync(reservedId);
+        await ReservePhysicalAsync(reservedTeacher, reservedId);
         var waitingId = await SubmitAsync(waitingStudent, session.Id, HelpType.Physical);
         var unchanged = new List<(HttpClient Client, HelpRequestResult Before)>();
         foreach (var (client, id) in new[] { (student, completedId), (activeStudent, activeId), (reservedStudent, reservedId) })
@@ -260,9 +265,9 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(waitingId, Assert.Single(await ReadNotificationsAsync(),
             notice => notice.Message.EventType == NotificationEventType.FaqAnswered).Message.HelpRequestId);
 
-        async Task ReservePhysicalAsync(Guid id)
+        async Task ReservePhysicalAsync(HttpClient reservingTeacher, Guid id)
         {
-            using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+            using var take = await reservingTeacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
             Assert.Equal(HttpStatusCode.OK, take.StatusCode);
             Assert.Equal(id, (await take.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
         }
@@ -273,6 +278,7 @@ public sealed partial class SessionIntegrationTests
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
+        using var colleague = await JoinTeacherAsync(session.TeacherCode);
         using var other = await OtherStudentAsync(session.Code);
         var physicalId = await SubmitAsync(student, session.Id, HelpType.Physical);
         var digitalId = await SubmitAsync(other, session.Id, HelpType.Digital);
@@ -283,21 +289,21 @@ public sealed partial class SessionIntegrationTests
                 new { Text = "Additional details while waiting." });
             Assert.Equal(HttpStatusCode.OK, pendingFollowUp.StatusCode);
         }
-        var reservedIds = new List<Guid>();
-        for (var index = 0; index < 2; index++)
+        var reservingTeachers = new Dictionary<Guid, HttpClient>();
+        foreach (var reservingTeacher in new[] { teacher, colleague })
         {
-            using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+            using var take = await reservingTeacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
             Assert.Equal(HttpStatusCode.OK, take.StatusCode);
-            reservedIds.Add((await take.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
+            reservingTeachers.Add((await take.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id, reservingTeacher);
         }
-        Assert.Equal(new[] { physicalId, digitalId }.Order(), reservedIds.Order());
-        using var start = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{physicalId}/status",
+        Assert.Equal(new[] { physicalId, digitalId }.Order(), reservingTeachers.Keys.Order());
+        using var start = await reservingTeachers[physicalId].PatchAsJsonAsync($"/api/teachers/requests/{physicalId}/status",
             new { Action = "Start" });
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
-        using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{physicalId}/status",
+        using var complete = await reservingTeachers[physicalId].PatchAsJsonAsync($"/api/teachers/requests/{physicalId}/status",
             new { Action = "Complete" });
         Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
-        using var answer = await teacher.PostAsJsonAsync($"/api/teachers/requests/{digitalId}/messages",
+        using var answer = await reservingTeachers[digitalId].PostAsJsonAsync($"/api/teachers/requests/{digitalId}/messages",
             new { Text = "The teacher's answer." });
         Assert.Equal(HttpStatusCode.OK, answer.StatusCode);
 

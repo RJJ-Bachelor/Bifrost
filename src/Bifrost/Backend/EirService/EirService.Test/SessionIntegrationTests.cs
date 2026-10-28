@@ -1,5 +1,7 @@
 using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
+using EirService.Insights.Application;
+using EirService.Insights.Application.Features.Teacher.GetSessionStatistics;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.Sessions.Domain.DomainEvents;
 using EirService.Participants.Domain.ValueObjects;
@@ -125,6 +127,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         });
         builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
         builder.Services.AddHelpRequestsApplication();
+        builder.Services.AddInsightsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
         builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
@@ -138,7 +141,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         {
             options.DisableAutoDiscovery = true;
             options.Assemblies = [typeof(Api.Program).Assembly, typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly, typeof(GetSessionFaqsQueryHandler).Assembly];
+                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly,
+                typeof(GetSessionFaqsQueryHandler).Assembly, typeof(GetSessionStatisticsQueryHandler).Assembly];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<ClearSessionCommand>, ClearSessionCommandValidator>();
@@ -787,11 +791,12 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.False(ownQueue.TryGetProperty("requests", out _));
         Assert.False(ownQueue.TryGetProperty("activeRequests", out _));
         Assert.Equal(Array.IndexOf(expected, firstId) + 1, ownQueue.GetProperty("position").GetInt32());
-        Assert.Equal(Array.IndexOf(expected, firstId) * 5, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
 
+        using var colleague = await JoinTeacherAsync(session.TeacherCode);
         var responses = await Task.WhenAll(
             teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null),
-            teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null));
+            colleague.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null));
         var taken = new List<Guid>();
         foreach (var response in responses)
         {
@@ -802,7 +807,10 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
             }
         }
         Assert.Equal(expected, taken.OrderBy(id => id));
-        using var empty = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        using var availableTeacher = TeacherClient("unassigned-teacher");
+        using var joinAvailableTeacher = await availableTeacher.PostAsJsonAsync("/api/teachers/sessions/join", new { Code = session.TeacherCode });
+        Assert.Equal(HttpStatusCode.OK, joinAvailableTeacher.StatusCode);
+        using var empty = await availableTeacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
         Assert.Equal(HttpStatusCode.NoContent, empty.StatusCode);
         var after = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
         Assert.Equal(2, after.GetProperty("waitingCount").GetInt32()); // Reservation is still Pending.
@@ -1164,17 +1172,20 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
+        using var colleague = await JoinTeacherAsync(session.TeacherCode);
         using var olderStudent = await OtherStudentAsync(session.Code);
         var olderId = await SubmitAsync(olderStudent, session.Id, HelpType.Digital);
         clock.Now = clock.Now.AddMinutes(1);
         var id = await SubmitAsync(student, session.Id, HelpType.Physical);
-        using var takeOlder = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        using var takeOlder = await colleague.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(olderId, (await takeOlder.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
         using var takeOwn = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(id, (await takeOwn.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid());
         using var start = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{id}/status", new { Action = "Start" });
         Assert.Equal(HttpStatusCode.OK, start.StatusCode);
 
         clock.Now = clock.Now.AddMinutes(1);
-        using var returnOlder = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{olderId}/status", new { Action = "Cancel" });
+        using var returnOlder = await colleague.PatchAsJsonAsync($"/api/teachers/requests/{olderId}/status", new { Action = "Cancel" });
         Assert.Equal(HttpStatusCode.OK, returnOlder.StatusCode);
         clock.Now = clock.Now.AddMinutes(1);
         using var returnOwn = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{id}/status", new { Action = "Cancel" });

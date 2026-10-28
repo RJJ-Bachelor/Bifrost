@@ -11,12 +11,11 @@ public sealed class GetStudentQueueQueryHandler(IHelpRequestRepository repositor
     public async Task<StudentQueueResult> ExecuteAsync(GetStudentQueueQuery query, CancellationToken cancellationToken)
     {
         var session = await access.ForSessionAsync(query.SessionId, query.StudentId, AuthorRole.Student, cancellationToken);
-        var requests = await repository.GetForSessionAsync(session.Id, session.Generation, cancellationToken);
+        var requests = await repository.GetSessionActivityAsync(session.Id, session.Generation, cancellationToken);
         var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
-        var activeCount = requests.Count(request => request.Status == HelpRequestStatus.Active);
         var own = requests.SingleOrDefault(request => request.StudentId == query.StudentId && request.IsOpen);
         var index = Array.FindIndex(waiting, request => request.Id == own?.Id);
-        var durations = requests.Where(request => request.Status == HelpRequestStatus.CompletedByPhysical &&
+        var durations = requests.Where(request => request.Status == HelpRequestStatus.Completed &&
                 request.StartedAt is not null && request.ClosedAt > request.StartedAt)
             .Select(request => (request.ClosedAt!.Value - request.StartedAt!.Value).TotalMinutes).ToArray();
         var averageMinutes = durations.Length == 0 ? 5 : durations.Average();

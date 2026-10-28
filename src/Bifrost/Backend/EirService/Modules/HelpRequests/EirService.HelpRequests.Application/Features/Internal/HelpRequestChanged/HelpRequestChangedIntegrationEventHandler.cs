@@ -68,15 +68,7 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             _ => true
         };
         IEnumerable<string> recipients = session.TeacherIds;
-        if (change.Change == "Completed")
-        {
-            // Finishing active help changes estimated waits only for students still waiting.
-            var repository = scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>();
-            recipients = recipients.Concat(await repository.GetWaitingStudentIdsAsync(
-                request.SessionId, request.Generation, cancellationToken));
-            if (request.StudentId is not null) recipients = recipients.Append(request.StudentId);
-        }
-        else if (changesSharedQueue)
+        if (changesSharedQueue)
         {
             var participants = scope.ServiceProvider.GetRequiredService<ICommandHandler<GetSessionParticipantIdsQuery, string[]>>();
             recipients = recipients.Concat(await participants.ExecuteAsync(

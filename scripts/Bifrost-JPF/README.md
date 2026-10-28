@@ -67,6 +67,7 @@ EirService/
 │   │   │   ├── GetHelpRequestsForSession.yml
 │   │   │   └── GetHelpRequestById.yml
 │   │   ├── GetStudentQueue/
+│   │   ├── GetStudentQueueStatus/
 │   │   ├── AddStudentMessage/
 │   │   ├── CancelHelpRequest/
 │   │   └── RespondToFaq/
@@ -89,12 +90,15 @@ EirService/
     │   └── DeleteSession/
     ├── HelpRequests/
     │   ├── GetQueue/
+    │   ├── GetTeacherQueueStatus/
     │   ├── GetHelpRequest/
     │   ├── TakeNextHelpRequest/
     │   ├── AnswerHelpRequest/
     │   └── ChangeHelpRequestStatus/
-    └── KnowledgeBase/
-        └── GetTeacherFaqs/
+    ├── KnowledgeBase/
+    │   └── GetTeacherFaqs/
+    └── Insights/
+        └── GetSessionStatistics/
 ```
 
 `GetHelpRequests`-mappen samler listen, listen filtreret på en session og én samtale
@@ -155,6 +159,8 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` med forventet generation |
 | DeleteSession | `DELETE /api/teachers/sessions/{{sessionId}}` |
 | GetQueue | `GET /api/teachers/sessions/{{sessionId}}/queue` |
+| GetTeacherQueueStatus | `GET /api/teachers/sessions/{{sessionId}}/queue/status` |
+| GetSessionStatistics | `GET /api/teachers/sessions/{{sessionId}}/statistics` |
 | TakeNextHelpRequest | `POST /api/teachers/sessions/{{sessionId}}/queue/take-next` |
 | GetHelpRequest | `GET /api/teachers/requests/{{teacherHelpRequestId}}` |
 | AnswerHelpRequest | `POST /api/teachers/requests/{{teacherHelpRequestId}}/messages` med `text` |
@@ -176,6 +182,7 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
 | GetHelpRequestById | `GET /api/students/requests/{{studentHelpRequestId}}` |
 | GetStudentQueue | `GET /api/students/sessions/{{sessionId}}/queue` |
+| GetStudentQueueStatus | `GET /api/students/sessions/{{sessionId}}/queue/status` |
 | AddStudentMessage | `POST /api/students/requests/{{studentHelpRequestId}}/messages` med `text` |
 | CancelHelpRequest | `PATCH /api/students/requests/{{studentHelpRequestId}}/status` med `action: "Cancel"` |
 | GetStudentFaqs | `GET /api/students/sessions/{{sessionId}}/faqs` |
@@ -235,6 +242,26 @@ Numrene starter forfra i hver session og efter ArchiveSession eller ClearSession
 som `helpRequestId`; køplaceringen er et separat tal.
 Kø- og samtalekald ligger
 under `EirService/Student/HelpRequests` og `EirService/Teacher/HelpRequests`.
+`GetStudentQueueStatus` viser `waitingCount` og `estimatedWaitMinutes` for en ny anmodning,
+også før eleven selv står i kø; eleven skal først være tilmeldt sessionen.
+Estimatet er `null`, indtil den aktuelle generation har en positiv behandlingstidsmåling fra en
+afsluttet anmodning, også hvis køen er tom. Digital behandlingstid måles fra Tag næste
+(reservation) til svar; fysisk behandlingstid måles fra Start til Complete. Med brugbare
+målinger og ingen ventende eller aktive anmodninger er estimatet `0` minutter.
+`GetTeacherQueueStatus` viser `waitingCount`, `unreservedWaitingCount`, `frontWaitMinutes`,
+`generation` og `myReservedRequestId` uden samtaler eller beskeder. `waitingCount` tæller alle
+`Pending`-anmodninger, mens `unreservedWaitingCount` kun tæller dem uden en tildelt underviser.
+`myReservedRequestId` er den aktuelle undervisers reserverede eller aktive anmodning i sessionens
+aktuelle generation, ellers `null`. Den fulde `GetQueue` indeholder også de to antal og dette ID
+samt `requests` og `activeRequests`, når der er brug for anmodningslisterne.
+Den forrestes ventetid er `null`, når ingen venter. Begge statuskald gælder den aktuelle generation.
+`TakeNextHelpRequest` reserverer kun en ny anmodning, hvis underviseren ikke allerede har en
+reserveret (`Pending`) eller aktiv (`Active`) anmodning i samme session og generation. Gentagne
+kald returnerer den eksisterende anmodning, også under fysisk hjælp. Hvis underviseren hverken
+har en igangværende anmodning eller kan tage en ledig, returneres `204`.
+**Teacher → Insights → GetSessionStatistics** viser dagens statistik for samme generation:
+afsluttede fysiske/digitale anmodninger, unikke hjulpne studerende og gennemsnittet af
+`ClosedAt - QueuedAt` i minutter. Gennemsnittet er `null`, når ingen anmodninger er afsluttet.
 Student-kald bruger elevcookien; teacher-kald bruger lærerlogin.
 De kan bruges i samme cookiejar uden at logge læreren ud.
 Start, Complete og Cancel ligger i lærerens `ChangeHelpRequestStatus`-mappe

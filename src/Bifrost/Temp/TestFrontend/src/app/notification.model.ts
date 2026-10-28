@@ -67,7 +67,8 @@ export enum SessionRefresh {
   Conversation = 16,
   Faqs = 32,
   Archives = 64,
-  Archive = 128
+  Archive = 128,
+  Statistics = 256
 }
 
 export interface SessionRefreshContext {
@@ -82,7 +83,7 @@ export function visibleSessionRefresh(context: SessionRefreshContext): SessionRe
   if (!context.sessionId) return SessionRefresh.Sessions;
   return SessionRefresh.Session | SessionRefresh.Queue | SessionRefresh.Faqs | SessionRefresh.Archives
     | SessionRefresh.Archive | SessionRefresh.Conversation
-    | (context.role === 'students' ? SessionRefresh.Requests : SessionRefresh.None);
+    | (context.role === 'students' ? SessionRefresh.Requests : SessionRefresh.Statistics);
 }
 
 const waitingCountChanges = new Set(['Created', 'StudentMessageAdded', 'Started', 'Answered', 'Cancelled',
@@ -124,5 +125,7 @@ export function notificationRefreshParts(notification: Notification, context: Se
     parts |= SessionRefresh.Conversation;
   if (['FaqAnswered', 'FaqSuggested'].includes(change) || !student && ['FaqCreated', 'FaqLinked'].includes(change))
     parts |= SessionRefresh.Faqs;
+  if (!student && ['Completed', 'Answered', 'FaqAccepted', 'StudentMessageAdded', 'FaqAnswered'].includes(change))
+    parts |= SessionRefresh.Statistics;
   return parts;
 }

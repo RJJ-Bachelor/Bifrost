@@ -40,11 +40,22 @@ Content-Type: application/json
 ### Student queue position
 GET {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}/queue
 
+### Student queue status: estimated wait for a new request, even before joining the queue
+GET {{EirService.Api_HostAddress}}/api/students/sessions/{{sessionId}}/queue/status
+
 ### Teacher queue overview
 GET {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/queue
 Authorization: Bearer {{teacherToken}}
 
-### Teacher reservation
+### Teacher queue status: total/available counts, own request ID and front wait time, without request lists
+GET {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/queue/status
+Authorization: Bearer {{teacherToken}}
+
+### Today's statistics: completed requests in the current generation
+GET {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/statistics
+Authorization: Bearer {{teacherToken}}
+
+### Teacher reservation: returns own Pending/Active request if already helping, otherwise reserves the next
 POST {{EirService.Api_HostAddress}}/api/teachers/sessions/{{sessionId}}/queue/take-next
 Authorization: Bearer {{teacherToken}}
 

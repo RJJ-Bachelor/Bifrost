@@ -1,0 +1,27 @@
+info:
+  name: GetStudentQueueStatus
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/queue/status'
+  auth: null
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Returns waitingCount and estimatedWaitMinutes for the current session generation.
+  Join the session first; this request reuses the student cookie and sessionId.
+  The estimate is for a new request joining the back of the queue, even before submitting one.
+  It uses the existing queue estimate, including active help and positive completed treatment durations.
+  Treatment time is measured from reservation to answer for digital help, and from Start to Complete
+  for physical help. Without positive completed durations in the current generation,
+  estimatedWaitMinutes is null, even when the queue is empty.
+  waitingCount includes all Pending requests, including reservations and FAQ questions.
+  With positive completed durations and no waiting or active requests, both values are zero.

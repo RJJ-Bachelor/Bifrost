@@ -1,0 +1,24 @@
+info:
+  name: GetSessionStatistics
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/statistics'
+  auth: null
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Today's statistics for the selected session's current generation, without a calendar-date filter.
+  Requires teacher login and membership of this session.
+  Returns physicalCount and digitalCount for Completed requests by HelpType,
+  helpedStudentCount for distinct non-null StudentId values among Completed requests,
+  and averageWaitMinutes as the average of ClosedAt - QueuedAt in minutes.
+  With no Completed requests, counts are zero and averageWaitMinutes is null.

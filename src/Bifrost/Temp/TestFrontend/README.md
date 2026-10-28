@@ -20,10 +20,26 @@ Underviserens sessionskort viser antal ventende anmodninger i den aktuelle gener
 
 En session åbnes fra listen. Sessionens ID og aktuelle generation hentes fra API'et. Den valgte samtale gemmes pr. rolle og session i browserfanens session storage, så den kan åbnes igen efter genindlæsning.
 
+På underviserens sessionsside vises et enkelt køkort med antal ventende, den forrestes ventetid og aktuel generation samt **Dagens statistik** med afsluttede fysiske/digitale anmodninger, unikke hjulpne studerende og gennemsnitlig tid fra kø til afslutning. Statistikken gælder den aktuelle generation; gennemsnittet vises som `–`, når der ingen afsluttede anmodninger er. Den fulde underviserkø bruges stadig til anmodningslisterne. Studerende ser et estimat ved formularen, også før de selv har en anmodning i køen.
+
+Køkortets **Tag næste** styres af det lette status-endpoints `unreservedWaitingCount` og `myReservedRequestId`, også når den fulde køliste ikke er indlæst. Knappen er deaktiveret uden ledige anmodninger, under indlæsning/handlinger, ved en forældet generation og når underviseren allerede har en reserveret eller aktiv anmodning. **Fortsæt med dit spørgsmål** åbner den eksisterende anmodning via dens ID. `waitingCount` omfatter alle ventende anmodninger, mens `unreservedWaitingCount` kun omfatter de ventende, som ingen underviser har reserveret.
+
+Dagens statistik hører til Insights-modulet, som henter afsluttede anmodninger gennem en intern Contracts-query til HelpRequests. Kø og køstatus hører til HelpRequests-modulet.
+
+Køestimatet bruger den gennemsnitlige positive behandlingstid for afsluttede anmodninger i den aktuelle generation. Digital behandlingstid måles fra Tag næste (reservation) til svar; fysisk behandlingstid måles fra Start til Complete. Uden brugbare målinger er `estimatedWaitMinutes` `null`, også ved en tom kø. Frontenden viser da “Ventetid kan endnu ikke beregnes” og bevarer antal ventende og køplacering. Med brugbare målinger og en tom kø er estimatet `0` minutter. Tidligere digitale afslutninger med samme start- og sluttid tæller ikke som en måling.
+
+| GET-endpoint | Brug |
+| --- | --- |
+| `/api/teachers/sessions/{sessionId}/statistics` | Dagens statistik i den aktuelle generation. |
+| `/api/students/sessions/{sessionId}/queue/status` | Antal ventende og estimeret ventetid for en ny anmodning. |
+| `/api/teachers/sessions/{sessionId}/queue/status` | `waitingCount`, `unreservedWaitingCount`, `frontWaitMinutes`, `generation` og `myReservedRequestId`. |
+
+Samtalen viser underviserens ID (eget navn hvis kendt), køtid, starttid og afslutningstid samt om hjælpen blev afsluttet fysisk, med et digitalt svar, med et accepteret FAQ-svar eller annulleret. Ved FAQ-svar kommer underviseren fra svarets forfatter. Underviserens ID vises også på svar og i arkiverede samtaler.
+
 ## Hjælpeflows
 
 - **Studerende:** Vælg fysisk eller digital hjælp, og stil dit spørgsmål. Se din køplacering og samtale. Annuller før fysisk hjælp starter. Send opfølgende beskeder i en ventende, ureserveret eller afsluttet samtale; den genåbnes bagest i køen.
-- **Underviser:** Tag næste anmodning. Ved fysisk hjælp bruges **Start fysisk hjælp** og **Afslut fysisk hjælp**. Ved digital hjælp afslutter **Send svar og afslut** anmodningen. **Send forrest i køen** frigiver reservationen og returnerer anmodningen.
+- **Underviser:** Tag næste anmodning fra køkortet. Der kan højst være én reserveret (`Pending`) eller aktiv (`Active`) anmodning pr. underviser i samme session og generation. Gentaget `take-next` returnerer den eksisterende anmodning; **Fortsæt med dit spørgsmål** åbner den. Ved fysisk hjælp bruges **Start fysisk hjælp** og **Afslut fysisk hjælp**. Ved digital hjælp afslutter **Send svar og afslut** anmodningen. **Send forrest i køen** frigiver reservationen og returnerer anmodningen.
 - **Ryd session:** Findes under sessionindstillinger og kræver bekræftelse. De studerende forbliver tilmeldt. Gamle samtaler kan læses, men handlinger kræver sessionens aktuelle generation.
 - **Arkivér generation:** Underviseren vælger handlingen under sessionindstillinger og bekræfter. FAQ og personlige samtaler gemmes i arkivet, den aktuelle kø tømmes, og generationen stiger med én. Alle deltagere forbliver tilmeldt. Den nye arkivdetalje åbnes, og køen opdateres. **Ryd session uden arkiv** er stadig tilgængelig som en separat handling.
 - **Arkiverede generationer:** Begge roller kan vælge en generation under sessionens kø og læse FAQ og samtaler. Underviseren ser alle gemte FAQ-spørgsmål og sessionens personlige samtaler. Den studerende ser besvarede FAQ-spørgsmål og sine egne samtaler. Arkivet er kun til læsning.
@@ -41,7 +57,9 @@ Siden henter aktuelle data ved første indlæsning, relevante SignalR-notifikati
 
 Notifikationens `change` beskriver, hvilke data der er ændret. Frontenden genhenter kun berørte, synlige data. På sessionsoversigten opdaterer underviseren kun listen ved mulige ændringer i `waitingCount` eller sessionsmetadata. Den studerendes sessionsoversigt opdateres ved rydning, arkivering og sletning. På en åben sessionsside hentes den skjulte sessionsliste ikke. Almindelige køændringer henter køen; metadata og arkivlisten hentes ikke igen ved hver anmodning. En valgt undervisersamtale genbruges fra køens komplette requestdata, når den stadig er ventende eller aktiv.
 
-Reservation, accept af FAQ-svar og annullering under FAQ-forløbet varsler kun ejeren og underviserne. Afsluttet fysisk hjælp varsler desuden de studerende med ventende anmodninger, fordi deres ventetidsestimat kan ændres.
+Køstatus hentes sammen med køen. Dagens statistik opdateres ved afslutning, svar, FAQ-accept og genåbning med en ny studentbesked samt ved fuld genindlæsning eller ny generation.
+
+Reservation, accept af FAQ-svar og annullering under FAQ-forløbet varsler kun ejeren og underviserne. Afsluttet fysisk hjælp varsler desuden alle sessionens deltagere, fordi både køens ventetidsestimat og formularens estimat for en ny anmodning kan ændres.
 
 | `change` | Data på en åben sessionsside |
 |---|---|

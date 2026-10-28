@@ -79,8 +79,7 @@ public sealed partial class SessionIntegrationTests
             var cursor = await NotificationCursorAsync();
             using var response = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{id}/status", new { Action = action });
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            AssertPhysicalBroadcast(await NotificationsSinceAsync(cursor), session.Id,
-                action == "Complete" ? ["provider|opaque-teacher", "colleague", studentId] : recipients, personal,
+            AssertPhysicalBroadcast(await NotificationsSinceAsync(cursor), session.Id, recipients, personal,
                 genericChanges: [action switch { "Start" => "Started", "Cancel" => "ReturnedToQueue", _ => "Completed" }]);
         }
     }

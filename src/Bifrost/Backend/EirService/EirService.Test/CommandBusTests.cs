@@ -6,6 +6,8 @@ using EirService.Participants.Application.Features.Internal.GetSessionTeachers;
 using EirService.Participants.Application.Features.Internal.RememberSessionTeacher;
 using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
+using EirService.Insights.Application;
+using EirService.Insights.Application.Features.Teacher.GetSessionStatistics;
 using EirService.HelpRequests.Domain.DomainEvents;
 using EirService.HelpRequests.Domain.ValueObjects;
 using Shared.Application.DomainEvents;
@@ -85,12 +87,14 @@ public sealed partial class CommandBusTests : IAsyncLifetime
                 typeof(Api.Program).Assembly,
                 typeof(CreateSessionCommandHandler).Assembly,
                 typeof(CreateHelpRequestCommandHandler).Assembly,
-                typeof(JoinSessionCommandHandler).Assembly
+                typeof(JoinSessionCommandHandler).Assembly,
+                typeof(GetSessionStatisticsQueryHandler).Assembly
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddHelpRequestsApplication();
+        builder.Services.AddInsightsApplication();
         builder.Services.AddCommandMiddleware(options => options.Register(
             typeof(CommandValidationMiddleware<,>),
             typeof(CommandLoggingMiddleware<,>)));
@@ -576,8 +580,13 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             Task.FromResult(Saved.SingleOrDefault(request => request.Id == id));
         public Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.SessionId == sessionId && request.Generation == generation)
-                .OrderByDescending(request => request.ReturnedToQueueAt)
+                .OrderByDescending(request => request.StudentId == null)
+                .ThenByDescending(request => request.ReturnedToQueueAt)
                 .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
+        public async Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+            (await GetForSessionAsync(sessionId, generation, cancellationToken))
+                .Select(request => new HelpRequestActivity(request.Id, request.StudentId, request.RequestNumber,
+                    request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt)).ToArray();
         public Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => ids.Contains(request.Id)).ToArray());
         public Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>

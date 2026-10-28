@@ -1,4 +1,5 @@
 using EirService.HelpRequests.Application.Features.Student.GetStudentQueue;
+using EirService.HelpRequests.Application.Features.Student.GetStudentQueueStatus;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Domain.ValueObjects;
 using EirService.Participants.Application.Features.Student.JoinSession;
@@ -58,6 +59,7 @@ public sealed partial class CommandBusTests
         observerRequest.ClearDomainEvents();
         _requests.Saved.Add(observerRequest);
         var before = await new GetStudentQueueQuery(session.Id, "observer").ExecuteAsync();
+        var idleBefore = await new GetStudentQueueStatusQuery(session.Id, "idle").ExecuteAsync();
 
         switch (action)
         {
@@ -79,8 +81,16 @@ public sealed partial class CommandBusTests
         if (!affectsOtherStudents) Assert.Equal(before, after);
         if (action == "Reserved")
             Assert.Equal(before with { UnreservedWaitingCount = before.UnreservedWaitingCount - 1 }, after);
-        if (action == "Completed") Assert.NotEqual(before.EstimatedWaitMinutes, after.EstimatedWaitMinutes);
-        var expected = action == "Completed" ? new[] { "colleague", "observer", "owner", "student" } : affectsOtherStudents
+        if (action == "Completed")
+        {
+            Assert.NotEqual(before.EstimatedWaitMinutes, after.EstimatedWaitMinutes);
+            Assert.Equal(new StudentQueueStatusResult(1, null), idleBefore);
+            Assert.Equal(new StudentQueueStatusResult(1, 3),
+                await new GetStudentQueueStatusQuery(session.Id, "idle").ExecuteAsync());
+            Assert.All(_requests.Notifications,
+                item => Assert.Equal(NotificationDeliveryType.RealtimeOnly, item.Message.DeliveryType));
+        }
+        var expected = affectsOtherStudents
             ? new[] { "colleague", "idle", "observer", "owner", "student" }
             : new[] { "colleague", "owner", "student" };
         Assert.Equal(expected, _requests.Notifications.Select(item => item.Message.UserId).Order());

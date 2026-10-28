@@ -36,15 +36,21 @@ function fixture(role = 'teachers') {
   const received = new rx.Subject();
   const reconnected = new rx.Subject();
   const reads = [];
+  const posts = [];
   const session = { id: sessionId, currentGeneration: 3 };
   const conversation = { id: requestId, sessionId, generation: 3, messages: [] };
-  const state = { session, sessions: [session], gate: null, requests: [], queueRequests: [], queueActive: [], conversation, archives: [], archive: null, archiveResult: null, conversations: {}, command: null };
-  const api = { patch: () => state.command, post: () => state.command, get: url => rx.defer(() => {
+  const state = { session, sessions: [session], gate: null, requests: [], queueRequests: [], queueActive: [], conversation, archives: [], archive: null, archiveResult: null, conversations: {}, command: null,
+    queueStatus: { waitingCount: 2, unreservedWaitingCount: 2, myReservedRequestId: null, estimatedWaitMinutes: 10, frontWaitMinutes: 7, generation: 3 },
+    statistics: { physicalCount: 1, digitalCount: 2, helpedStudentCount: 2, averageWaitMinutes: 7.5 } };
+  const api = { patch: () => state.command, post: (url, body) => { posts.push({ url, body }); return state.command; }, get: url => rx.defer(() => {
     reads.push(url);
     if (url === role + '/sessions') return rx.of(state.sessions);
     if (url === role + '/sessions/' + sessionId)
       return state.session ? rx.of(state.session) : rx.throwError(() => new HttpErrorResponse(404));
-    if (url.endsWith('/queue')) return state.gate ?? rx.of({ sessionId, generation: state.session?.currentGeneration, requests: state.queueRequests, activeRequests: state.queueActive, waitingCount: 2 });
+    if (url.endsWith('/queue')) return state.gate ?? rx.of({ sessionId, generation: state.session?.currentGeneration, requests: state.queueRequests, activeRequests: state.queueActive,
+      waitingCount: 2, unreservedWaitingCount: state.queueStatus.unreservedWaitingCount, myReservedRequestId: state.queueStatus.myReservedRequestId });
+    if (url.endsWith('/queue/status')) return rx.of(state.queueStatus);
+    if (url.endsWith('/statistics')) return rx.of(state.statistics);
     if (url.includes('/requests/' + requestId)) return rx.of(state.conversation);
     if (url.includes('/requests/')) return rx.of(state.conversations[url.split('/').at(-1)] ?? null);
     if (url.includes('/requests?')) return rx.of(state.requests);
@@ -83,7 +89,7 @@ function fixture(role = 'teachers') {
   page.selectedRequestId = requestId;
   page.conversation = conversation;
   page.replyText = 'Keep my draft';
-  return { page, state, reads, received, reconnected, scheduler, conversation,
+  return { page, state, reads, posts, received, reconnected, scheduler, conversation,
     flush: () => scheduler.flush(),
     destroy: () => { destroyed.next(); destroyed.complete(); } };
 }
@@ -93,10 +99,158 @@ for (const role of ['teachers', 'students']) test(`${role} fetch only the queue 
   t.after(destroy);
   received.next({ ...update, recipientRole: role });
   flush();
-  assert.deepEqual(reads, [role + '/sessions/' + sessionId + '/queue']);
+  assert.deepEqual(reads, [role + '/sessions/' + sessionId + '/queue', role + '/sessions/' + sessionId + '/queue/status']);
   assert.equal(page.conversation, conversation);
   assert.equal(page.replyText, 'Keep my draft');
   assert.equal((page.teacherQueue ?? page.studentQueue).waitingCount, 2);
+  assert.equal((page.teacherQueueStatus ?? page.studentQueueStatus).waitingCount, 2);
+});
+
+test('a student sees a new-request estimate without having their own request', t => {
+  const { page, state, destroy } = fixture('students');
+  t.after(destroy);
+  state.gate = rx.of({ sessionId, generation: 3, waitingCount: 2, ownRequestId: null,
+    position: null, estimatedWaitMinutes: null });
+  page.refresh();
+  assert.equal(page.studentQueue.estimatedWaitMinutes, null);
+  assert.equal(page.studentQueueStatus.estimatedWaitMinutes, 10);
+  assert.equal(page.statistics, null);
+});
+
+for (const estimatedWaitMinutes of [0, 6])
+test(`anonymous physical completion replaces an unavailable estimate with ${estimatedWaitMinutes} for a student without their own request`, t => {
+  const { page, state, reads, received, flush, destroy } = fixture('students');
+  t.after(destroy);
+  const waitingCount = estimatedWaitMinutes === 0 ? 0 : 2;
+  state.queueStatus = { waitingCount, estimatedWaitMinutes: null };
+  state.gate = rx.of({ sessionId, generation: 3, waitingCount, ownRequestId: null,
+    position: null, estimatedWaitMinutes: null });
+  page.selectedRequestId = '';
+  page.conversation = null;
+  page.requests = [];
+  page.refresh();
+  assert.equal(page.studentQueueStatus.estimatedWaitMinutes, null);
+  assert.equal(page.studentQueueStatus.waitingCount, waitingCount);
+  reads.length = 0;
+  state.queueStatus = { waitingCount, estimatedWaitMinutes };
+  received.next({ ...update, recipientRole: 'students', change: 'Completed' });
+  flush();
+  assert.deepEqual(reads, ['students/sessions/' + sessionId + '/queue', 'students/sessions/' + sessionId + '/queue/status']);
+  assert.equal(page.studentQueue.ownRequestId, null);
+  assert.equal(page.studentQueueStatus.estimatedWaitMinutes, estimatedWaitMinutes);
+  assert.equal(page.studentQueueStatus.waitingCount, waitingCount);
+  assert.equal(page.conversation, null);
+});
+
+for (const change of ['Completed', 'Answered', 'FaqAccepted', 'StudentMessageAdded'])
+test(`${change} refreshes today's teacher statistics`, t => {
+  const { page, state, reads, received, flush, destroy } = fixture();
+  t.after(destroy);
+  received.next({ ...update, change });
+  flush();
+  assert.equal(page.statistics, state.statistics);
+  assert.equal(reads.filter(url => url.endsWith('/statistics')).length, 1);
+  assert.ok(!reads.some(url => url.endsWith('/archives')));
+  if (change === 'FaqAccepted') assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/statistics']);
+});
+
+test('a teacher sees the queue summary and the empty statistics returned by the current generation', t => {
+  const { page, state, destroy } = fixture();
+  t.after(destroy);
+  state.queueStatus = { waitingCount: 0, unreservedWaitingCount: 0, myReservedRequestId: null, frontWaitMinutes: null, generation: 4 };
+  state.statistics = { physicalCount: 0, digitalCount: 0, helpedStudentCount: 0, averageWaitMinutes: null };
+  page.refresh();
+  assert.equal(page.teacherQueueStatus, state.queueStatus);
+  assert.equal(page.statistics, state.statistics);
+});
+
+test('take-next uses available and own-reservation status without requiring the full queue', t => {
+  const { page, state, posts, destroy } = fixture();
+  t.after(destroy);
+  page.loading = false;
+  page.teacherQueueStatus = { ...state.queueStatus };
+  assert.equal(page.teacherQueue, null);
+  assert.equal(page.canTakeNext, true);
+  page.teacherQueueStatus.unreservedWaitingCount = 0;
+  assert.equal(page.canTakeNext, false);
+  page.takeNext();
+  page.teacherQueueStatus.unreservedWaitingCount = 2;
+  page.teacherQueueStatus.myReservedRequestId = requestId;
+  assert.equal(page.canTakeNext, false);
+  assert.equal(page.myReservedRequestId, requestId);
+  page.takeNext();
+  assert.deepEqual(posts, []);
+});
+
+test('take-next and continuation reject old generation status, and take-next waits for loading or mutations', t => {
+  const { page, state, posts, destroy } = fixture();
+  t.after(destroy);
+  page.teacherQueueStatus = { ...state.queueStatus };
+  for (const flag of ['loading', 'busy', 'refreshing']) {
+    page.loading = page.busy = page.refreshing = false;
+    page[flag] = true;
+    assert.equal(page.canTakeNext, false, flag);
+    page.takeNext();
+  }
+  page.loading = page.busy = page.refreshing = false;
+  page.teacherQueueStatus = { ...state.queueStatus, generation: 2, myReservedRequestId: requestId };
+  assert.equal(page.canTakeNext, false);
+  assert.equal(page.myReservedRequestId, null);
+  page.takeNext();
+  assert.deepEqual(posts, []);
+});
+
+for (const status of ['Pending', 'Active'])
+test(`continuation opens the teacher's ${status} request and an answer refresh releases take-next`, t => {
+  const { page, state, reads, received, flush, destroy } = fixture();
+  t.after(destroy);
+  const own = { ...state.conversation, status, assignedTeacherId: page.identity.userId };
+  state.queueStatus = { ...state.queueStatus, myReservedRequestId: requestId };
+  state.queueRequests = status === 'Pending' ? [own] : [];
+  state.queueActive = status === 'Active' ? [own] : [];
+  page.selectedRequestId = '';
+  page.conversation = null;
+  page.refresh();
+  assert.equal(page.myReservedRequestId, requestId);
+  assert.equal(page.canTakeNext, false);
+  reads.length = 0;
+  page.openRequest(page.myReservedRequestId);
+  assert.equal(page.selectedRequestId, requestId);
+  assert.equal(page.conversation, own);
+  assert.deepEqual(reads, []);
+  state.queueStatus = { ...state.queueStatus, myReservedRequestId: null };
+  state.queueRequests = state.queueActive = [];
+  state.conversation = { ...own, status: 'Completed' };
+  received.next({ ...update, change: 'Answered', helpRequestId: requestId });
+  flush();
+  assert.equal(page.myReservedRequestId, null);
+  assert.equal(page.canTakeNext, true);
+});
+
+test('continuation fetches its request by id when no full queue is available', t => {
+  const { page, state, reads, destroy } = fixture();
+  t.after(destroy);
+  page.loading = false;
+  page.teacherQueueStatus = { ...state.queueStatus, myReservedRequestId: requestId };
+  page.selectedRequestId = '';
+  page.conversation = null;
+  page.openRequest(page.myReservedRequestId);
+  assert.deepEqual(reads, ['teachers/requests/' + requestId]);
+  assert.equal(page.conversation, state.conversation);
+});
+
+test('a successful take-next immediately becomes continuation and cannot submit a second reservation', t => {
+  const { page, state, posts, destroy } = fixture();
+  t.after(destroy);
+  page.loading = false;
+  page.teacherQueueStatus = { ...state.queueStatus };
+  state.command = rx.of({ ...state.conversation, status: 'Pending', assignedTeacherId: page.identity.userId });
+  page.takeNext();
+  assert.equal(page.myReservedRequestId, requestId);
+  assert.equal(page.canTakeNext, false);
+  assert.equal(page.conversation.id, requestId);
+  page.takeNext();
+  assert.deepEqual(posts, [{ url: 'teachers/sessions/' + sessionId + '/queue/take-next', body: null }]);
 });
 
 test('events for other sessions, old generations and other roles do not fetch hidden data', t => {
@@ -116,17 +270,21 @@ test('a burst keeps the current queue refresh when its last event belongs to ano
   received.next(update);
   scheduler.schedule(() => received.next({ ...update, sessionId: otherSessionId }), 50);
   flush();
-  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue']);
+  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/queue/status']);
 });
 
 for (const change of ['Cleared', 'Archived']) test(`${change} refreshes all visible resources and advances the generation`, t => {
   const { page, state, reads, received, flush, destroy } = fixture();
   t.after(destroy);
   state.session = { ...state.session, currentGeneration: 4 };
+  state.queueStatus = { ...state.queueStatus, generation: 4, myReservedRequestId: null };
   received.next({ ...update, change, generation: 4 });
   flush();
   assert.equal(page.session.currentGeneration, 4);
   assert.equal(page.teacherQueue.generation, 4);
+  assert.equal(page.teacherQueueStatus.generation, 4);
+  assert.equal(page.myReservedRequestId, null);
+  assert.equal(page.canTakeNext, true);
   assert.ok(reads.some(url => url.endsWith('/archives')));
   assert.ok(!reads.includes('teachers/sessions'));
 });
@@ -170,9 +328,9 @@ test('resource changes in flight are merged into one further refresh without los
   flush();
   received.next({ ...update, sessionId: otherSessionId });
   flush();
-  assert.equal(reads.length, 1);
+  assert.equal(reads.length, 2);
   state.gate = null;
-  gate.next({ sessionId, generation: 3, requests: [], activeRequests: [], waitingCount: 1 });
+  gate.next({ sessionId, generation: 3, requests: [], activeRequests: [], waitingCount: 1, unreservedWaitingCount: 1, myReservedRequestId: null });
   gate.complete();
   assert.equal(reads.filter(url => url.endsWith('/queue')).length, 2);
   assert.equal(reads.filter(url => url.endsWith('/faqs')).length, 1);
@@ -231,7 +389,7 @@ test('a selected teacher conversation is reused from its queue with no separate 
   state.queueRequests = [{ ...state.conversation, status: 'Pending', assignedTeacherId: 'teacher-id' }];
   received.next({ ...update, change: 'Reserved', helpRequestId: requestId });
   flush();
-  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue']);
+  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/queue/status']);
   assert.equal(page.conversation.assignedTeacherId, 'teacher-id');
   assert.equal(page.replyText, 'Keep my draft');
 });
@@ -242,7 +400,8 @@ test('a selected request removed from the teacher queue is fetched once after it
   state.conversation = { ...state.conversation, status: 'Completed' };
   received.next({ ...update, change: 'Answered', helpRequestId: requestId });
   flush();
-  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue', 'teachers/requests/' + requestId]);
+  assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/queue/status',
+    'teachers/sessions/' + sessionId + '/statistics', 'teachers/requests/' + requestId]);
   assert.equal(page.conversation.status, 'Completed');
 });
 
@@ -262,7 +421,7 @@ for (const change of ['FaqAccepted', 'FaqCancelled']) test(`${change} refreshes 
   received.next({ ...update, recipientRole: 'students', change, helpRequestId: requestId });
   flush();
   assert.deepEqual(reads.sort(), ['students/sessions/' + sessionId + '/queue',
-    'students/requests?sessionId=' + sessionId, 'students/requests/' + requestId].sort());
+    'students/sessions/' + sessionId + '/queue/status', 'students/requests?sessionId=' + sessionId, 'students/requests/' + requestId].sort());
 });
 
 for (const change of ['FaqCreated', 'FaqLinked']) test(`${change} refreshes the teacher queue and FAQ projection together`, t => {
@@ -270,7 +429,8 @@ for (const change of ['FaqCreated', 'FaqLinked']) test(`${change} refreshes the 
   t.after(destroy);
   received.next({ ...update, change });
   flush();
-  assert.deepEqual(reads.sort(), ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/faqs'].sort());
+  assert.deepEqual(reads.sort(), ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/queue/status',
+    'teachers/sessions/' + sessionId + '/faqs'].sort());
 });
 
 test('a late FAQ answer refreshes only the archive list and the archive currently open', t => {
@@ -303,6 +463,7 @@ test('a canonical FAQ answer also reloads a selected source that is waiting outs
   received.next({ ...update, change: 'FaqAnswered' });
   flush();
   assert.deepEqual(reads.sort(), ['teachers/sessions/' + sessionId + '/queue',
+    'teachers/sessions/' + sessionId + '/queue/status', 'teachers/sessions/' + sessionId + '/statistics',
     'teachers/sessions/' + sessionId + '/faqs', 'teachers/requests/' + requestId].sort());
   assert.equal(page.conversation.status, 'AwaitingConfirmation');
 });
@@ -321,7 +482,19 @@ test('a successful own answer and its immediate echo share one targeted refresh 
   flush();
   assert.equal(reads.filter(url => url.endsWith('/queue')).length, 1);
   assert.equal(reads.filter(url => url.includes('/requests/')).length, 1);
+  assert.equal(reads.filter(url => url.endsWith('/statistics')).length, 1);
   assert.ok(!reads.some(url => url.endsWith('/archives') || url.endsWith('/faqs')));
+});
+
+test('completing physical help refreshes statistics even before a notification arrives', t => {
+  const { page, state, reads, flush, destroy } = fixture();
+  t.after(destroy);
+  page.conversation = { ...state.conversation, status: 'Active', helpType: 'Physical', assignedTeacherId: page.identity.userId };
+  state.command = rx.of({ ...page.conversation, status: 'Completed' });
+  page.changeStatus('Complete');
+  flush();
+  assert.equal(page.conversation.status, 'Completed');
+  assert.equal(reads.filter(url => url.endsWith('/statistics')).length, 1);
 });
 
 test('own FAQ acceptance updates its local summary and only fetches its queue without an echo', t => {
@@ -334,7 +507,7 @@ test('own FAQ acceptance updates its local summary and only fetches its queue wi
   assert.equal(page.conversation.status, 'Completed');
   assert.equal(page.requests[0].status, 'Completed');
   flush();
-  assert.deepEqual(reads, ['students/sessions/' + sessionId + '/queue']);
+  assert.deepEqual(reads, ['students/sessions/' + sessionId + '/queue', 'students/sessions/' + sessionId + '/queue/status']);
 });
 
 test('opening a different conversation while a queue read is in flight preserves the new selection', t => {
@@ -348,7 +521,7 @@ test('opening a different conversation while a queue read is in flight preserves
   state.conversations[nextId] = { ...state.conversation, id: nextId };
   page.openRequest(nextId);
   state.gate = null;
-  gate.next({ sessionId, generation: 3, requests: [state.conversation], activeRequests: [], waitingCount: 1 });
+  gate.next({ sessionId, generation: 3, requests: [state.conversation], activeRequests: [], waitingCount: 1, unreservedWaitingCount: 1, myReservedRequestId: null });
   gate.complete();
   assert.equal(page.selectedRequestId, nextId);
   assert.equal(page.conversation.id, nextId);

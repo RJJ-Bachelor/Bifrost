@@ -6,4 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="FastEndpoints.Messaging" Version="8.3.0" />
+    <PackageReference Include="FluentValidation" Version="12.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../EirService.Insights.Domain/EirService.Insights.Domain.csproj" />
+    <ProjectReference Include="../../../../Shared/Shared.Application/Shared.Application.csproj" />
+    <ProjectReference Include="../../../EirService.Contracts/EirService.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -83,6 +83,28 @@ test('a student can find a ready FAQ response without an already selected conver
   assert.equal(page.canRespondToFaq, false);
 });
 
+test('completed physical and digital requests distinguish teacher help from accepted FAQ answers', t => {
+  const { page, source, destroy } = fixture();
+  t.after(destroy);
+  assert.equal(page.completionLabel({ ...source, status: 'Completed', faqAnswerId: null, helpType: 'Physical' }), 'Fysisk hjælp afsluttet');
+  assert.equal(page.completionLabel({ ...source, status: 'Completed', faqAnswerId: null }), 'Digitalt svar fra underviser');
+  assert.equal(page.completionLabel({ ...source, status: 'Completed', helpType: 'Physical' }), 'FAQ-svar accepteret af studerende');
+  assert.equal(page.completionLabel({ ...source, status: 'Completed', isFaq: true }), 'Fælles FAQ besvaret');
+  assert.equal(page.completionLabel({ ...source, status: 'Cancelled' }), 'Annulleret af studerende');
+  assert.equal(page.completionLabel(source), '');
+});
+
+test('teacher attribution uses the current assignee or the accepted FAQ author, without reusing old answers after reopening', t => {
+  const { page, source, destroy } = fixture();
+  t.after(destroy);
+  const answered = { ...source, status: 'Completed', assignedTeacherId: null,
+    messages: [{ messageType: 'FaqAnswer', authorRole: 'Teacher', authorId: 'faq-teacher' }] };
+  assert.equal(page.requestTeacherId({ ...answered, assignedTeacherId: 'assigned-teacher' }), 'assigned-teacher');
+  assert.equal(page.requestTeacherId(answered), 'faq-teacher');
+  assert.equal(page.requestTeacherId({ ...answered, status: 'Pending', faqAnswerId: null }), null);
+  assert.equal(page.requestTeacherId({ ...answered, status: 'AwaitingConfirmation' }), 'faq-teacher');
+});
+
 for (const helpType of ['Digital', 'Physical']) test(`the ${helpType} response panel uses the answer in the source conversation before the FAQ projection arrives`, t => {
   const { page, source, destroy } = fixture('students', helpType);
   t.after(destroy);

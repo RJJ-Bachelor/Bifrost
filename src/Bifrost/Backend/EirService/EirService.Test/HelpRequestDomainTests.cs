@@ -15,6 +15,7 @@ public sealed class HelpRequestDomainTests
         var request = Create(HelpType.Physical);
         Assert.Throws<HelpRequestRuleException>(() => request.Start("teacher", Now));
         request.Reserve("teacher", Now);
+        Assert.Null(request.StartedAt);
         Assert.Throws<HelpRequestRuleException>(() => request.Start("other-teacher", Now));
         Assert.Throws<HelpRequestRuleException>(() => request.Answer("teacher", new MessageText("Answer"), Now));
         Assert.Throws<HelpRequestRuleException>(() => request.Complete("teacher", Now));
@@ -26,6 +27,38 @@ public sealed class HelpRequestDomainTests
         Assert.Equal(Now.AddMinutes(1), request.StartedAt);
         Assert.Equal(Now.AddMinutes(5), request.ClosedAt);
         Assert.Throws<HelpRequestRuleException>(() => request.Complete("teacher", Now));
+    }
+
+    [Fact]
+    public void DigitalReservationMeasuresTimeUntilAnswer()
+    {
+        var request = Create(HelpType.Digital);
+        var reservedAt = Now.AddMinutes(1).ToOffset(TimeSpan.FromHours(2));
+        request.Reserve("teacher", reservedAt);
+
+        request.Answer("teacher", new MessageText("Answer"), reservedAt.AddSeconds(30));
+
+        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(reservedAt.ToUniversalTime(), request.StartedAt);
+        Assert.Equal(TimeSpan.Zero, request.StartedAt!.Value.Offset);
+        Assert.Equal(reservedAt.AddSeconds(30).ToUniversalTime(), request.ClosedAt);
+        Assert.Equal(TimeSpan.FromSeconds(30), request.ClosedAt!.Value - request.StartedAt.Value);
+    }
+
+    [Fact]
+    public void ReturnedDigitalHelpMeasuresOnlyTheNewReservation()
+    {
+        var request = Create(HelpType.Digital);
+        request.Reserve("teacher", Now);
+        request.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(1));
+        Assert.Null(request.StartedAt);
+
+        var reservedAt = Now.AddMinutes(3);
+        request.Reserve("other-teacher", reservedAt);
+        request.Answer("other-teacher", new MessageText("Answer"), reservedAt.AddSeconds(30));
+
+        Assert.Equal(reservedAt, request.StartedAt);
+        Assert.Equal(TimeSpan.FromSeconds(30), request.ClosedAt!.Value - request.StartedAt!.Value);
     }
 
     [Fact]
