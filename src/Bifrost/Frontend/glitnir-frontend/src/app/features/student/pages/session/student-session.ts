@@ -3,16 +3,16 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
-import { FaqArchiveList } from '../../../faq/components/faq-archive-list/faq-archive-list';
-import { FaqList } from '../../../faq/components/faq-list/faq-list';
-import { FaqApi } from '../../../faq/services/faq-api';
-import { HelpTypeToggle } from '../../../help-request/components/help-type-toggle/help-type-toggle';
-import { QuestionList } from '../../../help-request/components/question-list/question-list';
-import { MessageForm } from '../../../help-request/components/message-form/message-form';
-import { HelpRequest, HelpType } from '../../../help-request/help-request.model';
-import { HelpRequestApi } from '../../../help-request/services/help-request-api';
-import { SessionApi } from '../../../session/services/session-api';
-import { SessionGeneration } from '../../../session/session.model';
+import { FaqApi, FaqArchiveList, FaqList } from '../../../faq';
+import {
+  HelpRequestApi,
+  HelpTypeToggle,
+  MessageForm,
+  QuestionList,
+  type HelpRequest,
+  type HelpType,
+} from '../../../help-request';
+import { SessionApi, type SessionGeneration } from '../../../session';
 
 @Component({
   imports: [Topbar, Card, Dialog, HelpTypeToggle, MessageForm, FaqList, FaqArchiveList, QuestionList],
