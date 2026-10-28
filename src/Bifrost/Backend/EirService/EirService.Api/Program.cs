@@ -7,6 +7,8 @@ using EirService.KnowledgeBase.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Common.GetSessionFaqs;
 using System.Text.Json.Serialization;
 using EirService.HelpRequests.Application;
+using EirService.Insights.Application;
+using EirService.Insights.Application.Features.Teacher.GetSessionStatistics;
 using EirService.Api.Middleware;
 using EirService.Api.Middleware.Commands;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
@@ -43,6 +45,7 @@ public class Program
         builder.AddServiceDefaults();
         builder.Services.AddHelpRequestsInfrastructure(builder.Configuration);
         builder.Services.AddHelpRequestsApplication();
+        builder.Services.AddInsightsApplication();
         builder.Services.AddSessionsInfrastructure(builder.Configuration);
         builder.Services.AddParticipantsInfrastructure(builder.Configuration);
         builder.Services.AddKnowledgeBaseInfrastructure(builder.Configuration);
@@ -58,7 +61,8 @@ public class Program
                 typeof(CreateSessionCommandHandler).Assembly,
                 typeof(CreateHelpRequestCommandHandler).Assembly,
                 typeof(JoinSessionCommandHandler).Assembly,
-                typeof(GetSessionFaqsQueryHandler).Assembly
+                typeof(GetSessionFaqsQueryHandler).Assembly,
+                typeof(GetSessionStatisticsQueryHandler).Assembly
             ];
         });
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();

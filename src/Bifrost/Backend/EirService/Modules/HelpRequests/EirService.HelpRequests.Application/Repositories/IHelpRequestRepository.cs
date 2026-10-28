@@ -10,6 +10,8 @@ public interface IHelpRequestRepository
     Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string studentId, CancellationToken cancellationToken);
     // Returns requests in queue order: latest return first, then QueuedAt and Id.
     Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
+    // Returns scalar activity in the same queue order, without loading messages.
+    Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
     Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, WaitingCounts>> GetWaitingCountsAsync(
         IReadOnlyDictionary<Guid, int> sessionGenerations, CancellationToken cancellationToken);

@@ -1,5 +1,20 @@
+<section *ngIf="view.teacherQueueStatus as queue" class="queue-summary card" aria-labelledby="teacher-queue-title">
+  <div><p class="eyebrow">AKTUEL KØ · GENERATION {{ queue.generation }}</p><h2 id="teacher-queue-title">{{ queue.waitingCount }} i kø · {{ queue.unreservedWaitingCount }} ledige</h2><p>{{ queue.frontWaitMinutes !== null ? 'Den forreste har ventet ' + (queue.frontWaitMinutes | number:'1.0-1') + ' min.' : 'Ingen ventende anmodninger.' }}</p>
+    <div class="actions"><button class="secondary" (click)="view.takeNext()" [disabled]="!view.canTakeNext">Tag næste →</button><button *ngIf="view.myReservedRequestId as requestId" class="secondary" (click)="view.openRequest(requestId)" [disabled]="view.busy || view.loading || view.refreshing">Fortsæt med dit spørgsmål →</button></div>
+  </div>
+</section>
+<section *ngIf="view.statistics as statistics" class="card" aria-labelledby="statistics-title">
+  <p class="eyebrow">AKTUEL GENERATION</p><h2 id="statistics-title">Dagens statistik</h2>
+  <dl class="statistics-grid">
+    <div><dt>Fysiske anmodninger afsluttet</dt><dd>{{ statistics.physicalCount }}</dd></div>
+    <div><dt>Digitale anmodninger afsluttet</dt><dd>{{ statistics.digitalCount }}</dd></div>
+    <div><dt>Unikke studerende hjulpet</dt><dd>{{ statistics.helpedStudentCount }}</dd></div>
+    <div><dt>Gennemsnit fra kø til afslutning</dt><dd>{{ statistics.averageWaitMinutes !== null ? (statistics.averageWaitMinutes | number:'1.0-1') + ' min.' : '–' }}</dd></div>
+  </dl>
+  <p class="hint">Afsluttede anmodninger i generation {{ view.session?.currentGeneration }}. Tiden omfatter både ventetid og hjælp.</p>
+</section>
 <section class="card">
-  <div class="section-heading"><div><p class="eyebrow">FÆLLES HJÆLPEKØ</p><h2>Ledige <span class="count">{{ view.waitingRequests.length }}</span></h2></div><button (click)="view.takeNext()" [disabled]="view.busy || view.waitingRequests.length === 0">Tag næste →</button></div>
+  <div class="section-heading"><div><p class="eyebrow">FÆLLES HJÆLPEKØ</p><h2>Ledige <span class="count">{{ view.waitingRequests.length }}</span></h2></div></div>
   <p class="hint">Alle undervisere deler køen. Når du tager en anmodning, bliver den tildelt dig.</p>
   <div *ngIf="view.waitingRequests.length === 0" class="empty-state compact"><span class="empty-symbol" aria-hidden="true">✓</span><h3>Ingen ledige anmodninger</h3><p>{{ view.assignedRequests.length ? 'De øvrige anmodninger er allerede taget af en underviser.' : 'Nye spørgsmål vises her automatisk.' }}</p></div>
   <div class="queue-list">

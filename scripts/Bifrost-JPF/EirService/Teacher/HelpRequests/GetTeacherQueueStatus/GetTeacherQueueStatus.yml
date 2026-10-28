@@ -1,0 +1,28 @@
+info:
+  name: GetTeacherQueueStatus
+  type: http
+  seq: 1
+http:
+  method: GET
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/queue/status'
+  auth: null
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Returns waitingCount, unreservedWaitingCount, frontWaitMinutes, generation and myReservedRequestId
+  for the current session generation.
+  Requires teacher login and membership of this session.
+  waitingCount includes all Pending requests, including reservations and FAQ questions.
+  unreservedWaitingCount includes only Pending requests without an assigned teacher.
+  myReservedRequestId is this teacher's assigned Pending or Active request id, or null.
+  Enable Take next only when unreservedWaitingCount is positive and myReservedRequestId is null.
+  When myReservedRequestId is present, open that request by id to continue helping.
+  frontWaitMinutes is the elapsed time since QueuedAt for the first request in queue order,
+  or null when no requests are waiting. No conversations or messages are returned.

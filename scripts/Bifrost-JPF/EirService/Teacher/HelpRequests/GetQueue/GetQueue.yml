@@ -10,3 +10,9 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Returns the full teacher queue for the current session generation, including requests and activeRequests with messages.
+  Use this endpoint for displayed request lists; GetTeacherQueueStatus supplies the summary without conversations.
+  waitingCount counts all Pending requests, and unreservedWaitingCount counts only unassigned Pending requests.
+  myReservedRequestId is this teacher's assigned Pending or Active request id, or null.
+  A teacher can have at most one reserved or active request per session and generation.

@@ -23,12 +23,21 @@ public sealed class HelpRequestRepository(
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
-        await dbContext.Requests.AsNoTracking().Include(request => request.Messages)
+        await SessionRequests(sessionId, generation).Include(request => request.Messages).ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+        await SessionRequests(sessionId, generation)
+            .Select(request => new HelpRequestActivity(request.Id, request.StudentId, request.RequestNumber,
+                request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt))
+            .ToListAsync(cancellationToken);
+
+    private IOrderedQueryable<HelpRequest> SessionRequests(Guid sessionId, int generation) =>
+        dbContext.Requests.AsNoTracking()
             .Where(request => request.SessionId == sessionId && request.Generation == generation)
             .OrderByDescending(request => request.StudentId == null)
             .ThenByDescending(request => request.ReturnedToQueueAt.HasValue)
             .ThenByDescending(request => request.ReturnedToQueueAt)
-            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToListAsync(cancellationToken);
+            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id);
 
     public async Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
         await dbContext.Requests.Include(request => request.Messages).Where(request => ids.Contains(request.Id)).ToArrayAsync(cancellationToken);
@@ -83,6 +92,19 @@ public sealed class HelpRequestRepository(
         var queueKey = $"helprequests:{sessionId}:{generation}";
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({queueKey}, 0))", cancellationToken);
+        // A retry resumes the teacher's current request instead of reserving another one.
+        var reserved = await dbContext.Requests.Include(request => request.Messages)
+            .Where(request => request.SessionId == sessionId && request.Generation == generation &&
+                request.AssignedTeacherId == teacherId &&
+                (request.Status == HelpRequestStatus.Pending || request.Status == HelpRequestStatus.Active))
+            .OrderByDescending(request => request.Status == HelpRequestStatus.Active)
+            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (reserved is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return reserved;
+        }
         // Lock only the selected row, skipping rows currently being reserved by another caller.
         var candidates = await dbContext.Requests.FromSqlInterpolated($"""
             SELECT r.*, r.xmin FROM helprequests."HelpRequest" AS r

@@ -61,7 +61,8 @@ export interface SessionArchive extends SessionArchiveMetadata {
 }
 
 export type HelpType = 'Physical' | 'Digital';
-export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'Completed' | 'Cancelled' | 'AwaitingFaq';
+export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'CompletedByFaq'
+  | 'CompletedByDigital' | 'CompletedByPhysical' | 'Cancelled' | 'AwaitingFaq';
 export type HelpRequestAction = 'Start' | 'Complete' | 'Cancel';
 
 export interface HelpRequestSummary {
@@ -124,8 +125,30 @@ export interface TeacherQueue {
   sessionId: string;
   generation: number;
   waitingCount: number;
+  unreservedWaitingCount: number;
+  myReservedRequestId: string | null;
   requests: HelpRequest[];
   activeRequests: HelpRequest[];
+}
+
+export interface StudentQueueStatus {
+  waitingCount: number;
+  estimatedWaitMinutes: number | null;
+}
+
+export interface TeacherQueueStatus {
+  waitingCount: number;
+  unreservedWaitingCount: number;
+  frontWaitMinutes: number | null;
+  generation: number;
+  myReservedRequestId: string | null;
+}
+
+export interface SessionStatistics {
+  physicalCount: number;
+  digitalCount: number;
+  helpedStudentCount: number;
+  averageWaitMinutes: number | null;
 }
 
 export interface Faq {

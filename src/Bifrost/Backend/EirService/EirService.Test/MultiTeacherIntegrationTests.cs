@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using EirService.Contracts.Exceptions;
+using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
+using EirService.HelpRequests.Domain.ValueObjects;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Participants.Domain.Entities;
 using EirService.Participants.Infrastructure.Persistence;
@@ -87,6 +89,121 @@ public sealed partial class SessionIntegrationTests
         var changes = await db.Outbox.Where(message => message.RoutingKey == MessageRoutes.HelpRequestUpdated).ToArrayAsync();
         Assert.Single(changes, message => JsonSerializer.Deserialize<HelpRequestUpdatedIntegrationEvent>(message.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!.Change == "Reserved");
+    }
+
+    [PostgresFact]
+    public async Task ConcurrentTakeNextForSameTeacherReturnsOneReservationWithoutRestartingItsDuration()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var otherStudent = await OtherStudentAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Digital);
+        clock.Now = clock.Now.AddMinutes(1);
+        var secondId = await SubmitAsync(otherStudent, session.Id, HelpType.Digital);
+        var reservedAt = clock.Now;
+
+        var responses = await Task.WhenAll(
+            teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null),
+            teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null));
+        foreach (var response in responses)
+        {
+            using (response)
+            {
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+                var request = (await response.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
+                Assert.Equal(firstId, request.Id);
+                Assert.Equal("provider|opaque-teacher", request.AssignedTeacherId);
+                Assert.Equal(reservedAt, request.StartedAt);
+                Assert.Equal("Question", Assert.Single(request.Messages).Text);
+            }
+        }
+
+        clock.Now = clock.Now.AddMinutes(1);
+        using var retry = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        var retried = (await retry.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
+        Assert.Equal(firstId, retried.Id);
+        Assert.Equal(reservedAt, retried.StartedAt);
+
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+        Assert.Equal(1, await db.Requests.CountAsync(request => request.AssignedTeacherId == "provider|opaque-teacher"));
+        Assert.Null((await db.Requests.SingleAsync(request => request.Id == secondId)).AssignedTeacherId);
+        var changes = await db.Outbox.Where(message => message.RoutingKey == MessageRoutes.HelpRequestUpdated).ToArrayAsync();
+        Assert.Single(changes, message => JsonSerializer.Deserialize<HelpRequestUpdatedIntegrationEvent>(message.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!.Change == "Reserved");
+    }
+
+    [PostgresFact]
+    public async Task TeacherResumesPendingAndActivePhysicalHelpBeforeTakingAnotherRequest()
+    {
+        var session = await CreateAsync();
+        await JoinAsync(session.Code);
+        using var otherStudent = await OtherStudentAsync(session.Code);
+        var firstId = await SubmitAsync(student, session.Id, HelpType.Physical);
+        clock.Now = clock.Now.AddMinutes(1);
+        var secondId = await SubmitAsync(otherStudent, session.Id, HelpType.Physical);
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            using var take = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+            Assert.Equal(HttpStatusCode.OK, take.StatusCode);
+            var request = (await take.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
+            Assert.Equal(firstId, request.Id);
+            Assert.Equal(HelpRequestStatus.Pending, request.Status);
+            Assert.Null(request.StartedAt);
+        }
+
+        using var start = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{firstId}/status", new { Action = "Start" });
+        Assert.Equal(HttpStatusCode.OK, start.StatusCode);
+        using var resume = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, resume.StatusCode);
+        var active = (await resume.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!;
+        Assert.Equal(firstId, active.Id);
+        Assert.Equal(HelpRequestStatus.Active, active.Status);
+        Assert.Equal("Question", Assert.Single(active.Messages).Text);
+        await AssertQueueCountsAsync(session.Id, waiting: 1, unreserved: 1);
+
+        clock.Now = clock.Now.AddSeconds(30);
+        using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{firstId}/status", new { Action = "Complete" });
+        Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+        using var next = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        Assert.Equal(secondId, (await next.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
+        await AssertQueueCountsAsync(session.Id, waiting: 1, unreserved: 0);
+    }
+
+    [PostgresFact]
+    public async Task LegacyMultipleAssignmentsResumeActiveHelpThenOldestReservation()
+    {
+        var session = await CreateAsync();
+        var teacherId = "provider|opaque-teacher";
+        var older = HelpRequest.Create(session.Id, 1, "older", HelpType.Digital, new MessageText("Older question"), clock.Now.AddMinutes(-10));
+        var newer = HelpRequest.Create(session.Id, 1, "newer", HelpType.Digital, new MessageText("Newer question"), clock.Now.AddMinutes(-5));
+        var active = HelpRequest.Create(session.Id, 1, "active", HelpType.Physical, new MessageText("Active question"), clock.Now);
+        var waiting = HelpRequest.Create(session.Id, 1, "waiting", HelpType.Digital, new MessageText("Waiting question"), clock.Now.AddMinutes(-20));
+        older.Reserve(teacherId, clock.Now);
+        newer.Reserve(teacherId, clock.Now);
+        active.Reserve(teacherId, clock.Now);
+        active.Start(teacherId, clock.Now);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+            db.Requests.AddRange(older, newer, active, waiting);
+            await db.SaveChangesAsync();
+        }
+
+        using var resumeActive = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, resumeActive.StatusCode);
+        Assert.Equal(active.Id, (await resumeActive.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
+        using var complete = await teacher.PatchAsJsonAsync($"/api/teachers/requests/{active.Id}/status", new { Action = "Complete" });
+        Assert.Equal(HttpStatusCode.OK, complete.StatusCode);
+        using var resumeOlder = await teacher.PostAsync($"/api/teachers/sessions/{session.Id}/queue/take-next", null);
+        Assert.Equal(HttpStatusCode.OK, resumeOlder.StatusCode);
+        Assert.Equal(older.Id, (await resumeOlder.Content.ReadFromJsonAsync<HelpRequestResult>(FaqJsonOptions))!.Id);
+        await using var verification = app.Services.CreateAsyncScope();
+        Assert.Null((await verification.ServiceProvider.GetRequiredService<EirRequestDbContext>().Requests
+            .SingleAsync(request => request.Id == waiting.Id)).AssignedTeacherId);
     }
 
     [PostgresFact]

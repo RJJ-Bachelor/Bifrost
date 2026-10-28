@@ -33,7 +33,10 @@ function fixture(role = 'students', helpType = 'Digital') {
     ] };
   const api = { patch: (url, body) => rx.defer(() => {
     requests.push({ url, body: { ...body } });
-    return rx.of({ ...source, status: body.accept ? 'Completed' : 'Pending', faqAnswerId: body.accept ? 'faq-id' : null });
+    return rx.of({ ...source, status: body.accept ? 'CompletedByFaq' : 'Pending', faqAnswerId: body.accept ? 'faq-id' : null });
+  }), post: (url, body) => rx.defer(() => {
+    requests.push({ url, body: { ...body } });
+    return rx.of({ ...source, status: 'Pending', faqAnswerId: null, assignedTeacherId: null });
   }) };
   const dependencies = new Map([
     [HeimdallService, api],
@@ -83,6 +86,62 @@ test('a student can find a ready FAQ response without an already selected conver
   assert.equal(page.canRespondToFaq, false);
 });
 
+test('completed physical and digital requests distinguish teacher help from accepted FAQ answers', t => {
+  const { page, source, destroy } = fixture();
+  t.after(destroy);
+  assert.equal(page.completionLabel({ ...source, status: 'CompletedByPhysical' }), 'Fysisk hjælp afsluttet');
+  assert.equal(page.completionLabel({ ...source, status: 'CompletedByDigital', helpType: 'Physical' }), 'Digitalt svar fra underviser');
+  assert.equal(page.completionLabel({ ...source, status: 'CompletedByFaq', helpType: 'Physical' }), 'FAQ-svar accepteret af studerende');
+  assert.equal(page.completionLabel({ ...source, status: 'CompletedByDigital', isFaq: true }), 'Fælles FAQ besvaret');
+  assert.equal(page.completionLabel({ ...source, status: 'Cancelled' }), 'Annulleret af studerende');
+  assert.equal(page.completionLabel(source), '');
+});
+
+test('teacher attribution uses the current assignee or the accepted FAQ author, without reusing old answers after reopening', t => {
+  const { page, source, destroy } = fixture();
+  t.after(destroy);
+  const answered = { ...source, status: 'CompletedByFaq', assignedTeacherId: null,
+    messages: [{ messageType: 'FaqAnswer', authorRole: 'Teacher', authorId: 'faq-teacher' }] };
+  assert.equal(page.requestTeacherId({ ...answered, assignedTeacherId: 'assigned-teacher' }), 'assigned-teacher');
+  assert.equal(page.requestTeacherId(answered), 'faq-teacher');
+  assert.equal(page.requestTeacherId({ ...answered, status: 'Pending', faqAnswerId: null }), null);
+  assert.equal(page.requestTeacherId({ ...answered, status: 'AwaitingConfirmation' }), 'faq-teacher');
+});
+
+for (const [status, label] of [['CompletedByFaq', 'Afsluttet med FAQ'], ['CompletedByDigital', 'Afsluttet digitalt'],
+  ['CompletedByPhysical', 'Afsluttet fysisk']])
+test(`${status} permits a student follow-up and is closed to cancellation or another FAQ confirmation`, t => {
+  const { page, source, requests, destroy } = fixture();
+  t.after(destroy);
+  page.conversation = { ...source, status, assignedTeacherId: 'teacher-id' };
+  page.requests = [page.conversation];
+  page.replyText = 'Et opfølgende spørgsmål';
+  assert.equal(page.isCompleted(status), true);
+  assert.equal(page.statusLabel(status), label);
+  assert.equal(page.hasOpenRequest, false);
+  assert.equal(page.canSendMessage, true);
+  assert.equal(page.canCancel, false);
+  assert.equal(page.canRespondToFaq, false);
+  page.sendMessage();
+  assert.deepEqual(requests, [{ url: 'students/requests/source-id/messages', body: { text: 'Et opfølgende spørgsmål' } }]);
+  assert.equal(page.conversation.status, 'Pending');
+  assert.equal(page.requests[0].status, 'Pending');
+  assert.equal(page.hasOpenRequest, true);
+  assert.equal(page.isCompleted(page.conversation.status), false);
+});
+
+for (const status of ['CompletedByFaq', 'CompletedByDigital', 'CompletedByPhysical'])
+test(`a teacher cannot change or answer a ${status} request`, t => {
+  const { page, source, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.conversation = { ...source, status, assignedTeacherId: page.identity.userId };
+  assert.equal(page.isAssignedTeacher, true);
+  assert.equal(page.canCancel, false);
+  assert.equal(page.canStart, false);
+  assert.equal(page.canComplete, false);
+  assert.equal(page.canSendMessage, false);
+});
+
 for (const helpType of ['Digital', 'Physical']) test(`the ${helpType} response panel uses the answer in the source conversation before the FAQ projection arrives`, t => {
   const { page, source, destroy } = fixture('students', helpType);
   t.after(destroy);
@@ -102,7 +161,7 @@ for (const accept of [true, false]) test(`${accept ? 'accepting' : 'rejecting'} 
   page.selectedRequestId = 'faq-id';
   page.respondToFaq(accept);
   assert.deepEqual(requests, [{ url: 'students/requests/source-id/faq', body: { accept } }]);
-  assert.equal(page.conversation.status, accept ? 'Completed' : 'Pending');
+  assert.equal(page.conversation.status, accept ? 'CompletedByFaq' : 'Pending');
   assert.equal(page.conversation.helpType, helpType);
   assert.equal(page.conversation.queuedAt, source.queuedAt);
   assert.equal(page.conversation.faqAnswerId, accept ? 'faq-id' : null);
@@ -115,7 +174,8 @@ for (const accept of [true, false]) test(`${accept ? 'accepting' : 'rejecting'} 
 for (const helpType of ['Digital', 'Physical']) test(`no ${helpType} response is sent before the teacher answers, for an old generation, or for another owner`, t => {
   const { page, source, requests, destroy } = fixture('students', helpType);
   t.after(destroy);
-  for (const change of [{ status: 'AwaitingFaq' }, { status: 'Completed' }, { status: 'Cancelled' },
+  for (const change of [{ status: 'AwaitingFaq' }, { status: 'CompletedByFaq' }, { status: 'CompletedByDigital' },
+    { status: 'CompletedByPhysical' }, { status: 'Cancelled' },
     { generation: 1 }, { sessionId: 'other' }, { studentId: 'other-student' }, { faqAnswerId: null }]) {
     page.conversation = { ...source, ...change };
     page.respondToFaq(true);

@@ -33,5 +33,5 @@ settings:
   followRedirects: false
 docs: |-
   Selects the first demo student's cookie and accepts the answer on their own source request.
-  Run Answer FAQ first. The resulting request status is Completed.
+  Run Answer FAQ first. The resulting request status is CompletedByFaq.
   The teacher cookie is preserved. Repeating a response returns 409.

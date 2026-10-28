@@ -8,11 +8,12 @@
   </div>
 </section>
 <section *ngIf="view.studentQueue as queue" class="queue-summary card">
-  <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : (queue.ownRequestId ? 'Din anmodning afventer hjælp eller et fælles svar' : 'Du står ikke i ventekøen') }}</p></div>
+  <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? (queue.estimatedWaitMinutes !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : 'Ventetid kan endnu ikke beregnes') : (queue.ownRequestId ? 'Din anmodning afventer hjælp eller et fælles svar' : 'Du står ikke i ventekøen') }}</p></div>
   <div class="queue-summary-side"><strong>{{ queue.waitingCount }}</strong><span>ventende</span><button *ngIf="queue.ownRequestId" class="text-button" (click)="view.openRequest(queue.ownRequestId)" [disabled]="view.busy">{{ queue.displayNumber }} →</button></div>
 </section>
 <section class="card">
   <p class="eyebrow">FÅ HJÆLP</p><h2>Opret en hjælpeanmodning</h2>
+  <p *ngIf="!view.hasOpenRequest && view.studentQueueStatus as queue" class="hint">{{ queue.waitingCount }} i kø · {{ queue.estimatedWaitMinutes !== null ? 'Ca. ' + (queue.estimatedWaitMinutes | number:'1.0-1') + ' min. ved en ny anmodning.' : 'Ventetid kan endnu ikke beregnes.' }}</p>
   <p *ngIf="view.hasOpenRequest" class="hint">Du har allerede en åben anmodning. Åbn samtalen nedenfor for at se status eller annullere.</p>
   <form #helpForm="ngForm" (ngSubmit)="view.createHelpRequest()">
     <label for="help-type">Hvordan vil du have hjælp?</label>

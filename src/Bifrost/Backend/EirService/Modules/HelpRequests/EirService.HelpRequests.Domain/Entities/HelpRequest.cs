@@ -95,6 +95,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         ArgumentException.ThrowIfNullOrWhiteSpace(teacherId);
         Require(Status == HelpRequestStatus.Pending && AssignedTeacherId is null, "The request is already reserved or no longer waiting.");
         AssignedTeacherId = teacherId;
+        if (HelpType == HelpType.Digital) StartedAt = now.ToUniversalTime();
         Changed("Reserved", now);
     }
 
@@ -121,7 +122,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         Require(HelpType == HelpType.Digital && Status == HelpRequestStatus.Pending, "Only waiting digital help can receive an answer.");
         AddMessage(teacherId, AuthorRole.Teacher,
             IsFaq ? HelpRequestMessageType.FaqAnswer : HelpRequestMessageType.TeacherAnswer, text, now);
-        StartedAt = now.ToUniversalTime();
+        StartedAt ??= now.ToUniversalTime();
         Close(HelpRequestStatus.CompletedByDigital, now);
         Changed("Answered", now);
     }

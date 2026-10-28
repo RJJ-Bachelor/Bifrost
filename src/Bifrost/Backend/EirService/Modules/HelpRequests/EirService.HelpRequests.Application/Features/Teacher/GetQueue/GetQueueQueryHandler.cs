@@ -19,8 +19,13 @@ public sealed class GetQueueQueryHandler(IHelpRequestRepository repository, Help
             ? await new GetSessionTeacherNamesQuery([session.Id]).ExecuteAsync(cancellationToken) : null;
         HelpRequestResult Map(HelpRequest request) => request.ToResult(request.AssignedTeacherId is { } teacherId &&
             names is not null && names.TryGetValue(session.Id, out var teachers) ? teachers.GetValueOrDefault(teacherId) : null);
+        var myReservedRequestId = requests.Where(request => request.AssignedTeacherId == query.TeacherId &&
+                request.Status is HelpRequestStatus.Pending or HelpRequestStatus.Active)
+            .OrderByDescending(request => request.Status == HelpRequestStatus.Active)
+            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id)
+            .Select(request => (Guid?)request.Id).FirstOrDefault();
         return new TeacherQueueResult(session.Id, session.Generation, waiting.Length,
-            waiting.Count(request => request.AssignedTeacherId is null),
+            waiting.Count(request => request.AssignedTeacherId is null), myReservedRequestId,
             waiting.Select(Map).ToArray(), active.Select(Map).ToArray());
     }
 }

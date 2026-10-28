@@ -8,8 +8,9 @@ import { Observable, Subject, Subscription, auditTime, catchError, combineLatest
 import { NotificationService } from './notification.service';
 import { SessionRefresh, helpRequestId, notificationRefreshParts, visibleSessionRefresh } from './notification.model';
 import {
-  ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
-  HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionSummary, StudentQueue, TeacherQueue, TeacherSession, TeacherSessionListItem
+  ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestStatus, HelpRequestSummary,
+  HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionStatistics, SessionSummary,
+  StudentQueue, StudentQueueStatus, TeacherQueue, TeacherQueueStatus, TeacherSession, TeacherSessionListItem
 } from './heimdall.service';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
 import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-help-requests.component';
@@ -41,6 +42,9 @@ export class TestPageComponent {
   requests: HelpRequestSummary[] = [];
   studentQueue: StudentQueue | null = null;
   teacherQueue: TeacherQueue | null = null;
+  studentQueueStatus: StudentQueueStatus | null = null;
+  teacherQueueStatus: TeacherQueueStatus | null = null;
+  statistics: SessionStatistics | null = null;
   conversation: HelpRequest | null = null;
   faqs: Faq[] = [];
   archives: SessionArchiveSummary[] = [];
@@ -83,6 +87,15 @@ export class TestPageComponent {
   get canTestGeneralization() { return this.generalizationPayload.helpRequestIds.length >= 2; }
   get sessionCode() { return this.session && 'code' in this.session ? this.session.code : ''; }
   get teacherCode() { return this.session && 'teacherCode' in this.session ? this.session.teacherCode : ''; }
+  get myReservedRequestId() {
+    return this.isTeacher && this.teacherQueueStatus?.generation === this.session?.currentGeneration
+      ? this.teacherQueueStatus?.myReservedRequestId ?? null : null;
+  }
+  get canTakeNext() {
+    const queue = this.teacherQueueStatus;
+    return this.isTeacher && !!this.session && !!queue && queue.generation === this.session.currentGeneration
+      && !this.loading && !this.busy && !this.refreshing && queue.unreservedWaitingCount > 0 && queue.myReservedRequestId === null;
+  }
   get waitingRequests() { return (this.teacherQueue?.requests ?? []).filter(request => !request.assignedTeacherId); }
   get activeRequests() { return this.teacherQueue?.activeRequests ?? []; }
   get assignedRequests() { return [...(this.teacherQueue?.requests ?? []), ...this.activeRequests].filter(request => !!request.assignedTeacherId); }
@@ -122,11 +135,11 @@ export class TestPageComponent {
     if (!this.canAct || !request) return false;
     return this.isTeacher
       ? this.isAssignedTeacher && request.helpType === 'Digital' && request.status === 'Pending'
-      : request.status === 'Completed' || request.status === 'Pending' && request.assignedTeacherId === null;
+      : this.isCompleted(request.status) || request.status === 'Pending' && request.assignedTeacherId === null;
   }
   get canCancel() {
     const request = this.conversation;
-    if (!this.canAct || !request || ['Completed', 'Cancelled'].includes(request.status)) return false;
+    if (!this.canAct || !request || this.isCompleted(request.status) || request.status === 'Cancelled') return false;
     return this.isTeacher ? this.isAssignedTeacher : request.status !== 'Active';
   }
 
@@ -157,6 +170,11 @@ export class TestPageComponent {
       this.stopRefresh();
       this.sessionId = sessionId;
       this.session = null;
+      this.studentQueue = null;
+      this.teacherQueue = null;
+      this.studentQueueStatus = null;
+      this.teacherQueueStatus = null;
+      this.statistics = null;
       this.conversation = null;
       this.archiveSubscription?.unsubscribe();
       this.archives = [];
@@ -229,6 +247,9 @@ export class TestPageComponent {
       faqs: read(SessionRefresh.Faqs) ? optional(this.api.get<Faq[]>(base + '/faqs')) : of(null),
       archives: read(SessionRefresh.Archives) ? optional(this.api.get<SessionArchiveSummary[]>(base + '/archives')) : of(null),
       queue: read(SessionRefresh.Queue) ? optional(this.api.get<StudentQueue | TeacherQueue>(base + '/queue')) : of(null),
+      queueStatus: read(SessionRefresh.Queue)
+        ? optional(this.api.get<StudentQueueStatus | TeacherQueueStatus>(base + '/queue/status')) : of(null),
+      statistics: read(SessionRefresh.Statistics) ? optional(this.api.get<SessionStatistics>(base + '/statistics')) : of(null),
       requests: read(SessionRefresh.Requests)
         ? optional(this.api.get<HelpRequestSummary[]>('students/requests?sessionId=' + this.sessionId)) : of(null),
       conversation: read(SessionRefresh.Conversation) && selectedId && !conversationFromQueue
@@ -262,7 +283,10 @@ export class TestPageComponent {
         if (read(SessionRefresh.Queue)) {
           this.studentQueue = !this.isTeacher ? data.queue as StudentQueue | null : null;
           this.teacherQueue = this.isTeacher ? data.queue as TeacherQueue | null : null;
+          this.studentQueueStatus = !this.isTeacher ? data.queueStatus as StudentQueueStatus | null : null;
+          this.teacherQueueStatus = this.isTeacher ? data.queueStatus as TeacherQueueStatus | null : null;
         }
+        if (read(SessionRefresh.Statistics)) this.statistics = data.statistics;
         if (selectedId === this.selectedRequestId && (read(SessionRefresh.Conversation) || data.conversation))
           this.conversation = data.conversation?.sessionId === this.sessionId ? data.conversation : null;
         const context = this.sessionId + ':' + this.session?.currentGeneration;
@@ -319,11 +343,12 @@ export class TestPageComponent {
   }
 
   takeNext() {
-    if (!this.isTeacher || !this.session) return;
+    if (!this.canTakeNext) return;
     this.execute(this.api.post<HelpRequest | null>('teachers/sessions/' + this.sessionId + '/queue/take-next', null), request => {
       if (request) {
         this.selectRequest(request.id);
         this.applyRequest(request);
+        if (this.teacherQueueStatus) this.teacherQueueStatus = { ...this.teacherQueueStatus, myReservedRequestId: request.id };
         this.replyText = '';
         this.notice = 'Du har taget ' + request.displayNumber + '.';
       }
@@ -356,7 +381,7 @@ export class TestPageComponent {
       this.applyRequest(request);
       this.replyText = '';
       this.notice = this.isTeacher ? 'Dit svar er sendt, og hjælpen er afsluttet.' : 'Din besked er sendt. Anmodningen er tilbage i køen.';
-    }, SessionRefresh.Queue);
+    }, SessionRefresh.Queue | (this.isTeacher ? SessionRefresh.Statistics : SessionRefresh.None));
   }
 
   respondToFaq(accept: boolean) {
@@ -375,7 +400,7 @@ export class TestPageComponent {
       this.applyRequest(request);
       this.notice = action === 'Start' ? 'Fysisk hjælp er startet.' : action === 'Complete' ? 'Hjælpen er afsluttet.'
         : this.isTeacher ? 'Anmodningen er sendt forrest i køen.' : 'Din anmodning er annulleret.';
-    }, SessionRefresh.Queue);
+    }, SessionRefresh.Queue | (action === 'Complete' ? SessionRefresh.Statistics : SessionRefresh.None));
   }
 
   clearSession() {
@@ -445,12 +470,38 @@ export class TestPageComponent {
     return request.assignedTeacherId === this.identity?.userId ? 'Tildelt dig' : 'Tildelt en anden underviser';
   }
 
+  teacherLabel(teacherId: string) {
+    return teacherId === this.identity?.userId && this.isTeacher
+      ? (this.identity.name || 'Dig') + ' (' + teacherId + ')' : teacherId;
+  }
+
+  requestTeacherId(request: HelpRequest) {
+    if (request.assignedTeacherId) return request.assignedTeacherId;
+    return request.status === 'AwaitingConfirmation' || request.status === 'CompletedByFaq'
+      ? request.messages.filter(message => message.authorRole === 'Teacher' && message.messageType === 'FaqAnswer').at(-1)?.authorId
+      : null;
+  }
+
+  isCompleted(status: HelpRequestStatus) {
+    return status === 'CompletedByFaq' || status === 'CompletedByDigital' || status === 'CompletedByPhysical';
+  }
+
+  completionLabel(request: HelpRequest) {
+    if (request.status === 'Cancelled') return 'Annulleret af studerende';
+    if (!this.isCompleted(request.status)) return '';
+    if (request.isFaq) return 'Fælles FAQ besvaret';
+    if (request.status === 'CompletedByFaq') return 'FAQ-svar accepteret af studerende';
+    return request.status === 'CompletedByPhysical' ? 'Fysisk hjælp afsluttet' : 'Digitalt svar fra underviser';
+  }
+
   requestStatusLabel(request: HelpRequest) {
     return request.status === 'Pending' && request.assignedTeacherId ? 'Reserveret' : this.statusLabel(request.status);
   }
 
   statusLabel(status: string) {
-    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
+    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet',
+      CompletedByFaq: 'Afsluttet med FAQ', CompletedByDigital: 'Afsluttet digitalt', CompletedByPhysical: 'Afsluttet fysisk',
+      Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
   }
 
   private applyRequest(request: HelpRequest) {

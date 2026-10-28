@@ -14,6 +14,8 @@ using EirService.Contracts.Participants.GetSessionTeacherIds;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
 using EirService.HelpRequests.Application;
+using EirService.Insights.Application;
+using EirService.Insights.Application.Features.Teacher.GetSessionStatistics;
 using EirService.HelpRequests.Application.Features.Student.CreateHelpRequest;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
@@ -167,9 +169,11 @@ public sealed class DevelopmentSeedApiTests
         {
             options.DisableAutoDiscovery = true;
             options.Assemblies = [typeof(Api.Program).Assembly, typeof(CreateSessionCommandHandler).Assembly,
-                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly];
+                typeof(CreateHelpRequestCommandHandler).Assembly, typeof(JoinSessionCommandHandler).Assembly,
+                typeof(GetSessionStatisticsQueryHandler).Assembly];
         });
         builder.Services.AddHelpRequestsApplication();
+        builder.Services.AddInsightsApplication();
         builder.Services.AddTransient<IValidator<CreateSessionCommand>, CreateSessionCommandValidator>();
         builder.Services.AddTransient<IValidator<JoinSessionCommand>, JoinSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(typeof(CommandValidationMiddleware<,>), typeof(CommandLoggingMiddleware<,>)));

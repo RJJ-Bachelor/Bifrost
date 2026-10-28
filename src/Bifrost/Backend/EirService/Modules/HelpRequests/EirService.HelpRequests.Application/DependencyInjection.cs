@@ -5,12 +5,14 @@ using EirService.Contracts.HelpRequests.CanApplyGeneralization;
 using EirService.Contracts.HelpRequests.GetArchivedConversationCounts;
 using EirService.Contracts.HelpRequests.GetArchivedConversations;
 using EirService.Contracts.HelpRequests.GetWaitingCounts;
+using EirService.Contracts.HelpRequests.GetCompletedRequestStatistics;
 using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Application.Features.Internal.ApplyGeneralization;
 using EirService.HelpRequests.Application.Features.Internal.CanApplyGeneralization;
 using EirService.HelpRequests.Application.Features.Internal.GetArchivedConversationCounts;
 using EirService.HelpRequests.Application.Features.Internal.GetArchivedConversations;
 using EirService.HelpRequests.Application.Features.Internal.GetWaitingCounts;
+using EirService.HelpRequests.Application.Features.Internal.GetCompletedRequestStatistics;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +24,7 @@ public static class DependencyInjection
     public static IServiceCollection AddHelpRequestsApplication(this IServiceCollection services)
     {
         services.AddScoped<HelpRequestAccess>();
+        services.AddScoped<ICommandHandler<GetCompletedRequestStatisticsQuery, CompletedRequestStatistics>, GetCompletedRequestStatisticsQueryHandler>();
         services.AddScoped<ICommandHandler<GetFaqAnswerRecipientsQuery, IReadOnlyList<FaqAnswerRecipient>>, GetFaqAnswerRecipientsQueryHandler>();
         services.AddScoped<ICommandHandler<GetWaitingCountsQuery, IReadOnlyDictionary<Guid, WaitingCounts>>, GetWaitingCountsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedConversationCountsQuery, IReadOnlyDictionary<int, int>>, GetArchivedConversationCountsQueryHandler>();
