@@ -61,7 +61,8 @@ export interface SessionArchive extends SessionArchiveMetadata {
 }
 
 export type HelpType = 'Physical' | 'Digital';
-export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'Completed' | 'Cancelled' | 'AwaitingFaq';
+export type HelpRequestStatus = 'Pending' | 'Active' | 'AwaitingConfirmation' | 'CompletedByFaq'
+  | 'CompletedByDigital' | 'CompletedByPhysical' | 'Cancelled' | 'AwaitingFaq';
 export type HelpRequestAction = 'Start' | 'Complete' | 'Cancel';
 
 export interface HelpRequestSummary {

@@ -262,6 +262,9 @@ har en igangværende anmodning eller kan tage en ledig, returneres `204`.
 **Teacher → Insights → GetSessionStatistics** viser dagens statistik for samme generation:
 afsluttede fysiske/digitale anmodninger, unikke hjulpne studerende og gennemsnittet af
 `ClosedAt - QueuedAt` i minutter. Gennemsnittet er `null`, når ingen anmodninger er afsluttet.
+Afslutningsstatusserne er `CompletedByFaq` (studentens FAQ-accept), `CompletedByDigital`
+(digitalt svar, også på en FAQ-opgave) og `CompletedByPhysical` (afsluttet fysisk hjælp).
+Alle tre indgår som afsluttede anmodninger i statistikken og tillader en ny opfølgning fra eleven.
 Student-kald bruger elevcookien; teacher-kald bruger lærerlogin.
 De kan bruges i samme cookiejar uden at logge læreren ud.
 Start, Complete og Cancel ligger i lærerens `ChangeHelpRequestStatus`-mappe

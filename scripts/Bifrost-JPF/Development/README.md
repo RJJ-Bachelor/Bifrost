@@ -25,7 +25,7 @@ Hvis du allerede har data fra frontenden, kan du bruge
 6. Brug **Get teacher queue**, indtil FAQ'en står først med `isFaq: true` og uden en tildelt underviser. Genlevering med samme generaliserings-id tilføjer ikke spørgsmålet igen.
 7. Kør **Take next FAQ** én gang og derefter **Answer FAQ** med samme teacher-login. Svaret kan redigeres direkte i JSON-bodyen. Answer-kaldet kontrollerer, at det reserverede ID er demoens FAQ.
 8. **Get first student request** og **Get second student request** viser nu det generaliserede spørgsmål, underviserens svar og status `AwaitingConfirmation`.
-9. Kør **Accept first student FAQ** og **Reject second student FAQ**. Kaldene vælger hver sin elevcookie og oprindelige anmodning. Første elev afsluttes med `Completed`, mens den anden vender tilbage til `Pending` i køen. Et nyt svar på samme anmodning giver `409`.
+9. Kør **Accept first student FAQ** og **Reject second student FAQ**. Kaldene vælger hver sin elevcookie og oprindelige anmodning. Første elev afsluttes med `CompletedByFaq`, mens den anden vender tilbage til `Pending` i køen. Et nyt svar på samme anmodning giver `409`.
 10. **EirService → Teacher → KnowledgeBase → GetTeacherFaqs** viser alle sessionens fællesspørgsmål. **EirService → Student → KnowledgeBase → GetStudentFaqs** viser de besvarede spørgsmål for den aktuelle elevcookie. Begge bruger `sessionId` fra Local; svaret kan først ses i KnowledgeBase, når svar-eventet er leveret.
 
 De almindelige accept-/afvisningskald findes under **EirService → Student → HelpRequests → RespondToFaq**.

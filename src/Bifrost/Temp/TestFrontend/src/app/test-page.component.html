@@ -98,7 +98,7 @@
             <p *ngIf="isTeacher && canAct && request.assignedTeacherId && !isAssignedTeacher && (request.status === 'Pending' || request.status === 'Active')" class="alert info">En anden underviser hjælper med denne anmodning. Du kan læse samtalen.</p>
             <p *ngIf="request.status === 'AwaitingFaq'" class="alert info">{{ isTeacher ? 'Anmodningen afventer svar på det fælles FAQ-spørgsmål. Den studerende kan acceptere eller afvise svaret, når FAQ-opgaven er besvaret.' : 'Dit spørgsmål indgår i et fælles FAQ-spørgsmål. Når underviseren har svaret, vises Acceptér FAQ-svar og Afvis FAQ-svar her. Din oprindelige køplads bevares.' }}</p>
             <p *ngIf="!request.isFaq && selectedFaq" class="hint">Fælles spørgsmål: {{ selectedFaq.question }}</p>
-            <div *ngIf="!isTeacher && canAct && request.status === 'Completed'" class="alert info">
+            <div *ngIf="!isTeacher && canAct && isCompleted(request.status)" class="alert info">
               <p>Din anmodning er besvaret og afsluttet. Du kan læse nye fælles FAQ-svar i oversigten uden at acceptere eller afvise dem.</p>
               <button type="button" class="text-button" (click)="showSessionFaqs()">Se fælles FAQ-svar →</button>
             </div>

@@ -18,7 +18,8 @@ settings:
 docs: |-
   Today's statistics for the selected session's current generation, without a calendar-date filter.
   Requires teacher login and membership of this session.
-  Returns physicalCount and digitalCount for Completed requests by HelpType,
-  helpedStudentCount for distinct non-null StudentId values among Completed requests,
+  Returns physicalCount and digitalCount for completed requests by HelpType,
+  helpedStudentCount for distinct non-null StudentId values among completed requests,
   and averageWaitMinutes as the average of ClosedAt - QueuedAt in minutes.
-  With no Completed requests, counts are zero and averageWaitMinutes is null.
+  Completed statuses are CompletedByFaq, CompletedByDigital and CompletedByPhysical.
+  With no completed requests, counts are zero and averageWaitMinutes is null.

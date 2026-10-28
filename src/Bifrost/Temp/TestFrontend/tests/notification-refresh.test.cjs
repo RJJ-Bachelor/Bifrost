@@ -204,7 +204,7 @@ for (const status of ['Pending', 'Active'])
 test(`continuation opens the teacher's ${status} request and an answer refresh releases take-next`, t => {
   const { page, state, reads, received, flush, destroy } = fixture();
   t.after(destroy);
-  const own = { ...state.conversation, status, assignedTeacherId: page.identity.userId };
+  const own = { ...state.conversation, status, helpType: status === 'Active' ? 'Physical' : 'Digital', assignedTeacherId: page.identity.userId };
   state.queueStatus = { ...state.queueStatus, myReservedRequestId: requestId };
   state.queueRequests = status === 'Pending' ? [own] : [];
   state.queueActive = status === 'Active' ? [own] : [];
@@ -220,8 +220,8 @@ test(`continuation opens the teacher's ${status} request and an answer refresh r
   assert.deepEqual(reads, []);
   state.queueStatus = { ...state.queueStatus, myReservedRequestId: null };
   state.queueRequests = state.queueActive = [];
-  state.conversation = { ...own, status: 'Completed' };
-  received.next({ ...update, change: 'Answered', helpRequestId: requestId });
+  state.conversation = { ...own, status: status === 'Active' ? 'CompletedByPhysical' : 'CompletedByDigital' };
+  received.next({ ...update, change: status === 'Active' ? 'Completed' : 'Answered', helpRequestId: requestId });
   flush();
   assert.equal(page.myReservedRequestId, null);
   assert.equal(page.canTakeNext, true);
@@ -397,12 +397,12 @@ test('a selected teacher conversation is reused from its queue with no separate 
 test('a selected request removed from the teacher queue is fetched once after its answer', t => {
   const { page, state, reads, received, flush, destroy } = fixture();
   t.after(destroy);
-  state.conversation = { ...state.conversation, status: 'Completed' };
+  state.conversation = { ...state.conversation, status: 'CompletedByDigital' };
   received.next({ ...update, change: 'Answered', helpRequestId: requestId });
   flush();
   assert.deepEqual(reads, ['teachers/sessions/' + sessionId + '/queue', 'teachers/sessions/' + sessionId + '/queue/status',
     'teachers/sessions/' + sessionId + '/statistics', 'teachers/requests/' + requestId]);
-  assert.equal(page.conversation.status, 'Completed');
+  assert.equal(page.conversation.status, 'CompletedByDigital');
 });
 
 test('reserving the student request fetches only its selected conversation', t => {
@@ -472,7 +472,7 @@ test('a successful own answer and its immediate echo share one targeted refresh 
   const { page, state, reads, received, flush, destroy } = fixture();
   t.after(destroy);
   page.conversation = { ...state.conversation, status: 'Pending', helpType: 'Digital', assignedTeacherId: page.identity.userId };
-  const answered = { ...page.conversation, status: 'Completed', messages: [{ messageType: 'TeacherAnswer', text: 'Answer' }] };
+  const answered = { ...page.conversation, status: 'CompletedByDigital', messages: [{ messageType: 'TeacherAnswer', text: 'Answer' }] };
   state.command = rx.of(answered);
   state.conversation = answered;
   page.sendMessage();
@@ -490,10 +490,10 @@ test('completing physical help refreshes statistics even before a notification a
   const { page, state, reads, flush, destroy } = fixture();
   t.after(destroy);
   page.conversation = { ...state.conversation, status: 'Active', helpType: 'Physical', assignedTeacherId: page.identity.userId };
-  state.command = rx.of({ ...page.conversation, status: 'Completed' });
+  state.command = rx.of({ ...page.conversation, status: 'CompletedByPhysical' });
   page.changeStatus('Complete');
   flush();
-  assert.equal(page.conversation.status, 'Completed');
+  assert.equal(page.conversation.status, 'CompletedByPhysical');
   assert.equal(reads.filter(url => url.endsWith('/statistics')).length, 1);
 });
 
@@ -502,10 +502,10 @@ test('own FAQ acceptance updates its local summary and only fetches its queue wi
   t.after(destroy);
   page.conversation = { ...state.conversation, studentId: page.identity.userId, status: 'AwaitingConfirmation', faqAnswerId: 'faq-id' };
   page.requests = [page.conversation];
-  state.command = rx.of({ ...page.conversation, status: 'Completed' });
+  state.command = rx.of({ ...page.conversation, status: 'CompletedByFaq' });
   page.respondToFaq(true);
-  assert.equal(page.conversation.status, 'Completed');
-  assert.equal(page.requests[0].status, 'Completed');
+  assert.equal(page.conversation.status, 'CompletedByFaq');
+  assert.equal(page.requests[0].status, 'CompletedByFaq');
   flush();
   assert.deepEqual(reads, ['students/sessions/' + sessionId + '/queue', 'students/sessions/' + sessionId + '/queue/status']);
 });

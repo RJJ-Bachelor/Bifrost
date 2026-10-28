@@ -15,7 +15,7 @@ namespace EirService.Test;
 public sealed partial class CommandBusTests
 {
     [Fact]
-    public async Task SessionStatisticsUseCompletedRequestsInCurrentGenerationAndCountStudentsOnce()
+    public async Task SessionStatisticsCountAllCompletionOutcomesInCurrentGenerationAndEachStudentOnce()
     {
         var session = await new CreateSessionCommand("owner", "Statistics").ExecuteAsync();
         var storedSession = (await _app.Services.GetRequiredService<ISessionRepository>().GetAsync(session.Id, default))!;
@@ -26,6 +26,8 @@ public sealed partial class CommandBusTests
             CompletedActivity(session.Id, 2, "same-student", HelpType.Physical, queuedAt, 10),
             CompletedActivity(session.Id, 2, "other-student", HelpType.Digital, queuedAt, 6),
             CompletedFaqActivity(session.Id, 2, queuedAt, 4),
+            AcceptedFaqActivity(session.Id, 2, "faq-student", HelpType.Physical, queuedAt, 8),
+            AcceptedFaqActivity(session.Id, 2, "same-student", HelpType.Digital, queuedAt, 12),
             CompletedActivity(session.Id, 1, "old-student", HelpType.Physical, queuedAt, 100),
             CompletedActivity(Guid.NewGuid(), 2, "unrelated-student", HelpType.Digital, queuedAt, 100),
             PendingActivity(session.Id, 2, "waiting-student", HelpType.Digital, queuedAt)
@@ -34,9 +36,9 @@ public sealed partial class CommandBusTests
 
         var statistics = await ReadActivityAsync($"/api/teachers/sessions/{session.Id}/statistics");
 
-        Assert.Equal(2, statistics.GetProperty("physicalCount").GetInt32());
-        Assert.Equal(2, statistics.GetProperty("digitalCount").GetInt32());
-        Assert.Equal(2, statistics.GetProperty("helpedStudentCount").GetInt32());
+        Assert.Equal(3, statistics.GetProperty("physicalCount").GetInt32());
+        Assert.Equal(3, statistics.GetProperty("digitalCount").GetInt32());
+        Assert.Equal(3, statistics.GetProperty("helpedStudentCount").GetInt32());
         Assert.Equal(10d, statistics.GetProperty("averageWaitMinutes").GetDouble());
         AssertProperties(statistics, "physicalCount", "digitalCount", "helpedStudentCount", "averageWaitMinutes");
     }
@@ -170,6 +172,28 @@ public sealed partial class CommandBusTests
         Assert.Equal(JsonValueKind.Null, status.GetProperty("estimatedWaitMinutes").ValueKind);
         Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
         if (waitingCount > 0) Assert.Equal(1, ownQueue.GetProperty("position").GetInt32());
+    }
+
+    [Theory]
+    [InlineData(HelpType.Physical)]
+    [InlineData(HelpType.Digital)]
+    public async Task AcceptedFaqWithoutServiceDurationDoesNotCreateAQueueEstimate(HelpType helpType)
+    {
+        var studentId = AuthenticateStudent();
+        var session = await new CreateSessionCommand("owner", "FAQ completion estimate").ExecuteAsync();
+        await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        _requests.Saved.AddRange([
+            AcceptedFaqActivity(session.Id, 1, "helped", helpType, queuedAt, 8),
+            PendingActivity(session.Id, 1, studentId, helpType, queuedAt.AddMinutes(1))
+        ]);
+
+        var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+
+        Assert.Equal(1, status.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, status.GetProperty("estimatedWaitMinutes").ValueKind);
+        Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
     }
 
     [Theory]
@@ -404,6 +428,17 @@ public sealed partial class CommandBusTests
         var request = HelpRequest.CreateFaq(Guid.NewGuid(), sessionId, generation, new MessageText("FAQ question"), queuedAt);
         request.Reserve("owner", queuedAt);
         request.Answer("owner", new MessageText("FAQ answer"), queuedAt.AddMinutes(waitMinutes));
+        return request;
+    }
+
+    private static HelpRequest AcceptedFaqActivity(Guid sessionId, int generation, string studentId, HelpType helpType,
+        DateTimeOffset queuedAt, int waitMinutes)
+    {
+        var request = PendingActivity(sessionId, generation, studentId, helpType, queuedAt);
+        var faqId = Guid.NewGuid();
+        request.LinkToFaq(faqId, new MessageText("Shared question"), queuedAt);
+        request.SuggestFaq(faqId, "owner", new MessageText("FAQ answer"), queuedAt.AddMinutes(waitMinutes - 1));
+        request.AcceptFaq(studentId, queuedAt.AddMinutes(waitMinutes));
         return request;
     }
 

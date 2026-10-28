@@ -12,7 +12,7 @@ public sealed class GetCompletedRequestStatisticsQueryHandler(IHelpRequestReposi
         GetCompletedRequestStatisticsQuery query, CancellationToken cancellationToken)
     {
         var requests = await repository.GetSessionActivityAsync(query.SessionId, query.Generation, cancellationToken);
-        var completed = requests.Where(request => request.Status == HelpRequestStatus.Completed).ToArray();
+        var completed = requests.Where(request => request.IsCompleted).ToArray();
         var averageWait = completed.Select(request => request.ClosedAt is { } closedAt
             ? (double?)(closedAt - request.QueuedAt).TotalMinutes : null).Average();
         return new CompletedRequestStatistics(

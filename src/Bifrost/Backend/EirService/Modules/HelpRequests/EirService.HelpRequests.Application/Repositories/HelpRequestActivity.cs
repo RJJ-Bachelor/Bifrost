@@ -9,5 +9,7 @@ public sealed record HelpRequestActivity(
 {
     public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or
         HelpRequestStatus.AwaitingFaq or HelpRequestStatus.AwaitingConfirmation;
+    public bool IsCompleted => Status is HelpRequestStatus.CompletedByFaq or
+        HelpRequestStatus.CompletedByDigital or HelpRequestStatus.CompletedByPhysical;
     public string DisplayNumber => $"{(StudentId is null ? "FAQ" : "BF")}-{RequestNumber:D3}";
 }

@@ -8,7 +8,7 @@ import { Observable, Subject, Subscription, auditTime, catchError, combineLatest
 import { NotificationService } from './notification.service';
 import { SessionRefresh, helpRequestId, notificationRefreshParts, visibleSessionRefresh } from './notification.model';
 import {
-  ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestSummary,
+  ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestStatus, HelpRequestSummary,
   HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionStatistics, SessionSummary,
   StudentQueue, StudentQueueStatus, TeacherQueue, TeacherQueueStatus, TeacherSession, TeacherSessionListItem
 } from './heimdall.service';
@@ -135,11 +135,11 @@ export class TestPageComponent {
     if (!this.canAct || !request) return false;
     return this.isTeacher
       ? this.isAssignedTeacher && request.helpType === 'Digital' && request.status === 'Pending'
-      : request.status === 'Completed' || request.status === 'Pending' && request.assignedTeacherId === null;
+      : this.isCompleted(request.status) || request.status === 'Pending' && request.assignedTeacherId === null;
   }
   get canCancel() {
     const request = this.conversation;
-    if (!this.canAct || !request || ['Completed', 'Cancelled'].includes(request.status)) return false;
+    if (!this.canAct || !request || this.isCompleted(request.status) || request.status === 'Cancelled') return false;
     return this.isTeacher ? this.isAssignedTeacher : request.status !== 'Active';
   }
 
@@ -477,17 +477,21 @@ export class TestPageComponent {
 
   requestTeacherId(request: HelpRequest) {
     if (request.assignedTeacherId) return request.assignedTeacherId;
-    return request.faqAnswerId && ['AwaitingConfirmation', 'Completed'].includes(request.status)
+    return request.status === 'AwaitingConfirmation' || request.status === 'CompletedByFaq'
       ? request.messages.filter(message => message.authorRole === 'Teacher' && message.messageType === 'FaqAnswer').at(-1)?.authorId
       : null;
   }
 
+  isCompleted(status: HelpRequestStatus) {
+    return status === 'CompletedByFaq' || status === 'CompletedByDigital' || status === 'CompletedByPhysical';
+  }
+
   completionLabel(request: HelpRequest) {
     if (request.status === 'Cancelled') return 'Annulleret af studerende';
-    if (request.status !== 'Completed') return '';
+    if (!this.isCompleted(request.status)) return '';
     if (request.isFaq) return 'Fælles FAQ besvaret';
-    if (request.faqAnswerId) return 'FAQ-svar accepteret af studerende';
-    return request.helpType === 'Physical' ? 'Fysisk hjælp afsluttet' : 'Digitalt svar fra underviser';
+    if (request.status === 'CompletedByFaq') return 'FAQ-svar accepteret af studerende';
+    return request.status === 'CompletedByPhysical' ? 'Fysisk hjælp afsluttet' : 'Digitalt svar fra underviser';
   }
 
   requestStatusLabel(request: HelpRequest) {
@@ -495,7 +499,9 @@ export class TestPageComponent {
   }
 
   statusLabel(status: string) {
-    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet', Completed: 'Afsluttet', Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
+    return ({ Pending: 'Venter', Active: 'I gang', AwaitingFaq: 'Afventer fælles FAQ-svar', AwaitingConfirmation: 'FAQ-svar klar – svar påkrævet',
+      CompletedByFaq: 'Afsluttet med FAQ', CompletedByDigital: 'Afsluttet digitalt', CompletedByPhysical: 'Afsluttet fysisk',
+      Cancelled: 'Annulleret' } as Record<string, string>)[status] ?? status;
   }
 
   private applyRequest(request: HelpRequest) {

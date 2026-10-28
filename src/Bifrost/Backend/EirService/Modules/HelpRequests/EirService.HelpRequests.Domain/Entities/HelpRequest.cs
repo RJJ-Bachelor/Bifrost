@@ -123,7 +123,7 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         AddMessage(teacherId, AuthorRole.Teacher,
             IsFaq ? HelpRequestMessageType.FaqAnswer : HelpRequestMessageType.TeacherAnswer, text, now);
         StartedAt ??= now.ToUniversalTime();
-        Close(HelpRequestStatus.Completed, now);
+        Close(HelpRequestStatus.CompletedByDigital, now);
         Changed("Answered", now);
     }
 

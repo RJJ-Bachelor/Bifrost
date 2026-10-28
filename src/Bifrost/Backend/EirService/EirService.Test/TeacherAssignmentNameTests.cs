@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.DependencyInjection;
 using FullHelpRequestResult = EirService.HelpRequests.Application.Features.Common.HelpRequestResult;
 using ListHelpRequestResult = EirService.HelpRequests.Application.Features.Student.GetHelpRequests.HelpRequestResult;
+using TeacherQueueResult = EirService.HelpRequests.Application.Features.Teacher.GetQueue.TeacherQueueResult;
 
 namespace EirService.Test;
 
@@ -45,6 +46,32 @@ public sealed partial class CommandBusTests
         Assert.Equal(expected, detail.AssignedTeacherName);
         Assert.Equal(request.AssignedTeacherId, listed.AssignedTeacherId);
         Assert.Equal(expected, listed.AssignedTeacherName);
+    }
+
+    [Fact]
+    public async Task TeacherQueueIncludesNamesForPendingAndActiveAssignmentsAndKeepsOwnReservationAndCounts()
+    {
+        var session = await new CreateSessionCommand("owner", "Named queue", "Owner Name").ExecuteAsync();
+        await new JoinTeacherSessionCommand(session.TeacherCode, "colleague", "Henrik").ExecuteAsync();
+        var now = DateTimeOffset.UtcNow;
+        var pending = HelpRequest.Create(session.Id, 1, "pending-student", HelpType.Digital, new MessageText("Digital help"), now);
+        pending.Reserve("colleague", now);
+        var active = HelpRequest.Create(session.Id, 1, "active-student", HelpType.Physical, new MessageText("Physical help"), now);
+        active.Reserve("owner", now);
+        active.Start("owner", now);
+        var waiting = HelpRequest.Create(session.Id, 1, "waiting-student", HelpType.Digital, new MessageText("Waiting help"), now);
+        _requests.Saved.AddRange([pending, active, waiting]);
+        Authenticate("Teacher", "owner");
+
+        var queue = (await _client.GetFromJsonAsync<TeacherQueueResult>(
+            $"/api/teachers/sessions/{session.Id}/queue", TeacherAssignmentJsonOptions))!;
+
+        Assert.Equal(2, queue.WaitingCount);
+        Assert.Equal(1, queue.UnreservedWaitingCount);
+        Assert.Equal(active.Id, queue.MyReservedRequestId);
+        Assert.Equal("Henrik", Assert.Single(queue.Requests, request => request.Id == pending.Id).AssignedTeacherName);
+        Assert.Equal("Owner Name", Assert.Single(queue.ActiveRequests).AssignedTeacherName);
+        Assert.Null(Assert.Single(queue.Requests, request => request.Id == waiting.Id).AssignedTeacherName);
     }
 
     [Fact]

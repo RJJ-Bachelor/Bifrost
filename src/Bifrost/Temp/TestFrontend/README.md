@@ -36,6 +36,8 @@ Køestimatet bruger den gennemsnitlige positive behandlingstid for afsluttede an
 
 Samtalen viser underviserens ID (eget navn hvis kendt), køtid, starttid og afslutningstid samt om hjælpen blev afsluttet fysisk, med et digitalt svar, med et accepteret FAQ-svar eller annulleret. Ved FAQ-svar kommer underviseren fra svarets forfatter. Underviserens ID vises også på svar og i arkiverede samtaler.
 
+Afsluttede anmodninger har status `CompletedByFaq`, `CompletedByDigital` eller `CompletedByPhysical`. Alle tre vises som afsluttede, tillader den studerende at sende en opfølgning og kan ikke annulleres igen. FAQ-opgaven selv afsluttes digitalt; den studerendes accept af et fælles FAQ-svar giver `CompletedByFaq`.
+
 ## Hjælpeflows
 
 - **Studerende:** Vælg fysisk eller digital hjælp, og stil dit spørgsmål. Se din køplacering og samtale. Annuller før fysisk hjælp starter. Send opfølgende beskeder i en ventende, ureserveret eller afsluttet samtale; den genåbnes bagest i køen.

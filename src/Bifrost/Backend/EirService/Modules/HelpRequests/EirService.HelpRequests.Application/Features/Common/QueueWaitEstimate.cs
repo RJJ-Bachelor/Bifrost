@@ -7,7 +7,7 @@ internal static class QueueWaitEstimate
 {
     public static int? ForPosition(IReadOnlyList<HelpRequestActivity> requests, int requestsAhead)
     {
-        var durations = requests.Where(request => request.Status == HelpRequestStatus.Completed &&
+        var durations = requests.Where(request => request.IsCompleted &&
                 request.StartedAt is not null && request.ClosedAt > request.StartedAt)
             .Select(request => (request.ClosedAt!.Value - request.StartedAt!.Value).TotalMinutes).ToArray();
         if (durations.Length == 0) return null;

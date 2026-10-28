@@ -15,11 +15,7 @@ public sealed class GetStudentQueueQueryHandler(IHelpRequestRepository repositor
         var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
         var own = requests.SingleOrDefault(request => request.StudentId == query.StudentId && request.IsOpen);
         var index = Array.FindIndex(waiting, request => request.Id == own?.Id);
-        var durations = requests.Where(request => request.Status == HelpRequestStatus.Completed &&
-                request.StartedAt is not null && request.ClosedAt > request.StartedAt)
-            .Select(request => (request.ClosedAt!.Value - request.StartedAt!.Value).TotalMinutes).ToArray();
-        var averageMinutes = durations.Length == 0 ? 5 : durations.Average();
-        int? estimate = index < 0 ? null : (int)Math.Ceiling((index + activeCount) * averageMinutes);
+        int? estimate = index < 0 ? null : QueueWaitEstimate.ForPosition(requests, index);
         return new StudentQueueResult(session.Id, session.Generation, waiting.Length,
             waiting.Count(request => request.AssignedTeacherId is null), own?.Id,
             index < 0 ? null : index + 1, estimate, own?.RequestNumber, own?.DisplayNumber);

@@ -38,7 +38,7 @@ public sealed class HelpRequestDomainTests
 
         request.Answer("teacher", new MessageText("Answer"), reservedAt.AddSeconds(30));
 
-        Assert.Equal(HelpRequestStatus.Completed, request.Status);
+        Assert.Equal(HelpRequestStatus.CompletedByDigital, request.Status);
         Assert.Equal(reservedAt.ToUniversalTime(), request.StartedAt);
         Assert.Equal(TimeSpan.Zero, request.StartedAt!.Value.Offset);
         Assert.Equal(reservedAt.AddSeconds(30).ToUniversalTime(), request.ClosedAt);
