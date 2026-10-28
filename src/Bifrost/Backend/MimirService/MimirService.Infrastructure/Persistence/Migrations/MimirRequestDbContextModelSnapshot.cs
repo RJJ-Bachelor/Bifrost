@@ -17,14 +17,43 @@ namespace MimirService.Infrastructure.Persistence.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.12")
+                .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MimirService.Domain.Entities.Generalization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Generation")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Generation");
+
+                    b.ToTable("generalizations", (string)null);
+                });
+
             modelBuilder.Entity("MimirService.Domain.Entities.HelpRequest", b =>
                 {
                     b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("GeneralizationId")
                         .HasColumnType("uuid");
 
                     b.Property<int>("Generation")
@@ -41,7 +70,15 @@ namespace MimirService.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("GeneralizationId");
 
                     b.HasIndex("SessionId", "Generation");
 
@@ -97,6 +134,13 @@ namespace MimirService.Infrastructure.Persistence.Migrations
                     b.HasIndex("PublishedAtUtc", "CreatedAtUtc");
 
                     b.ToTable("outbox", (string)null);
+                });
+
+            modelBuilder.Entity("MimirService.Domain.Entities.HelpRequest", b =>
+                {
+                    b.HasOne("MimirService.Domain.Entities.Generalization", null)
+                        .WithMany()
+                        .HasForeignKey("GeneralizationId");
                 });
 #pragma warning restore 612, 618
         }

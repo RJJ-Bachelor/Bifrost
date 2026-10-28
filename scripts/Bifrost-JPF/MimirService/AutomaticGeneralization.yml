@@ -1,0 +1,81 @@
+info:
+  name: Automatic generalization (three students)
+  type: http
+  seq: 3
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/sessions/{{sessionId}}/requests'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "message": "Jeg er den tredje studerende og bør vente alene i køen.",
+        "helpType": "Digital"
+      }
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // A new session with two earlier students, because a student can only have one open request per session.
+        // Deleting the student cookie makes Heimdall issue a new anonymous student on the next join.
+        if (bru.isSafeMode()) throw new Error("Select Developer Mode in Bruno to switch students.");
+        const studentUrl = bru.interpolate("{{gatewayUrl}}").replace(/\/+$/, "") + "/api/students/";
+        const jar = bru.cookies.jar();
+        async function joinAsNewStudent() {
+          for (const cookie of await jar.getCookies(studentUrl))
+            if (cookie.key === "bifrost-anonymous-user") await jar.deleteCookie(studentUrl, cookie.key);
+          const joined = await bru.runRequest("EirService/Student/Participants/JoinSession/JoinSession");
+          if (joined.status >= 300) throw new Error("JoinSession failed with status " + joined.status + ".");
+        }
+        await bru.runRequest("Login/Teacher/Login");
+        const session = (await bru.runRequest("EirService/Teacher/Sessions/CreateSession/CreateSession")).data;
+        require("./lib/response-variables.cjs").captureSession(bru, session);
+        for (const student of [1, 2]) {
+          await joinAsNewStudent();
+          const created = await bru.runRequest("EirService/Student/HelpRequests/CreateHelpRequest/CreateDigitalRequest");
+          if (created.status !== 201) throw new Error("Help request " + student + " failed with status " + created.status + ".");
+        }
+        await joinAsNewStudent();
+    - type: after-response
+      code: |-
+        if (res.status !== 201) return;
+        const variables = require("./lib/response-variables.cjs");
+        variables.captureHelpRequest(bru, res.getBody(), "students");
+        // Mimir publishes through its outbox, so Eir creates the FAQ a moment later.
+        const loadFaqs = async () =>
+          (await bru.runRequest("EirService/Teacher/KnowledgeBase/GetTeacherFaqs/GetTeacherFaqs")).data ?? [];
+        let faqs = [];
+        for (let attempt = 0; attempt < 20 && faqs.length === 0; attempt++) {
+          await bru.sleep(1000);
+          faqs = await loadFaqs();
+        }
+        // Wait a little longer, so a wrong second FAQ from the third request would also show up.
+        await bru.sleep(3000);
+        faqs = await loadFaqs();
+        if (faqs.length !== 1) throw new Error("Expected exactly one FAQ in the session, found " + faqs.length + ".");
+        const [faq] = faqs;
+        if (faq.sourceCount !== 2 || faq.question !== "Dette er et generaliseret spørgsmål.")
+          throw new Error("Unexpected FAQ: " + JSON.stringify(faq));
+        const third = (await bru.runRequest("EirService/Student/HelpRequests/GetHelpRequests/GetHelpRequestById")).data;
+        if (third.faqAnswerId) throw new Error("The third request should wait alone, but it is linked to FAQ " + third.faqAnswerId + ".");
+        variables.save(bru, { generalizationId: faq.id });
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '201'
+docs: |-
+  Afprøver hele flowet uden Mimirs testendpoints: Eir → Mimir → Eir.
+  Opretter en ny session med tre nye studerende, som hver sender én digital anmodning.
+  De to første sender samme tekst via CreateDigitalRequest, så Mimir parrer dem automatisk
+  til én FAQ med pladsholderspørgsmålet "Dette er et generaliseret spørgsmål.".
+  Mimir parrer kun ens tekst (uden hensyn til store/små bogstaver og mellemrum i enderne).
+  Den tredje skriver noget andet og venter alene i den almindelige kø.
+  Efter svaret venter scriptet op til 20 sekunder på FAQ'en via GetTeacherFaqs og fejler,
+  hvis der ikke er præcis én FAQ med to anmodninger, eller hvis den tredje er koblet på.
+  Kræver Developer Mode i Bruno og at Heimdall, Eir, Mimir og RabbitMQ kører.
+  Derefter kan FAQ'en besvares med de almindelige TakeNextHelpRequest og AnswerHelpRequest.

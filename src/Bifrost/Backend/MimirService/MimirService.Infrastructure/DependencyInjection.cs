@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using MimirService.Application.Repositories;
+using MimirService.Application.Services.Generalizations;
 using MimirService.Application.Services.Llm;
 using MimirService.Infrastructure.Llm;
 using MimirService.Infrastructure.Messaging;
@@ -34,6 +35,7 @@ public static class DependencyInjection
         services.AddRabbitMqQueue("mimir-request-answered", MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered);
         services.AddOutbox<MimirRequestDbContext>();
         services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
+        services.AddScoped<IGeneralizationDecider, PlaceholderGeneralizationDecider>();
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddScoped<IGeneralizedMessagePublisher, OutboxGeneralizedMessagePublisher>();
         services.AddHostedService<HelpRequestMessageSubscriber>();

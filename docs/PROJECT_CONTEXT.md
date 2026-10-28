@@ -206,7 +206,16 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
 
 ### 4.5 MimirService (Intelligence & Request Processing)
 - **Role:** Asynchronous intelligence and request analysis service (port 6002) with dedicated PostgreSQL database (`mimir`). Integrates with the Google Gemini LLM API via `ILlmClient` and `GeminiLlmClient` in the infrastructure layer to process student queries. Managed via Aspire AppHost.
-- **Aggregate:** `HelpRequest` (Id, `Message`, `ReceivedAt`, `SessionId`, `Generation`).
+- **Aggregates:**
+  - `HelpRequest` (Id, `Message`, `ReceivedAt`, `SessionId`, `Generation`, optional `GeneralizationId`).
+  - `Generalization` groups incoming student queries into candidate FAQs, linking participating help requests.
+- **Generalization Pipeline:**
+  - `IGeneralizationDecider` is the application abstraction that evaluates incoming student queries against waiting help requests and decides whether to pair them.
+  - `PlaceholderGeneralizationDecider` is the initial strategy, combining consecutive student queries within the same session generation.
+  - Successful pairings instantiate a `Generalization` aggregate, link the participating help requests, and persist them. Waiting requests are guarded against concurrent pairing.
+  - `HelpRequestRepository` provides efficient queries for waiting, unlinked requests filtered by `SessionId` and `Generation`.
+  - Generalization creation emits `GeneralizedCreatedMessage` via the transactional outbox so `EirService` can synchronize FAQ state.
+- **Concurrency:** Help request entities in `MimirService` enforce database-level optimistic concurrency using PostgreSQL `xmin` as the row token.
 - **Idempotency & Resilience:** Message handlers verify request existence before processing, avoiding redundant LLM calls on message redeliveries. `LlmUnavailableException` fallback gracefully forwards the original student query if all configured LLM models fail.
 - **Messaging Consumers:**
   - `HelpRequestMessageSubscriber`: Listens to exchange `requests` with routing key `request.created` (`HelpRequestCreatedMessage` mandating `HelpRequestId`, `SessionId`, `Generation`). Stores the request and emits a `GeneralizedCreatedMessage` to `requests / generalized.created` via its transactional outbox.
