@@ -82,6 +82,10 @@ export class TeacherSession {
   protected readonly takeError = signal<string | null>(null);
 
   protected readonly statistics = this.sessionApi.getTeacherStatistics(() => this.id());
+  protected readonly averageWaitLabel = computed(() => {
+    const minutes = this.statistics.value().averageWaitMinutes;
+    return minutes === null ? '-' : `${Math.round(minutes)} min`;
+  });
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
   protected readonly selectedArchive = signal<SessionGeneration | null>(null);
   protected readonly settingsOpen = signal(false);

@@ -85,21 +85,22 @@ export class SessionApi {
     );
   }
 
-  getTeacherStatistics(id: () => string): Signal<TeacherStatistics> {
-    // TODO(BF-35): replace with real endpoint when available.
-    // return httpResource<TeacherStatistics>(() => ({
-    //   url: `/api/teachers/sessions/${id()}/statistics`,
-    //   method: 'GET',
-    //   withCredentials: true,
-    // }), { defaultValue: { physicalCount: 0, digitalCount: 0, helpedStudentCount: 0, averageWaitMinutes: null } });
-
-    void id;
-    return signal({
-      physicalCount: 12,
-      digitalCount: 2,
-      helpedStudentCount: 11,
-      averageWaitMinutes: 10,
-    });
+  getTeacherStatistics(id: () => string): HttpResourceRef<TeacherStatistics> {
+    return httpResource<TeacherStatistics>(
+      () => ({
+        url: `/api/teachers/sessions/${id()}/statistics`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          physicalCount: 0,
+          digitalCount: 0,
+          helpedStudentCount: 0,
+          averageWaitMinutes: null,
+        },
+      },
+    );
   }
 
   getSessionStatus(id: () => string): HttpResourceRef<SessionStatus> {

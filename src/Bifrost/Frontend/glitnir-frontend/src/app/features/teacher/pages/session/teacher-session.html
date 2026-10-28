@@ -77,21 +77,18 @@
       <div class="statistics-tiles">
         <bifrost-stat-tile
           class="surface-box"
-          [items]="[{ value: statistics().helpedStudentCount, label: 'Studerende hjulpet' }]"
+          [items]="[{ value: statistics.value().helpedStudentCount, label: 'Studerende hjulpet' }]"
         />
         <bifrost-stat-tile
           class="surface-box"
-          [items]="[{
-            value: statistics().averageWaitMinutes !== null ? statistics().averageWaitMinutes + ' min' : '—',
-            label: 'Gns. ventetid'
-          }]"
+          [items]="[{ value: averageWaitLabel(), label: 'Gns. ventetid' }]"
         />
         <bifrost-stat-tile
           class="surface-box statistics-tiles__full"
           [items]="[
-            { value: statistics().physicalCount, label: 'Fysisk' },
-            { value: statistics().digitalCount, label: 'Digitalt' },
-            { value: statistics().physicalCount + statistics().digitalCount, label: 'I alt' }
+            { value: statistics.value().physicalCount, label: 'Fysisk' },
+            { value: statistics.value().digitalCount, label: 'Digitalt' },
+            { value: statistics.value().physicalCount + statistics.value().digitalCount, label: 'I alt' }
           ]"
         />
       </div>
