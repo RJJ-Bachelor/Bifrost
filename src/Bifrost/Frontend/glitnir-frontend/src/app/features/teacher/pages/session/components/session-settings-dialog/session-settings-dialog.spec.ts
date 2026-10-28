@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Session } from '../../../../../session/session.model';
+import { type Session } from '../../../../../session';
 import { SessionSettingsDialog } from './session-settings-dialog';
 
 interface SessionSettingsDialogInternals {

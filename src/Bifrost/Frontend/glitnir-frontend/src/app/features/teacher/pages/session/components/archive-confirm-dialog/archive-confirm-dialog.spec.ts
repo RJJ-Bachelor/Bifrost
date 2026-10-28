@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { SessionApi } from '../../../../../session/services/session-api';
+import { SessionApi } from '../../../../../session';
 import { ArchiveConfirmDialog } from './archive-confirm-dialog';
 
 interface ArchiveConfirmDialogInternals {
