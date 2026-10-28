@@ -34,9 +34,9 @@ export class AuthStore {
     );
   }
 
-  logout(): void {
+  logout(returnPath: string = '/'): void {
     this._user.set(null);
-    const returnUrl = window.location.origin + '/';
+    const returnUrl = window.location.origin + returnPath;
     window.location.assign(
       `${environment.authBaseUrl}/account/logout?returnUrl=${encodeURIComponent(returnUrl)}`
     );
