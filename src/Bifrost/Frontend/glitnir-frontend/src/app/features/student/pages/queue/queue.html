@@ -1,2 +1,62 @@
 <bifrost-topbar>
+  <span topbar-center class="topbar-pill">
+    <span class="topbar-pill__text">{{ sessionTitle() }}</span>
+  </span>
+  <button topbar-right class="topbar-btn" (click)="backToSession()">
+    <span class="btn__label-long">Tilbage til session</span>
+    <span class="btn__label-short">Tilbage</span>
+  </button>
 </bifrost-topbar>
+
+<div class="page-container queue-page">
+  @if (viewState() === 'none') {
+    <div class="queue-card-wrapper">
+      <bifrost-card title="Kø">
+        <p class="state-message">Du er ikke i køen.</p>
+      </bifrost-card>
+    </div>
+  } @else if (activeRequest(); as request) {
+    <div class="queue-card-wrapper">
+      <bifrost-card [title]="viewState() === 'my-turn' ? 'Det er din tur!' : 'Du er i køen'">
+        @if (viewState() === 'in-queue') {
+          <div class="queue-card-body">
+            <div class="queue-hero">
+              <h2 class="queue-hero__title">
+                Du er nummer <strong>{{ position() ?? '—' }}</strong> i køen
+              </h2>
+            </div>
+
+            <div class="queue-badges">
+              <span class="badge">Ventetid: {{ waitLabel() ?? '0:00' }}</span>
+              @if (estimatedWait() !== null) {
+                <span class="badge">Forventet: ca. {{ estimatedWait() }} min</span>
+              }
+            </div>
+
+            <div class="queue-question-preview">
+              <span class="queue-question-preview__label">Dit spørgsmål</span>
+              <p class="queue-question-preview__text">”{{ request.message }}”</p>
+            </div>
+
+            <div class="queue-footer">
+              <div class="queue-ref-row">
+                <span class="queue-ref-label">Kø-nummer:</span>
+                <span class="badge">{{ displayNumber() }}</span>
+              </div>
+              <button type="button" class="btn btn--danger queue-cancel-btn" (click)="cancelRequest()">
+                Forlad køen
+              </button>
+            </div>
+          </div>
+        } @else {
+          <div class="queue-turn">
+            <span class="badge">Underviser på vej</span>
+            <span class="queue-turn__label">Dit nummer</span>
+            <span class="queue-turn__number">{{ displayNumber() }}</span>
+            <p class="queue-turn__message">Ræk hånden op — underviseren er på vej hen til dig.</p>
+          </div>
+        }
+      </bifrost-card>
+    </div>
+  }
+</div>
