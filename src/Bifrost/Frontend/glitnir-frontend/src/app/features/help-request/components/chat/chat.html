@@ -16,18 +16,14 @@
       <input
         type="text"
         class="input-field chat__input"
-        placeholder="Skriv en opfølgning..."
+        [placeholder]="placeholder()"
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         [disabled]="sending()"
       />
-      <button
-        type="submit"
-        class="btn btn--primary"
-        [disabled]="sending() || draft().trim().length === 0"
-      >
-        Send
-      </button>
+      @if (composerHint()) {
+        <p class="chat__hint">{{ composerHint() }}</p>
+      }
     </form>
   }
 
@@ -39,5 +35,15 @@
     <button type="button" class="btn btn--secondary" (click)="onClose()">
       {{ closeLabel() }}
     </button>
+    @if (canSend()) {
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="sending() || draft().trim().length === 0"
+        (click)="submitDraft()"
+      >
+        {{ sendLabel() }}
+      </button>
+    }
   </div>
 </div>

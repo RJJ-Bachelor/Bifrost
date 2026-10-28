@@ -13,6 +13,9 @@ export class Chat {
   readonly sending = input.required<boolean>();
   readonly error = input<string | null>(null);
   readonly closeLabel = input<string>('Luk');
+  readonly sendLabel = input<string>('Send');
+  readonly composerHint = input<string | null>(null);
+  readonly placeholder = input<string>('Skriv en besked...');
 
   readonly sent = output<string>();
   readonly closed = output<void>();
@@ -35,6 +38,10 @@ export class Chat {
 
   protected onSubmit(event: Event): void {
     event.preventDefault();
+    this.submitDraft();
+  }
+
+  protected submitDraft(): void {
     const text = this.draft().trim();
     if (!text || this.sending()) return;
     this.sent.emit(text);

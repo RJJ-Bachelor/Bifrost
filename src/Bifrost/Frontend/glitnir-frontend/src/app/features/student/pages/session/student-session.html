@@ -87,6 +87,9 @@
       [canSend]="true"
       [sending]="sendingMessage()"
       [error]="sendError()"
+      placeholder="Skriv hvis du stadig mangler hjælp..."
+      sendLabel="Send opfølgning"
+      composerHint="Du sættes i kø igen. Underviseren ser hele samtalen."
       (sent)="onMessageSent($event)"
       (closed)="closeRequestDialog()"
     />

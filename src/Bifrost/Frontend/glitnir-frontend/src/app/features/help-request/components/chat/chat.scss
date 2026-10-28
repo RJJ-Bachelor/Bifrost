@@ -20,7 +20,7 @@
 .chat__bubble {
   max-width: 75%;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
+  border-radius: 1.25rem 1.25rem 1.25rem 0;
   background-color: var(--color-grey-100);
   color: var(--color-primary-dark);
   align-self: flex-start;
@@ -34,6 +34,7 @@
     align-self: flex-end;
     background-color: var(--color-chat-student);
     color: var(--color-chat-text);
+    border-radius: 1.25rem 1.25rem 0 1.25rem;
 
     &.chat__bubble--teacher {
       background-color: var(--color-chat-teacher);
@@ -50,7 +51,19 @@
 
 .chat__composer {
   display: flex;
+  flex-direction: column;
   gap: var(--space-2);
+}
+
+.chat__input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
 }
 
 .chat__input {
