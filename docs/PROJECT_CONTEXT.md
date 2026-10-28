@@ -320,6 +320,16 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 
 ## Update 2026-10-27
 
+- The Angular frontend (`glitnir-frontend`) incorporates the complete teacher session management view (`TeacherSession`), integrating live queue reservations (`takeNext`), session archiving, and statistics tiles.
+- Teacher session views feature dedicated modal dialogs for session settings (`SessionSettingsDialog`), archiving (`ArchiveConfirmDialog`), and session deletion (`SessionDeleteDialog`).
+- FAQ management for teachers is expanded with interactive creation, editing, and deletion dialogs (`FaqFormDialog`, `FaqDeleteDialog`) coupled with teacher-scoped FAQ API methods.
+- Dynamic role-based branding is introduced with automatic favicon switching driven by the global `AuthStore` role state.
+- Reusable UI primitives and layout utility classes (`StatTile`, `surface-box`, `icon-mask`) are standardized to support consistent styling across feature modules.
+
+---
+
+## Update 2026-10-27 #2
+
 - `EirService` session queue summaries and listings now differentiate between total waiting help requests and unreserved requests (`UnreservedWaitingCount`) to support multi-teacher load balancing.
 - `GnaService` notification delivery processing has been refactored to use a local `NotificationOutboxDispatcher` worker that reads notification outbox records directly, eliminating internal RabbitMQ round-trips.
 - Notification delivery outbox entries are processed locally with terminal state marking and idempotency protections to ensure reliable dispatch over active SignalR connections.
