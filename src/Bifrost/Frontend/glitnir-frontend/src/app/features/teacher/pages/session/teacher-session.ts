@@ -1,5 +1,7 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
+import { map, of, switchMap, timer } from 'rxjs';
 import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
@@ -38,10 +40,30 @@ export class TeacherSession {
   protected readonly session = this.sessionApi.getTeacherSession(() => this.id());
   protected readonly sessionTitle = computed(() => this.session.value()?.title ?? '');
   protected readonly queue = this.helpRequestApi.getTeacherQueue(() => this.id());
+
+  // Emits at every whole-minute boundary since the front request was queued,
+  // so frontWaitMinutes updates exactly when the displayed minute changes.
+  private readonly now = toSignal(
+    toObservable(this.queue.value).pipe(
+      switchMap(() => {
+        const queuedAt = this.queue.value().frontQueuedAt;
+        const queuedAtMs = queuedAt === null ? null : new Date(queuedAt).getTime();
+        if (queuedAtMs === null || Number.isNaN(queuedAtMs)) {
+          return of(Date.now());
+        }
+        const msToNextMinute = 60000 - ((Date.now() - queuedAtMs) % 60000);
+        return timer(msToNextMinute, 60000).pipe(map(() => Date.now()));
+      }),
+    ),
+    { initialValue: Date.now() },
+  );
+
   protected readonly frontWaitMinutes = computed(() => {
     const queuedAt = this.queue.value().frontQueuedAt;
     if (queuedAt === null) return null;
-    return Math.max(0, Math.floor((Date.now() - new Date(queuedAt).getTime()) / 60000));
+    const queuedAtMs = new Date(queuedAt).getTime();
+    if (Number.isNaN(queuedAtMs)) return null;
+    return Math.max(0, Math.floor((this.now() - queuedAtMs) / 60_000));
   });
   // TODO(BF-46): replace with backend-provided myReservedRequestId.
   protected readonly myReservedRequestId = computed(() => {
