@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
@@ -119,6 +119,15 @@ export class Queue {
   protected readonly cancelDialogOpen = signal(false);
   protected readonly cancelling = signal(false);
   protected readonly cancelError = signal<string | null>(null);
+
+  constructor() {
+    effect(() => {
+      if (this.queue.isLoading() || this.requests.isLoading()) return;
+      if (this.viewState() === 'none') {
+        this.router.navigate(['..'], { relativeTo: this.route });
+      }
+    });
+  }
 
   protected backToSession(): void {
     this.router.navigate(['..'], { relativeTo: this.route });

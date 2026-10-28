@@ -9,13 +9,7 @@
 </bifrost-topbar>
 
 <div class="page-container queue-page">
-  @if (viewState() === 'none') {
-    <div class="queue-card-wrapper">
-      <bifrost-card title="Kø">
-        <p class="state-message">Du er ikke i køen.</p>
-      </bifrost-card>
-    </div>
-  } @else if (activeRequest(); as request) {
+  @if (activeRequest(); as request) {
     <div class="queue-card-wrapper">
       <bifrost-card [title]="cardTitle()">
         @if (viewState() === 'in-queue') {
