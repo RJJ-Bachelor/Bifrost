@@ -1,7 +1,7 @@
 import { Component, DestroyRef, computed, inject, input, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
-import { RealtimeService } from '../../../../core/realtime/realtime.service';
+import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
@@ -29,7 +29,7 @@ export class StudentSession {
   private readonly sessionApi = inject(SessionApi);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly faqApi = inject(FaqApi);
-  private readonly realtime = inject(RealtimeService);
+  private readonly realtime = inject(RealtimeHub);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();

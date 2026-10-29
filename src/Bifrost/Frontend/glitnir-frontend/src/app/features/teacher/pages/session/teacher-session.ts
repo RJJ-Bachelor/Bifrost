@@ -3,7 +3,7 @@ import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-i
 import { ActivatedRoute, Router } from '@angular/router';
 import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
-import { RealtimeService } from '../../../../core/realtime/realtime.service';
+import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
@@ -36,7 +36,7 @@ export class TeacherSession {
   private readonly sessionApi = inject(SessionApi);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly faqApi = inject(FaqApi);
-  private readonly realtime = inject(RealtimeService);
+  private readonly realtime = inject(RealtimeHub);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();

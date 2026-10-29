@@ -6,12 +6,12 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
-import { AuthStore } from '../auth/services/auth-store';
-import { UserRole } from '../auth/auth.model';
-import { NotificationMessage } from './notification.model';
+import { AuthStore } from '../../auth/services/auth-store';
+import { UserRole } from '../../auth/auth.model';
+import { NotificationMessage } from '../notification.model';
 
 @Service()
-export class RealtimeService {
+export class RealtimeHub {
   private readonly authStore = inject(AuthStore);
   private connection: HubConnection | null = null;
   private connectionRole: UserRole | null = null;

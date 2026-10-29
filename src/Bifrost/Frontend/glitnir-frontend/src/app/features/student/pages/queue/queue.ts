@@ -5,7 +5,7 @@ import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
-import { RealtimeService } from '../../../../core/realtime/realtime.service';
+import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Chat, HelpRequestApi, type HelpRequest } from '../../../help-request';
 import { SessionApi } from '../../../session';
 import { QueueAwaitingConfirmation } from './components/queue-awaiting-confirmation/queue-awaiting-confirmation';
@@ -25,7 +25,7 @@ export class Queue {
   private readonly route = inject(ActivatedRoute);
   private readonly helpRequestApi = inject(HelpRequestApi);
   private readonly sessionApi = inject(SessionApi);
-  private readonly realtime = inject(RealtimeService);
+  private readonly realtime = inject(RealtimeHub);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = input.required<string>();

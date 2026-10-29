@@ -1,7 +1,7 @@
 import { Component, effect, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthStore } from './core/auth/services/auth-store';
-import { RealtimeService } from './core/realtime/realtime.service';
+import { RealtimeHub } from './core/realtime/services/realtime-hub';
 
 @Component({
   selector: 'bifrost-root',
@@ -14,7 +14,7 @@ import { RealtimeService } from './core/realtime/realtime.service';
 })
 export class App {
   protected readonly authStore = inject(AuthStore);
-  private readonly realtime = inject(RealtimeService);
+  private readonly realtime = inject(RealtimeHub);
 
   constructor() {
     effect(() => {
