@@ -70,35 +70,53 @@ function makeNotification(overrides: Partial<NotificationMessage> = {}): Notific
   };
 }
 
+interface SetupResult {
+  fixture: ComponentFixture<StudentSession>;
+  notifications: Subject<NotificationMessage>;
+  reloads: {
+    session: ReturnType<typeof vi.fn>;
+    status: ReturnType<typeof vi.fn>;
+    queue: ReturnType<typeof vi.fn>;
+    requests: ReturnType<typeof vi.fn>;
+    faq: ReturnType<typeof vi.fn>;
+  };
+}
+
 describe('StudentSession', () => {
   let routerMock: { navigate: ReturnType<typeof vi.fn>; navigateByUrl: ReturnType<typeof vi.fn> };
 
-  function setup(questionCount: number): ComponentFixture<StudentSession> {
+  function setup(questionCount: number): SetupResult {
     routerMock = { navigate: vi.fn(), navigateByUrl: vi.fn() };
 
+    const sessionResource = fakeResource({
+      id: 'session-1',
+      title: 'SWBAD',
+      currentGeneration: 1,
+      lastClearedAtUtc: null,
+    });
+    const statusResource = fakeResource({ waitingCount: 0, estimatedWaitMinutes: 0 });
+    const requestsResource = fakeResource(
+      Array.from({ length: questionCount }, (_, i) => makeRequest(i)),
+    );
+    const queueResource = fakeResource({ ownRequestId: null });
+    const faqResource = fakeResource<unknown[]>([]);
+
     const sessionApi = {
-      getStudentSession: () =>
-        fakeResource({
-          id: 'session-1',
-          title: 'SWBAD',
-          currentGeneration: 1,
-          lastClearedAtUtc: null,
-        }),
-      getSessionStatus: () => fakeResource({ waitingCount: 0, estimatedWaitMinutes: 0 }),
+      getStudentSession: () => sessionResource,
+      getSessionStatus: () => statusResource,
       getStudentGenerations: () => signal([]),
     };
 
     const helpRequestApi = {
-      getStudentRequests: () =>
-        fakeResource(Array.from({ length: questionCount }, (_, i) => makeRequest(i))),
-      getStudentQueue: () => fakeResource({ ownRequestId: null }),
+      getStudentRequests: () => requestsResource,
+      getStudentQueue: () => queueResource,
       getStudentRequest: () => fakeResource(undefined),
       createHelpRequest: () => of(makeRequest(0)),
       addStudentMessage: () => of(undefined),
     };
 
     const faqApi = {
-      getSessionFaq: () => fakeResource([]),
+      getSessionFaq: () => faqResource,
     };
 
     const notifications = new Subject<NotificationMessage>();
@@ -117,7 +135,18 @@ describe('StudentSession', () => {
     const fixture = TestBed.createComponent(StudentSession);
     fixture.componentRef.setInput('id', 'session-1');
     fixture.detectChanges();
-    return fixture;
+
+    return {
+      fixture,
+      notifications,
+      reloads: {
+        session: sessionResource.reload as ReturnType<typeof vi.fn>,
+        status: statusResource.reload as ReturnType<typeof vi.fn>,
+        queue: queueResource.reload as ReturnType<typeof vi.fn>,
+        requests: requestsResource.reload as ReturnType<typeof vi.fn>,
+        faq: faqResource.reload as ReturnType<typeof vi.fn>,
+      },
+    };
   }
 
   describe('archiveVisibleCount', () => {
@@ -130,7 +159,7 @@ describe('StudentSession', () => {
     ])(
       'returns $expected archive slots for $questions questions',
       ({ questions, expected }) => {
-        const fixture = setup(questions);
+        const { fixture } = setup(questions);
         const component = fixture.componentInstance as unknown as {
           archiveVisibleCount: () => number;
         };
@@ -146,7 +175,7 @@ describe('StudentSession', () => {
     };
 
     it('opens the conversation dialog for completed digital requests', () => {
-      const fixture = setup(0);
+      const { fixture } = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
       const request = makeRequestWith('completedByDigital', 'digital');
 
@@ -157,7 +186,7 @@ describe('StudentSession', () => {
     });
 
     it('navigates to the queue for pending requests', () => {
-      const fixture = setup(0);
+      const { fixture } = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
 
       component.onQuestionSelected(makeRequestWith('pending', 'physical'));
@@ -166,7 +195,7 @@ describe('StudentSession', () => {
     });
 
     it('navigates to the queue for active requests', () => {
-      const fixture = setup(0);
+      const { fixture } = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
 
       component.onQuestionSelected(makeRequestWith('active', 'physical'));
@@ -175,7 +204,7 @@ describe('StudentSession', () => {
     });
 
     it('navigates to the queue for awaiting confirmation requests', () => {
-      const fixture = setup(0);
+      const { fixture } = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
 
       component.onQuestionSelected(makeRequestWith('awaitingConfirmation', 'digital'));
@@ -184,13 +213,71 @@ describe('StudentSession', () => {
     });
 
     it('does nothing for completed physical requests', () => {
-      const fixture = setup(0);
+      const { fixture } = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
 
       component.onQuestionSelected(makeRequestWith('completedByPhysical', 'physical'));
 
       expect(component.selectedRequest()).toBeNull();
       expect(routerMock.navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('realtime events', () => {
+    it('reloads status, queue and requests on SessionChanged', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(makeNotification({ eventType: NotificationEventType.SessionChanged }));
+
+      expect(reloads.status).toHaveBeenCalled();
+      expect(reloads.queue).toHaveBeenCalled();
+      expect(reloads.requests).toHaveBeenCalled();
+    });
+
+    it('reloads faq when the session change is FaqAnswered', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(
+        makeNotification({ eventType: NotificationEventType.SessionChanged, change: 'FaqAnswered' }),
+      );
+
+      expect(reloads.faq).toHaveBeenCalled();
+    });
+
+    it('reloads the session when the change is Cleared', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(
+        makeNotification({ eventType: NotificationEventType.SessionChanged, change: 'Cleared' }),
+      );
+
+      expect(reloads.session).toHaveBeenCalled();
+    });
+
+    it('ignores events from other sessions', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(
+        makeNotification({ eventType: NotificationEventType.SessionChanged, sessionId: 'other' }),
+      );
+
+      expect(reloads.status).not.toHaveBeenCalled();
+      expect(reloads.queue).not.toHaveBeenCalled();
+      expect(reloads.requests).not.toHaveBeenCalled();
+      expect(reloads.faq).not.toHaveBeenCalled();
+      expect(reloads.session).not.toHaveBeenCalled();
+    });
+
+    it('ignores non-SessionChanged events', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(
+        makeNotification({ eventType: NotificationEventType.HelpRequestCreated }),
+      );
+
+      expect(reloads.status).not.toHaveBeenCalled();
+      expect(reloads.queue).not.toHaveBeenCalled();
+      expect(reloads.requests).not.toHaveBeenCalled();
     });
   });
 });
