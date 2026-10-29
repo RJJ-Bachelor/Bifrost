@@ -2,7 +2,7 @@ import { HttpResourceRef } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
 import { FaqApi } from '../../../faq';
 import {
   HelpRequestApi,
@@ -11,6 +11,11 @@ import {
   type HelpType,
 } from '../../../help-request';
 import { SessionApi } from '../../../session';
+import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
+import {
+  NotificationEventType,
+  type NotificationMessage,
+} from '../../../../core/realtime/notification.model';
 import { StudentSession } from './student-session';
 
 function fakeResource<T>(initial: T): HttpResourceRef<T> {
@@ -18,18 +23,20 @@ function fakeResource<T>(initial: T): HttpResourceRef<T> {
     value: signal(initial).asReadonly(),
     isLoading: signal(false).asReadonly(),
     error: signal(null).asReadonly(),
-    reload: () => {},
+    reload: vi.fn(),
   } as unknown as HttpResourceRef<T>;
 }
 
-function makeRequest(index: number) {
+function makeRequest(index: number): HelpRequest {
   return {
     id: `request-${index}`,
     displayNumber: `BF-${String(index).padStart(3, '0')}`,
-    status: 'pending' as const,
+    status: 'pending',
     message: `Question ${index}`,
-    helpType: 'physical' as const,
+    helpType: 'physical',
     requestNumber: index,
+    queuedAt: '2026-01-01T10:00:00Z',
+    assignedTeacherName: null,
   };
 }
 
@@ -41,6 +48,25 @@ function makeRequestWith(status: HelpRequestStatus, helpType: HelpType): HelpReq
     message: 'Question',
     helpType,
     requestNumber: 1,
+    queuedAt: '2026-01-01T10:00:00Z',
+    assignedTeacherName: null,
+  };
+}
+
+function makeNotification(overrides: Partial<NotificationMessage> = {}): NotificationMessage {
+  return {
+    notificationId: 'notification-1',
+    userId: 'user-1',
+    message: '',
+    createdAt: '2026-01-01T10:00:00Z',
+    sessionId: 'session-1',
+    helpRequestId: null,
+    generation: null,
+    change: null,
+    status: null,
+    eventType: NotificationEventType.SessionChanged,
+    deliveryType: 'RealtimeOnly',
+    ...overrides,
   };
 }
 
@@ -58,7 +84,7 @@ describe('StudentSession', () => {
           currentGeneration: 1,
           lastClearedAtUtc: null,
         }),
-      getSessionStatus: () => signal({ waitingCount: 0, estimatedWaitMinutes: 0 }),
+      getSessionStatus: () => fakeResource({ waitingCount: 0, estimatedWaitMinutes: 0 }),
       getStudentGenerations: () => signal([]),
     };
 
@@ -66,12 +92,16 @@ describe('StudentSession', () => {
       getStudentRequests: () =>
         fakeResource(Array.from({ length: questionCount }, (_, i) => makeRequest(i))),
       getStudentQueue: () => fakeResource({ ownRequestId: null }),
+      getStudentRequest: () => fakeResource(undefined),
       createHelpRequest: () => of(makeRequest(0)),
+      addStudentMessage: () => of(undefined),
     };
 
     const faqApi = {
       getSessionFaq: () => fakeResource([]),
     };
+
+    const notifications = new Subject<NotificationMessage>();
 
     TestBed.configureTestingModule({
       providers: [
@@ -80,6 +110,7 @@ describe('StudentSession', () => {
         { provide: SessionApi, useValue: sessionApi },
         { provide: HelpRequestApi, useValue: helpRequestApi },
         { provide: FaqApi, useValue: faqApi },
+        { provide: RealtimeHub, useValue: { notifications$: notifications.asObservable() } },
       ],
     });
 
@@ -117,7 +148,7 @@ describe('StudentSession', () => {
     it('opens the conversation dialog for completed digital requests', () => {
       const fixture = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
-      const request = makeRequestWith('completed', 'digital');
+      const request = makeRequestWith('completedByDigital', 'digital');
 
       component.onQuestionSelected(request);
 
@@ -156,7 +187,7 @@ describe('StudentSession', () => {
       const fixture = setup(0);
       const component = fixture.componentInstance as unknown as ComponentAccess;
 
-      component.onQuestionSelected(makeRequestWith('completed', 'physical'));
+      component.onQuestionSelected(makeRequestWith('completedByPhysical', 'physical'));
 
       expect(component.selectedRequest()).toBeNull();
       expect(routerMock.navigate).not.toHaveBeenCalled();
