@@ -32,13 +32,7 @@ Key capabilities:
   - Unit of Work pattern (`IUnitOfWork`, `IUnitOfWork<TContext>`) guaranteeing atomic persistence of aggregate changes and outbox messages.
   - Outbox message coalescing (`OutgoingMessage.Coalesce`) for keyed deduplication of messages within a single database commit, prioritizing personal notifications over generic updates.
 - **Real-time Notifications:** SignalR hubs (`/api/students/notifications`, `/api/teachers/notifications`) in `GnaService`, supporting both student identity cookies and query-string JWT bearer tokens (`access_token`).
-- **Frontend:**
-  - Angular 22 (`glitnir-frontend`), standalone components, signals, zoneless change detection, Vitest.
-  - Feature-based structure (`core/`, `features/`, `shared/`) with role-split routing (`/` for students, `/teacher/*` for teachers).
-  - Cookie-based OAuth via HeimdallGateway (`bifrost-teacher`) and anonymous student identity cookies (`bifrost-anonymous-user`); `HttpClient` / `httpResource` configured with `withCredentials: true`.
-  - Component selectors standardized with the `bifrost-` prefix across all modules.
-  - Role-based visual themes applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`; favicon switches automatically based on role.
-  - Integrated into Aspire orchestration via `.esproj` and `AddJavaScriptApp` in AppHost.
+- **Frontend:** Angular 22 (`glitnir-frontend`) — standalone components, signals, zoneless change detection, Vitest. Orchestrated via Aspire (`.esproj` / `AddJavaScriptApp`). See §3.3 for architecture, auth, routing, realtime, and conventions.
 - **CI/CD:** GitHub Actions (automated builds, tests, and automated AI Pull Request code reviewer bot).
 
 ---
@@ -71,46 +65,34 @@ Every service and module strictly adheres to Clean Architecture:
 
 ### 3.3 Frontend Architecture
 
-The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feature-based architecture:
+Feature-based with three layers: **`core/`** (global singletons: auth, layout, guards, realtime; no feature knowledge), **`shared/`** (UI-only components: `Card`, `Dialog`, `ListRow`, `StatusDialog`, `StatTile`), **`features/`** (`session`, `faq`, `help-request`, `student`, `teacher`, `not-found` — isolated, own services/components/models).
 
-- **`core/`** — global singletons (auth, layout, guards). No feature knowledge.
-- **`shared/`** — reusable UI-only components with no domain knowledge (`Card`, `Dialog`, `ListRow`, `StatusDialog`, `StatTile`).
-- **`features/`** — business domains (`session`, `faq`, `student`, `teacher`, `not-found`), each isolated with its own services, components and models.
+**Conventions:**
 
-**Rules:**
+- `@Service()` (Angular v22 shorthand) for singleton services/stores; `.model.ts` suffix for models (Angular exception to "no type suffixes").
+- Features are isolated — cross-feature imports only via each feature's `index.ts` barrel; no deep imports into another feature's internals.
+- Selector prefix `bifrost` (enforced in `angular.json`); never `app-`.
+- State via signals + `httpResource`/`HttpClient` for cookie-backed calls (`withCredentials: true`). Layout utilities (`surface-box`, `icon-mask`, `input-field`, `form-error`) in `styles/_utilities.scss` — compose via class lists. Topbar per page (not global in `app.html`) with named content-projection slots.
+- Forms use signal-based `@angular/forms/signals` (`form`, `FormField`, `validate`, `required`) — never Reactive or Template-driven. `withComponentInputBinding()` binds `:id`/`:requestId` to component `input()` signals — no `ActivatedRoute` snapshots.
+- **No legacy Angular patterns:** no `NgModule`, no constructor injection (use `inject()`), no `*ngIf`/`*ngFor` (use `@if`/`@for`), no Karma/Jasmine (Vitest only).
+- Dev proxy (`proxy.conf.json`) forwards `/api/**` (incl. WS) and `/account/**` to `http://localhost:6004`. `tsconfig.json` lacks `strict: true` but enables `noImplicitOverride`/`noImplicitReturns`/`noFallthroughCasesInSwitch`/`noPropertyAccessFromIndexSignature` + Angular strict injection/input.
 
-- Features are isolated. Cross-feature imports happen only via public APIs.
-- One feature never imports from another feature's internals.
-- `core/` services and stores are exposed via `@Service()` (Angular v22 shorthand).
-- Models use `.model.ts` suffix (Angular official exception to the "no type suffixes" rule).
-- Role-based access is enforced with `CanMatchFn` guards (`studentGuard`, `teacherGuard`) that short-circuit lazy loading.
-- Topbar layout is included per page (not global in `app.html`) and supports content projection through named slots.
-- State management relies on Angular signals, service singletons, and `httpResource` / `HttpClient` for cookie-backed API calls.
-- Global layout utilities (`surface-box`, `icon-mask`, `input-field`, `form-error`) live in `styles/_utilities.scss` and are composed via class lists rather than duplicated per component.
-- Real-time view updates use bitmasked `SessionRefresh` flags so SignalR events trigger only the necessary reloads (session, queue, FAQ, statistics) rather than a full-page refresh.
+**Auth, routing & realtime:**
 
-**Teacher session view (`features/teacher/pages/session`):**
+- Cookie-based OAuth via HeimdallGateway (`bifrost-teacher`) + anonymous student cookies (`bifrost-anonymous-user`). Identity loaded lazily per guard. `studentGuard` always `true` except under `/teacher/*`; `teacherGuard` calls `loadIdentity('teacher')` and redirects to `${environment.authBaseUrl}/account/login?returnUrl=…` otherwise. Roles lowercased; `teacher` wins if both present. `authBaseUrl` hardcoded to `http://localhost:6004` in both env files (known debt).
+- `CanMatchFn` guards short-circuit lazy loading. Student routes: `/`, `/sessions/:id`, `/sessions/:id/queue`. Teacher routes: `/teacher`, `/teacher/sessions/:id`, `/teacher/sessions/:id/dashboard`, `/teacher/sessions/:id/answer/:requestId`.
+- Role-based theme via `.theme-teacher` host binding on root `App`; favicon switches on `isTeacher()`.
+- `RealtimeHub` (`@Service()`) exposes `status` (signal) + `notifications$` (RxJS `Subject`, not a signal); listens only to `NotificationReceived`. Connect/disconnect driven by an `effect()` in root `App` on `authStore.role()` — guards never touch SignalR. Pages react by checking `eventType`/`change` and calling targeted `httpResource.reload()` (no bitmasks/flags).
 
-- `TeacherSession` is a smart/container component orchestrating queue reservations (`takeNext`), archiving, statistics tiles, and FAQ CRUD.
-- Modal flows are split into dedicated presentational components:
-  - `SessionSettingsDialog` — session codes, rename (placeholder until BF-47), delete trigger
-  - `SessionDeleteDialog` — destructive confirmation, calls delete API
-  - `ArchiveConfirmDialog` — archive title form, calls archive API
-- FAQ management lives in `features/faq/components`:
-  - `FaqFormDialog` — create/edit via discriminated `FaqDialogState` (`closed` | `create` | `edit`)
-  - `FaqDeleteDialog` — delete confirmation
-- Dialog state that spans multiple dialogs (settings → delete) is held by the parent; dialog-local state uses `linkedSignal` for automatic reset when the source (open state or target item) changes.
+**Session views:**
 
-**Student session view (`features/student/pages/session`):**
-
-- `StudentSession` renders queue status, question history, FAQ archive list, and message form.
-- Session generation history is exposed via `FaqArchiveList` with a dynamic `maxItems` count.
+- **Teacher (`features/teacher/pages/session`):** `TeacherSession` orchestrates queue reservations (`takeNext`), archiving, statistics, FAQ CRUD. Dialogs: `SessionSettingsDialog` (codes, rename — placeholder until BF-47, delete trigger), `SessionDeleteDialog`, `ArchiveConfirmDialog`; FAQ dialogs in `features/faq/components`: `FaqFormDialog` (create/edit via `FaqDialogState` union — `closed`/`create`/`edit`), `FaqDeleteDialog`. Parent owns cross-dialog state; dialog-local state uses `linkedSignal`.
+- **Student (`features/student/pages/session`):** `StudentSession` — queue status, question history, FAQ archive, message form; `FaqArchiveList` takes a dynamic `maxItems`.
 
 **Testing:**
 
-- All services and non-trivial business logic must have unit tests. Pure shell components (layout-only) are exempt.
-- Dialog components with real logic (`FaqFormDialog`, `ArchiveConfirmDialog`, `SessionSettingsDialog`, `FaqDeleteDialog`, `SessionDeleteDialog`) are tested in isolation via Vitest + Angular TestBed.
-- jsdom does not implement `<dialog>.showModal()` / `.close()`; tests stub these on `HTMLDialogElement.prototype` in `beforeAll`.
+- All services and non-trivial logic require unit tests; pure shell components exempt. Dialog components with logic are tested in isolation via Vitest + TestBed. Shared Vitest helpers in `src/test-utils/` (`fake-resource.ts`, `notification.ts`) should be reused.
+- jsdom lacks `<dialog>.showModal()`/`.close()`; tests stub these on `HTMLDialogElement.prototype` in `beforeAll`.
 
 ---
 
@@ -263,9 +245,4 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 4. **FastEndpoints Pattern:** HTTP endpoints must follow the REPR pattern and validate inputs using FluentValidation classes rather than inline controller logic.
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
 6. **English in Codebase (developer-facing):** All code identifiers, comments, log messages, exception messages, and documentation must be in English (applies to backend C#, frontend TypeScript, and shell scripts). **User-facing UI text and test data are exempt** and may be Danish, consistent with the rest of the application.
-7. **Frontend Architecture & Testing:**
-   - Feature isolation: no cross-feature imports of internal code.
-   - No legacy Angular patterns (`NgModule`, constructor injection, `*ngIf`, Karma).
-   - Unit tests required for all services and business logic; skip tests for pure shell components.
-   - Cookie-based auth only — no tokens in `localStorage` or `sessionStorage`.
-   - English codebase rule applies to TypeScript as well.
+7. **Frontend:** Verify against §3.3 (feature isolation via `index.ts` barrels, `@angular/forms/signals`, `bifrost-` selectors, no legacy Angular patterns, Vitest-only, cookie-auth with no `localStorage`/`sessionStorage` tokens). English codebase rule applies to TypeScript as well; user-facing UI text and test data may be Danish.
