@@ -11,16 +11,16 @@ settings:
   timeout: 30000
   followRedirects: false
 docs: |-
-  Returnerer den studerendes køplacering og forventede ventetid i den aktuelle generation.
-  estimatedWaitMinutes = rund op(gennemsnitlige minutter pr. køplads × (køplacering - 1)).
-  Minutter pr. køplads = (sidste StartedAt - første StartedAt) / (antal starter - 1).
-  Digital hjælp starter ved reservation; fysisk hjælp ved Start. Alle undervisere tæller sammen.
-  Cancelled og CompletedByFaq udelades fra tempoet; selve FAQ-opgaven tæller med.
-  Der kræves mindst to starter med et positivt tidsrum mellem første og sidste.
-  Ellers er estimatedWaitMinutes null. Samtidige starter tæller med.
-  Med kendt tempo og ingen foran er estimatet 0. Aktive anmodninger lægges ikke oveni.
-  Reserverede digitale anmodninger er fortsat Pending og tæller med i køen.
-  Før egen indmelding bruges /queue/status, som estimerer ventetiden bagest i køen.
-  Estimatet er et overslag, ikke en nedtælling; pauser mellem starter påvirker tempoet.
-  averageWaitMinutes på underviserens /statistics er et separat historikgennemsnit:
-  tiden fra indmelding til afslutning, inklusive både ventetid og hjælp.
+  Returns the student's queue position and estimated wait for the current generation.
+  estimatedWaitMinutes = ceil(average minutes per queue position × (queue position - 1)).
+  Minutes per queue position = (last StartedAt - first StartedAt) / (number of starts - 1).
+  Digital help starts on reservation; physical help starts on Start. Starts from all teachers are combined.
+  Cancelled and CompletedByFaq requests are excluded from the pace calculation; FAQ tasks themselves count.
+  At least two starts with a positive interval between the first and last are required.
+  Otherwise, estimatedWaitMinutes is null. Simultaneous starts count.
+  With a known pace and nobody ahead, the estimate is 0. Active requests are not added separately.
+  Reserved digital requests remain Pending and count in the queue.
+  Before joining the queue, use /queue/status to estimate the wait at the back of the queue.
+  This is a rough estimate, not a countdown; pauses between starts affect the pace.
+  averageWaitMinutes on the teacher's /statistics endpoint is a separate historical average:
+  the time from joining the queue to completion, including both waiting and help.

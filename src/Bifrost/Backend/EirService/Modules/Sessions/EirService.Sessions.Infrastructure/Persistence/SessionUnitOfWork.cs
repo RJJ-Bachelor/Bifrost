@@ -19,13 +19,14 @@ public sealed class SessionUnitOfWork(EirSessionDbContext dbContext, TimeProvide
             {
                 SessionArchivedDomainEvent archived => (archived.SessionId, Generation: archived.PreviousGeneration),
                 SessionClearedDomainEvent cleared => (cleared.SessionId, Generation: cleared.PreviousGeneration),
+                SessionDeletedDomainEvent deleted => (deleted.SessionId, deleted.Generation),
                 _ => (SessionId: Guid.Empty, Generation: 0)
             })
             .Where(generation => generation.Generation > 0).Distinct()
             .OrderBy(generation => generation.SessionId).ThenBy(generation => generation.Generation).ToArray();
         await using var transaction = generations.Length > 0 && dbContext.Database.CurrentTransaction is null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        // Coordinate the generation change with HelpRequests queue writes and archive cleanup.
+        // Coordinate generation changes and deletion with queue writes, FAQ creation and archive cleanup.
         foreach (var generation in generations)
         {
             var queueKey = $"helprequests:{generation.SessionId}:{generation.Generation}";
