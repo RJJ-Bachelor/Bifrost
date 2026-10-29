@@ -1,51 +1,51 @@
-# Bifrost i Bruno
+# Bifrost in Bruno
 
-Åbn `scripts/Bifrost-JPF` som collection i Bruno, og vælg **Local** og **Developer Mode**.
-Collectionens fælles response-script gemmer værdier automatisk ved vellykkede kald:
+Open `scripts/Bifrost-JPF` as a collection in Bruno, and select **Local** and **Developer Mode**.
+The collection's shared response script automatically saves values after successful requests:
 
-| Kald | Variabler til næste kald |
+| Request | Variables for subsequent requests |
 |---|---|
-| CreateSession / JoinSession / GetSession | `sessionId`, `sessionGeneration` og de sessionskoder, svaret indeholder |
-| Student CreateHelpRequest / GetHelpRequestById / besked og status | `studentHelpRequestId` samt `helpRequestId` som alias |
-| Teacher TakeNextHelpRequest / GetHelpRequest / svar og status | `teacherHelpRequestId`; en FAQ gemmer også `generalizationId` |
-| ArchiveSession | `archiveId` og ny `sessionGeneration`; gamle anmodnings- og demo-ID'er ryddes |
-| ClearSession | Ny `sessionGeneration`; gamle anmodnings- og generaliserings-ID'er ryddes |
-| DeleteSession | Den valgte session og dens anmodnings-ID'er ryddes |
+| CreateSession / JoinSession / GetSession | `sessionId`, `sessionGeneration`, and any session codes included in the response |
+| Student CreateHelpRequest / GetHelpRequestById / message and status | `studentHelpRequestId` and its alias, `helpRequestId` |
+| Teacher TakeNextHelpRequest / GetHelpRequest / answer and status | `teacherHelpRequestId`; a FAQ also saves `generalizationId` |
+| ArchiveSession | `archiveId` and the new `sessionGeneration`; old request and demo IDs are cleared |
+| ClearSession | The new `sessionGeneration`; old request and generalization IDs are cleared |
+| DeleteSession | The selected session and its request IDs are cleared |
 
-Værdierne sættes både som runtime-variabler og i det valgte miljø, så de kan bruges
-med det samme og ses under Local. Student-kald bruger `studentHelpRequestId`,
-teacher-kald bruger `teacherHelpRequestId`. En FAQ-reservation overskriver derfor ikke
-elevens ID til AcceptFaq/RejectFaq. CreateHelpRequest vælger også den første anmodning
-til underviserens inspektion; TakeNextHelpRequest vælger derefter den faktiske reservation.
-Listekald vælger ikke automatisk et vilkårligt element.
+Values are set both as runtime variables and in the selected environment, so they can be used
+immediately and inspected under Local. Student requests use `studentHelpRequestId`,
+and teacher requests use `teacherHelpRequestId`. Reserving a FAQ therefore does not overwrite
+the student's ID for AcceptFaq/RejectFaq. CreateHelpRequest also selects the first request
+for teacher inspection; TakeNextHelpRequest then selects the actual reservation.
+List requests do not automatically select an arbitrary item.
 
 ## Development
 
-**Development er valgfri.** De almindelige sessions-, arkiv-, kø- og samtalekald ligger
-under **EirService** og kan bruges uden seed eller Development-mappen.
-Testhjælperne er samlet efter deres formål:
+**Development is optional.** The ordinary session, archive, queue, and conversation requests are
+under **EirService** and can be used without seeding or the Development folder.
+Test helpers are grouped by purpose:
 
-| Mappe | Brug |
+| Folder | Purpose |
 |---|---|
-| Development → FAQ demo | Opret testdata, og afprøv en fælles FAQ med to forskellige studerende |
-| Development → Workflows | Opret en ny session og en digital HelpRequest gennem de normale endpoints |
-| MimirService | Send en testgeneralisering via Mimir og RabbitMQ, med seed-data eller egne data |
+| Development → FAQ demo | Create test data and try a shared FAQ with two different students |
+| Development → Workflows | Create a new session and a digital HelpRequest through the normal endpoints |
+| MimirService | Send a test generalization through Mimir and RabbitMQ, using seeded data or your own data |
 
-Kun **Seed FAQ demo** kalder Eirs særlige Development-endpoint. Demoens øvrige kald
-bruger de normale endpoints med sikre demo-ID'er og de rigtige studentercookies.
-Workflows-kaldet automatiserer almindeligt login, sessionsoprettelse, tilmelding og oprettelse af en anmodning.
-Mimirs to testendpoints og Eirs seed findes kun i service-miljøet `Development` og kræver teacher-login.
+Only **Seed FAQ demo** calls Eir's dedicated Development endpoint. The other demo requests
+use the normal endpoints with validated demo IDs and the correct student cookies.
+The Workflows request automates ordinary login, session creation, joining, and request creation.
+Mimir's two test endpoints and Eir's seed are available only in the `Development` service environment and require teacher login.
 
-Til eksisterende data bruges **MimirService → Generalize own help requests**.
-Opret mindst to HelpRequests i samme session og generation, og indsæt deres ID'er
-i requestens JSON-body. Seed er valgfri, og `sessionId` og `sessionGeneration` følger de almindelige sessionsvariabler.
-Se [forløbet med egne data](Development/README.md#generalisering-af-egne-helprequests)
-eller [den komplette FAQ-demo](Development/README.md#kom-i-gang).
+For existing data, use **MimirService → Generalize own help requests**.
+Create at least two HelpRequests in the same session and generation, and insert their IDs
+into the request's JSON body. Seeding is optional, and `sessionId` and `sessionGeneration` use the ordinary session variables.
+See [the workflow with your own data](Development/README.md#generalizing-your-own-helprequests)
+or [the complete FAQ demo](Development/README.md#getting-started).
 
-## Mapper
+## Folders
 
-EirService følger API-lagets rolle- og modulmapper. Elevens læsekald til
-HelpRequests ligger samlet i én mappe:
+EirService follows the API layer's role and module folders. Student read requests for
+HelpRequests are grouped in one folder:
 
 ```text
 EirService/
@@ -96,205 +96,219 @@ EirService/
     │   ├── AnswerHelpRequest/
     │   └── ChangeHelpRequestStatus/
     ├── KnowledgeBase/
-    │   └── GetTeacherFaqs/
+    │   ├── GetTeacherFaqs/
+    │   └── CreateFaq/
     └── Insights/
         └── GetSessionStatistics/
 ```
 
-`GetHelpRequests`-mappen samler listen, listen filtreret på en session og én samtale
-via ID. Listekaldene viser dine anmodninger i sessionernes aktuelle generation.
-`GetHelpRequestById` henter status og alle samtalens beskeder og kan også bruges
-til en anmodning fra før ClearSession.
-Teacher-sessioner returnerer opretterens ID som `createdByTeacherId`.
-Andre undervisere kan bruge `Teacher/Participants/JoinSession` med `teacherSessionCode`.
-`sessionCode` er kun til studerende; undervisertilmelding kræver den separate `teacherCode`.
-`GetSessions` viser derefter både oprettede og tilmeldte sessioner. Tilknyttede
-undervisere deler køen, mens hver reservation tilhører den underviser, der tog den.
-Hver session i `GetSessions` har `waitingCount` for sin aktuelle generation, også når tallet er nul.
-Det svarer til `GetQueue`: alle `Pending`-anmodninger, inklusive reserverede anmodninger og FAQ-spørgsmål.
-Anmodninger med `Active`, `AwaitingFaq` eller `AwaitingConfirmation` tælles ikke med.
+The `GetHelpRequests` folder groups the list, the list filtered by session, and a single conversation
+by ID. List requests show your requests in each session's current generation.
+`GetHelpRequestById` retrieves the status and all conversation messages and can also be used
+for a request from before ClearSession.
+Teacher sessions return the creator's ID as `createdByTeacherId`.
+Other teachers can use `Teacher/Participants/JoinSession` with `teacherSessionCode`.
+`sessionCode` is only for students; teachers must join using the separate `teacherCode`.
+`GetSessions` then shows both created and joined sessions. Associated
+teachers share the queue, while each reservation belongs to the teacher who took it.
+Each session in `GetSessions` has `waitingCount` for its current generation, including when the count is zero.
+It matches `GetQueue`: all `Pending` requests, including reserved requests and FAQ questions.
+Requests with `Active`, `AwaitingFaq`, or `AwaitingConfirmation` are not counted.
 
 ## Login
 
-- **Student:** Første student-kald gennem Heimdall opretter automatisk elevcookien.
-  `Login/Student/Login` kan stadig bruges til at se identiteten; Bruno gemmer cookien og genbruger den.
-- **Teacher:** Vælg **Developer Mode** via skjoldikonet, og kør `Login/Teacher/Login`.
-  Den eksisterende login-helper gemmer teacher-cookien i Bruno.
+- **Student:** The first student request through Heimdall automatically creates the student cookie.
+  `Login/Student/Login` can still be used to inspect the identity; Bruno saves and reuses the cookie.
+- **Teacher:** Select **Developer Mode** using the shield icon, and run `Login/Teacher/Login`.
+  The existing login helper saves the teacher cookie in Bruno.
 
-`teacherUsername` og `teacherPassword` følger det eksisterende setup.
-Et udfyldt password i Local har forrang; et tomt password bruger collectionens værdi.
-De almindelige Eir-requests går gennem Heimdall på `{{gatewayUrl}}`, som normalt er `http://localhost:6004`.
+`teacherUsername` and `teacherPassword` follow the existing setup.
+A populated password in Local takes precedence; an empty password uses the collection's value.
+Ordinary Eir requests go through Heimdall at `{{gatewayUrl}}`, normally `http://localhost:6004`.
 
-## Session-variabler i Local
+## Session variables in Local
 
-| Variabel | Værdi |
+| Variable | Value |
 |---|---|
-| `sessionId` | Gemmes automatisk fra CreateSession, JoinSession og GetSession |
-| `sessionCode` | Gemmes fra CreateSession/GetSession som teacher og studentens JoinSession |
-| `teacherSessionCode` | Gemmes fra CreateSession/GetSession som teacher og underviserens JoinSession |
-| `sessionGeneration` | Den aktuelle generation; opdateres efter ArchiveSession og ClearSession |
-| `archiveId` | Gemmes fra ArchiveSession og arkivdetaljer; vælg et ældre arkiv med dets ID i detaljekaldets URL |
-| `studentHelpRequestId` / `helpRequestId` | Elevens anmodning; gemmes fra elevens oprette-, læse- og ændringskald |
-| `teacherHelpRequestId` | Gemmes fra underviserens læse-, reservations- og ændringskald |
-| `generalizationId` | ID'et for det fælles FAQ-spørgsmål; gemmes fra seed, begge Mimir-testkald og FAQ-svar |
-| `firstHelpRequestId` / `secondHelpRequestId` | De to oprindelige elevanmodninger fra seed |
+| `sessionId` | Saved automatically from CreateSession, JoinSession, and GetSession |
+| `sessionCode` | Saved from teacher CreateSession/GetSession and student JoinSession |
+| `teacherSessionCode` | Saved from teacher CreateSession/GetSession and teacher JoinSession |
+| `sessionGeneration` | The current generation; updated after ArchiveSession and ClearSession |
+| `archiveId` | Saved from ArchiveSession and archive details; select an older archive using its ID in the detail request's URL |
+| `studentHelpRequestId` / `helpRequestId` | The student's request; saved from student create, read, and mutation requests |
+| `teacherHelpRequestId` | Saved from teacher read, reservation, and mutation requests |
+| `generalizationId` | The shared FAQ question's ID; saved from seeding, both Mimir test requests, and FAQ answers |
+| `firstHelpRequestId` / `secondHelpRequestId` | The two original student requests from seeding |
 
-Variablerne udfyldes automatisk i runtime og det valgte miljø ved vellykkede kald.
-For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID i URL'en
-én gang; svaret vælger sessionen og generationen til de efterfølgende kald. Et vellykket
-**Generalize own help requests** vælger også automatisk sessionen fra det indsendte payload.
+Variables are populated automatically in runtime and the selected environment after successful requests.
+For an existing frontend session, call GetSession once with its actual ID in the URL;
+the response selects the session and generation for subsequent requests. A successful
+**Generalize own help requests** also automatically selects the session from the submitted payload.
 
 ## Teacher
 
-| Request | Metode og route |
+| Request | Method and route |
 |---|---|
 | GetTeacherIdentity | `GET /api/teachers/me` |
-| JoinTeacherSession | `POST /api/teachers/sessions/join` med underviserkode |
-| CreateSession | `POST /api/teachers/sessions` med titel |
+| JoinTeacherSession | `POST /api/teachers/sessions/join` with teacher code |
+| CreateSession | `POST /api/teachers/sessions` with title |
 | GetSessions | `GET /api/teachers/sessions` |
 | GetSession | `GET /api/teachers/sessions/{{sessionId}}` |
-| ArchiveSession | `POST /api/teachers/sessions/{{sessionId}}/archive` med forventet generation |
+| ArchiveSession | `POST /api/teachers/sessions/{{sessionId}}/archive` with expected generation |
 | GetSessionArchives | `GET /api/teachers/sessions/{{sessionId}}/archives` |
 | GetSessionArchive | `GET /api/teachers/sessions/{{sessionId}}/archives/{{archiveId}}` |
-| ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` med forventet generation |
+| ClearSession | `POST /api/teachers/sessions/{{sessionId}}/clear` with expected generation |
 | DeleteSession | `DELETE /api/teachers/sessions/{{sessionId}}` |
 | GetQueue | `GET /api/teachers/sessions/{{sessionId}}/queue` |
 | GetTeacherQueueStatus | `GET /api/teachers/sessions/{{sessionId}}/queue/status` |
 | GetSessionStatistics | `GET /api/teachers/sessions/{{sessionId}}/statistics` |
 | TakeNextHelpRequest | `POST /api/teachers/sessions/{{sessionId}}/queue/take-next` |
 | GetHelpRequest | `GET /api/teachers/requests/{{teacherHelpRequestId}}` |
-| AnswerHelpRequest | `POST /api/teachers/requests/{{teacherHelpRequestId}}/messages` med `text` |
-| Start / Complete / Cancel | `PATCH /api/teachers/requests/{{teacherHelpRequestId}}/status` med `action` |
+| AnswerHelpRequest / AnswerFaq | `POST /api/teachers/requests/{{teacherHelpRequestId}}/messages` with `text` and optional `question` for a FAQ |
+| Start / Complete / Cancel | `PATCH /api/teachers/requests/{{teacherHelpRequestId}}/status` with `action` |
 | GetTeacherFaqs | `GET /api/teachers/sessions/{{sessionId}}/faqs` |
+| CreateFaq | `POST /api/teachers/sessions/{{sessionId}}/faqs` with `question` and `answer` |
 
 ## Student
 
-| Request | Metode og route |
+| Request | Method and route |
 |---|---|
 | GetStudentIdentity | `GET /api/students/me` |
-| JoinSession | `POST /api/students/sessions/join` med sessionskode |
+| JoinSession | `POST /api/students/sessions/join` with session code |
 | GetStudentSessions | `GET /api/students/sessions` |
 | GetStudentSession | `GET /api/students/sessions/{{sessionId}}` |
 | GetSessionArchives | `GET /api/students/sessions/{{sessionId}}/archives` |
 | GetSessionArchive | `GET /api/students/sessions/{{sessionId}}/archives/{{archiveId}}` |
-| CreateHelpRequest | `POST /api/students/sessions/{{sessionId}}/requests` med `message` og `helpType` |
+| CreateHelpRequest | `POST /api/students/sessions/{{sessionId}}/requests` with `message` and `helpType` |
 | GetHelpRequests | `GET /api/students/requests` |
 | GetHelpRequestsForSession | `GET /api/students/requests?sessionId={{sessionId}}` |
 | GetHelpRequestById | `GET /api/students/requests/{{studentHelpRequestId}}` |
 | GetStudentQueue | `GET /api/students/sessions/{{sessionId}}/queue` |
 | GetStudentQueueStatus | `GET /api/students/sessions/{{sessionId}}/queue/status` |
-| AddStudentMessage | `POST /api/students/requests/{{studentHelpRequestId}}/messages` med `text` |
-| CancelHelpRequest | `PATCH /api/students/requests/{{studentHelpRequestId}}/status` med `action: "Cancel"` |
+| AddStudentMessage | `POST /api/students/requests/{{studentHelpRequestId}}/messages` with `text` |
+| CancelHelpRequest | `PATCH /api/students/requests/{{studentHelpRequestId}}/status` with `action: "Cancel"` |
 | GetStudentFaqs | `GET /api/students/sessions/{{sessionId}}/faqs` |
-| AcceptFaq / RejectFaq | `PATCH /api/students/requests/{{studentHelpRequestId}}/faq` med `accept: true` / `false` |
+| AcceptFaq / RejectFaq | `PATCH /api/students/requests/{{studentHelpRequestId}}/faq` with `accept: true` / `false` |
 
-## Arkivering
+## Archiving
 
-1. Log ind som underviser, og vælg sessionen med **Teacher → Sessions → GetSession**.
-2. Kør **ArchiveSession**. Bodyens `expectedGeneration` kommer fra `sessionGeneration`.
-   Svaret gemmer `archiveId`, opdaterer den aktuelle generation og rydder gamle anmodnings-ID'er.
-3. Brug **GetSessionArchives** og **GetSessionArchive** under Teacher eller Student → Sessions.
-   For et ældre arkiv erstattes `{{archiveId}}` én gang i detaljekaldets URL med listens `id`;
-   svaret gemmer det valgte `archiveId`. Listekald vælger aldrig automatisk et arkiv.
-4. Kontrollér den nye generation med **GetSession** og den tomme kø med **GetQueue**.
-   Den samme session og de eksisterende sessionskoder bruges videre.
+1. Log in as a teacher, and select the session with **Teacher → Sessions → GetSession**.
+2. Run **ArchiveSession**. The body's `expectedGeneration` comes from `sessionGeneration`.
+   The response saves `archiveId`, updates the current generation, and clears old request IDs.
+3. Use **GetSessionArchives** and **GetSessionArchive** under Teacher or Student → Sessions.
+   For an older archive, replace `{{archiveId}}` once in the detail request's URL with the list's `id`;
+   the response saves the selected `archiveId`. List requests never automatically select an archive.
+4. Check the new generation with **GetSession** and the empty queue with **GetQueue**.
+   The same session and existing session codes remain in use.
 
-Et arkiv indeholder generationens FAQ'er og samtaler. Underviseren kan hente alle
-generationens samtaler; den studerende kan hente sine egne samtaler og besvarede FAQ'er.
-Arkivlisten indeholder `privateConversationCount` og `generalizedQuestionCount` for hver generation.
-Det første tæller private samtaler (HelpRequests), så hver samtale tælles én gang uanset antallet af beskeder.
-Det andet tæller generationens generaliserede FAQ-spørgsmål. Underviseren ser alle spørgsmål,
-mens den studerendes tal kun omfatter egne samtaler og besvarede FAQ-spørgsmål.
-Arkivdetaljer ændrer aldrig `sessionGeneration` til den gamle generation.
-Arkivering sender samtidig besked til Mimir gennem den normale outbox og RabbitMQ.
-Hvis en anden underviser allerede har skiftet generation, giver ArchiveSession `409`;
-hent GetSession igen før et nyt forsøg.
+An archive contains the generation's FAQs and conversations. The teacher can retrieve all
+conversations from that generation; students can retrieve their own conversations and answered FAQs.
+The archive list includes `privateConversationCount` and `generalizedQuestionCount` for each generation.
+The first counts private conversations (HelpRequests), so each conversation is counted once regardless of its message count.
+The second counts the generation's generalized FAQ questions. The teacher sees all questions,
+while the student's counts include only their own conversations and answered FAQ questions.
+Archive details never change `sessionGeneration` to the old generation.
+Archiving also sends a message to Mimir through the normal outbox and RabbitMQ.
+If another teacher has already changed the generation, ArchiveSession returns `409`;
+retrieve GetSession again before retrying.
 
-**ClearSession** findes fortsat som den særskilte ryd-funktion uden oprettelse af et arkiv.
-Brug **ArchiveSession**, når generationen skal gemmes og kunne findes i arkivlisten.
+**ClearSession** remains available as the separate clear action that does not create an archive.
+Use **ArchiveSession** to save the generation and make it available in the archive list.
 
-## FAQ og generalisering
+## FAQ and generalization
 
-**Teacher → KnowledgeBase → GetTeacherFaqs** viser både ubesvarede og besvarede fællesspørgsmål.
-**Student → KnowledgeBase → GetStudentFaqs** viser kun besvarede spørgsmål i sessionens aktuelle generation.
-Begge bruger `sessionId` fra Local og den relevante rolle-cookie.
+**Teacher → KnowledgeBase → GetTeacherFaqs** lists pending and answered shared questions as well as teachers' own FAQs.
+**Student → KnowledgeBase → GetStudentFaqs** lists only answered questions in the session's current generation.
+Both use `sessionId` from Local and the relevant role cookie.
 
-Underviseren reserverer en FAQ gennem **Teacher → HelpRequests → TakeNextHelpRequest**
-og besvarer den gennem **AnswerHelpRequest**. `teacherHelpRequestId` sættes automatisk til
-den returnerede FAQ's ID, som også er `generalizationId`. Der bruges de samme endpoints som til almindelig digital hjælp.
+**Teacher → KnowledgeBase → CreateFaq** creates a teacher's own question and answer in one call.
+Select the session with **GetSession**, then edit `question` and `answer` directly in the JSON body.
+Both fields are required. The server selects the session's current generation; do not send a
+generation or student request IDs. `201 Created` returns the answered FAQ with `sourceCount: 0`.
+It appears immediately in both FAQ lists and requires neither a queue reservation nor student acceptance.
+Archiving includes it in that generation's archive; after ArchiveSession or ClearSession, the
+FAQ lists show only questions from the new generation.
 
-Eleven svarer gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**.
-Her er `studentHelpRequestId` elevens **oprindelige anmodning**, og elevcookien skal tilhøre den anmodning.
-Fysiske og digitale anmodninger kan begge få FAQ-svaret i deres samtale.
-Accept afslutter anmodningen; afvisning sender den tilbage i køen med samme køtid og hjælpetype,
-så en fysisk anmodning fortsat venter på fysisk hjælp. Svaret kræver status
-`AwaitingConfirmation`, og hver elev vælger én af mulighederne.
+The teacher reserves a FAQ through **Teacher → HelpRequests → TakeNextHelpRequest**
+and answers it through **AnswerHelpRequest**. **AnswerFaq (edit question)** sends
+`text` and `question` together, allowing the question to be revised when answering. Omit `question`
+to preserve the existing wording. This field is only accepted for a FAQ; ordinary digital
+help still uses only `text`. `teacherHelpRequestId` is automatically set to the returned
+FAQ's ID, which is also its `generalizationId`. The reservation must belong to the current
+teacher and the session's current generation.
 
-Til hele seed-forløbet bruges **Development → FAQ demo**: kaldene vælger ID'er og elevcookies automatisk.
-FAQ-listerne ligger under de almindelige EirService-mapper. Det genbrugelige FAQ-svar leveres
-asynkront til KnowledgeBase, så studentens liste kan være tom lige efter besvarelsen.
+The student responds through **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**.
+Here, `studentHelpRequestId` is the student's **original request**, and the student cookie must belong to that request.
+Physical and digital requests can both receive the FAQ answer in their conversation.
+Accepting completes the request; rejecting returns it to the queue with the same queue time and help type,
+so a physical request continues to wait for physical help. Responding requires status
+`AwaitingConfirmation`, and each student chooses one of the options.
 
-## Kø og samtaler
+Use **Development → FAQ demo** for the complete seeded workflow: its requests select IDs and student cookies automatically.
+FAQ lists are under the ordinary EirService folders. The reusable question and answer
+from the queue reach KnowledgeBase asynchronously, so the student's list may be empty immediately after answering.
 
-CreateHelpRequest får ID, generation, `requestNumber` og `displayNumber` fra serveren.
-Displaynummeret er fx `BF-001` og følger anmodningen ved returnering og genåbning.
-Numrene starter forfra i hver session og efter ArchiveSession eller ClearSession. Brug fortsat GUID'en
-som `helpRequestId`; køplaceringen er et separat tal.
-Kø- og samtalekald ligger
-under `EirService/Student/HelpRequests` og `EirService/Teacher/HelpRequests`.
-`GetStudentQueueStatus` viser `waitingCount` og `estimatedWaitMinutes` for en ny anmodning,
-også før eleven selv står i kø; eleven skal først være tilmeldt sessionen.
-Estimatet er `null`, indtil den aktuelle generation har en positiv behandlingstidsmåling fra en
-afsluttet anmodning, også hvis køen er tom. Digital behandlingstid måles fra Tag næste
-(reservation) til svar; fysisk behandlingstid måles fra Start til Complete. Med brugbare
-målinger og ingen ventende eller aktive anmodninger er estimatet `0` minutter.
-`GetTeacherQueueStatus` viser `waitingCount`, `unreservedWaitingCount`, `frontWaitMinutes`,
-`generation` og `myReservedRequestId` uden samtaler eller beskeder. `waitingCount` tæller alle
-`Pending`-anmodninger, mens `unreservedWaitingCount` kun tæller dem uden en tildelt underviser.
-`myReservedRequestId` er den aktuelle undervisers reserverede eller aktive anmodning i sessionens
-aktuelle generation, ellers `null`. Den fulde `GetQueue` indeholder også de to antal og dette ID
-samt `requests` og `activeRequests`, når der er brug for anmodningslisterne.
-Den forrestes ventetid er `null`, når ingen venter. Begge statuskald gælder den aktuelle generation.
-`TakeNextHelpRequest` reserverer kun en ny anmodning, hvis underviseren ikke allerede har en
-reserveret (`Pending`) eller aktiv (`Active`) anmodning i samme session og generation. Gentagne
-kald returnerer den eksisterende anmodning, også under fysisk hjælp. Hvis underviseren hverken
-har en igangværende anmodning eller kan tage en ledig, returneres `204`.
-**Teacher → Insights → GetSessionStatistics** viser dagens statistik for samme generation:
-afsluttede fysiske/digitale anmodninger, unikke hjulpne studerende og gennemsnittet af
-`ClosedAt - QueuedAt` i minutter. Gennemsnittet er `null`, når ingen anmodninger er afsluttet.
-Afslutningsstatusserne er `CompletedByFaq` (studentens FAQ-accept), `CompletedByDigital`
-(digitalt svar, også på en FAQ-opgave) og `CompletedByPhysical` (afsluttet fysisk hjælp).
-Alle tre indgår som afsluttede anmodninger i statistikken og tillader en ny opfølgning fra eleven.
-Student-kald bruger elevcookien; teacher-kald bruger lærerlogin.
-De kan bruges i samme cookiejar uden at logge læreren ud.
-Start, Complete og Cancel ligger i lærerens `ChangeHelpRequestStatus`-mappe
-og bruger samme endpoint. Teacher Cancel frigiver reservationen og sender
-anmodningen forrest i køen med `Pending`. Student Cancel lukker anmodningen
-med `Cancelled` og fjerner den fra køen.
-Se [Development-vejledningen](Development/README.md) for FAQ-testforløbet.
+## Queue and conversations
 
-Et almindeligt forløb er: teacher-login → CreateSession → student-login → JoinSession → CreateHelpRequest → GetHelpRequestsForSession.
-Session-id, sessionskode og anmodnings-id følger automatisk med. ClearSession opdaterer også generationen automatisk.
+CreateHelpRequest receives its ID, generation, `requestNumber`, and `displayNumber` from the server.
+The display number, such as `BF-001`, stays with the request when it is returned or reopened.
+Numbers restart in each session and after ArchiveSession or ClearSession. Continue using the GUID
+as `helpRequestId`; the queue position is a separate number.
+Queue and conversation requests are
+under `EirService/Student/HelpRequests` and `EirService/Teacher/HelpRequests`.
+`GetStudentQueueStatus` shows `waitingCount` and `estimatedWaitMinutes` for a new request,
+even before the student is in the queue; the student must first join the session.
+The estimate is `null` until the current generation has a positive handling-time measurement from a
+completed request, even if the queue is empty. Digital handling time is measured from Take next
+(reservation) to answer; physical handling time is measured from Start to Complete. With usable
+measurements and no waiting or active requests, the estimate is `0` minutes.
+`GetTeacherQueueStatus` shows `waitingCount`, `unreservedWaitingCount`, `frontWaitMinutes`,
+`generation`, and `myReservedRequestId` without conversations or messages. `waitingCount` counts all
+`Pending` requests, while `unreservedWaitingCount` counts only those without an assigned teacher.
+`myReservedRequestId` is the current teacher's reserved or active request in the session's
+current generation, or `null`. The full `GetQueue` also includes the two counts and this ID,
+along with `requests` and `activeRequests` when request lists are needed.
+The front request's waiting time is `null` when no one is waiting. Both status requests apply to the current generation.
+`TakeNextHelpRequest` reserves a new request only if the teacher does not already have a
+reserved (`Pending`) or active (`Active`) request in the same session and generation. Repeated
+requests return the existing request, including during physical help. If the teacher neither
+has a request in progress nor can take an available one, the endpoint returns `204`.
+**Teacher → Insights → GetSessionStatistics** shows today's statistics for the same generation:
+completed physical/digital requests, unique students helped, and the average of
+`ClosedAt - QueuedAt` in minutes. The average is `null` when no requests have been completed.
+Completion statuses are `CompletedByFaq` (student FAQ acceptance), `CompletedByDigital`
+(a digital answer, including to a FAQ task), and `CompletedByPhysical` (completed physical help).
+All three count as completed requests in the statistics and allow a new student follow-up.
+Student requests use the student cookie; teacher requests use teacher login.
+They can use the same cookie jar without logging the teacher out.
+Start, Complete, and Cancel are in the teacher's `ChangeHelpRequestStatus` folder
+and use the same endpoint. Teacher Cancel releases the reservation and returns
+the request to the front of the queue with `Pending`. Student Cancel closes the request
+with `Cancelled` and removes it from the queue.
+See the [Development guide](Development/README.md) for the FAQ test workflow.
 
-Alle samtalebeskeder indeholder `messageType` som enum-streng:
+A typical workflow is: teacher login → CreateSession → student login → JoinSession → CreateHelpRequest → GetHelpRequestsForSession.
+The session ID, session code, and request ID are carried over automatically. ClearSession also updates the generation automatically.
 
-| `messageType` | Betydning |
+All conversation messages include `messageType` as an enum string:
+
+| `messageType` | Meaning |
 |---|---|
-| `StudentQuestion` | Elevens oprindelige spørgsmål |
-| `FollowUpQuestion` | Et efterfølgende spørgsmål fra eleven |
-| `FaqQuestion` | Det generaliserede fællesspørgsmål fra Mimir |
-| `FaqAnswer` | Underviserens fælles FAQ-svar, også når det kopieres til elevens samtale |
-| `TeacherAnswer` | Underviserens direkte svar på elevens anmodning |
+| `StudentQuestion` | The student's original question |
+| `FollowUpQuestion` | A subsequent question from the student |
+| `FaqQuestion` | The generalized shared question from Mimir |
+| `FaqAnswer` | The teacher's shared FAQ answer, including when copied to the student's conversation |
+| `TeacherAnswer` | The teacher's direct answer to the student's request |
 
-`authorRole` angiver fortsat afsenderens rolle. Beskedtypen fastlægges af serveren;
-request-bodyen bruger fortsat `message` eller `text`. Eksisterende beskeder får typer
-via databasemigration ved næste opstart af EirService.
+`authorRole` still identifies the sender's role. The server determines the message type;
+the request body still uses `message` or `text`. Existing messages receive types
+through a database migration the next time EirService starts.
 
-Monitoring, Heimdall, VarService og Logout ligger fortsat i deres eksisterende mapper.
+Monitoring, Heimdall, VarService, and Logout remain in their existing folders.
 
 ## Start services
 
-Start Docker Desktop, og kør fra repository-roden:
+Start Docker Desktop, and run from the repository root:
 
 ```powershell
 aspire.cmd start --apphost src/Bifrost/Orchestration/YggdrasilService/YggdrasilService.AppHost/YggdrasilService.AppHost.csproj --launch-profile http --non-interactive
@@ -302,11 +316,11 @@ aspire.cmd wait varservice --timeout 60 --non-interactive
 aspire.cmd wait heimdallgateway --timeout 60 --non-interactive
 ```
 
-## Student-authentication
+## Student authentication
 
-Heimdall udsteder `bifrost-anonymous-user` og sender den med til servicen allerede i det første kald.
-Eir, Mimir og Gna validerer cookien; direkte student-kald uden en gyldig cookie får 401.
-Student-login hos VarService er ikke nødvendigt.
+Heimdall issues `bifrost-anonymous-user` and forwards it to the service with the very first request.
+Eir, Mimir, and Gna validate the cookie; direct student requests without a valid cookie receive 401.
+Student login through VarService is not required.
 
-Gamle Eir-cookies erstattes ved første kald efter denne ændring. Det giver et nyt student-ID,
-så eksisterende session-medlemskaber skal oprettes igen med JoinSession.
+Old Eir cookies are replaced on the first request after this change. This creates a new student ID,
+so existing session memberships must be recreated with JoinSession.

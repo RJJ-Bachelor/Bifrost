@@ -10,7 +10,7 @@ http:
     type: json
     data: |-
       {
-        "title": "Omdøbt session"
+        "title": "NytNavn"
       }
 
 settings:

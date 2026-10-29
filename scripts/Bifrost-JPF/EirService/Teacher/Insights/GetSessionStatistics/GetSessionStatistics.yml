@@ -23,3 +23,8 @@ docs: |-
   and averageWaitMinutes as the average of ClosedAt - QueuedAt in minutes.
   Completed statuses are CompletedByFaq, CompletedByDigital and CompletedByPhysical.
   With no completed requests, counts are zero and averageWaitMinutes is null.
+  Average time (averageWaitMinutes) covers the entire request from joining the queue to completion:
+  both waiting and help. A student who waits 6 minutes and receives 4 minutes of help contributes 10 minutes.
+  Estimated wait (estimatedWaitMinutes) on the student queue endpoints is calculated separately:
+  average time between starts × number of requests ahead, rounded up to whole minutes.
+  averageWaitMinutes is not used as the minutes per queue position in that estimate.

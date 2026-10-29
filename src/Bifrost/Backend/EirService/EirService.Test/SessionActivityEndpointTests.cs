@@ -77,89 +77,123 @@ public sealed partial class CommandBusTests
     }
 
     [Fact]
-    public async Task StudentQueueStatusEstimatesBeforeSubmittingAndUsesExistingServiceDuration()
+    public async Task StudentQueueStatusCountsDigitalReservationAsAStartButPhysicalReservationAsWaiting()
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Before submitting").ExecuteAsync();
         await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
         var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-30);
         var completed = PendingActivity(session.Id, 1, "helped", HelpType.Physical, queuedAt);
-        completed.Reserve("owner", queuedAt.AddMinutes(10));
-        completed.Start("owner", queuedAt.AddMinutes(10));
-        completed.Complete("owner", queuedAt.AddMinutes(14.2));
+        completed.Reserve("owner", queuedAt.AddMinutes(2));
+        completed.Start("owner", queuedAt.AddMinutes(2));
+        completed.Complete("owner", queuedAt.AddMinutes(2.5));
         var reserved = PendingActivity(session.Id, 1, "reserved", HelpType.Physical, queuedAt);
-        reserved.Reserve("owner", queuedAt.AddMinutes(2));
-        var active = PendingActivity(session.Id, 1, "active", HelpType.Physical, queuedAt);
-        active.Reserve("owner", queuedAt);
-        active.Start("owner", queuedAt.AddMinutes(2));
-        var faq = HelpRequest.CreateFaq(Guid.NewGuid(), session.Id, 1, new MessageText("FAQ question"), queuedAt);
-        _requests.Saved.AddRange([completed, reserved, active, faq]);
+        reserved.Reserve("owner", queuedAt.AddMinutes(9));
+        var digital = PendingActivity(session.Id, 1, "digital", HelpType.Digital, queuedAt);
+        digital.Reserve("colleague", queuedAt.AddMinutes(5));
+        _requests.Saved.AddRange([completed, reserved, digital]);
 
         var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
         var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
 
         Assert.Equal(2, status.GetProperty("waitingCount").GetInt32());
-        Assert.Equal(13, status.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(6, status.GetProperty("estimatedWaitMinutes").GetInt32());
         Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
         AssertProperties(status, "waitingCount", "estimatedWaitMinutes");
     }
 
-    [Theory]
-    [InlineData(HelpType.Physical)]
-    [InlineData(HelpType.Digital)]
-    public async Task StudentQueueEstimateBecomesAvailableAfterThirtySecondCompletion(HelpType helpType)
+    [Fact]
+    public async Task StudentQueueEstimatesUseAverageTimeBetweenStartsAndNumberOfRequestsAhead()
     {
         var studentId = AuthenticateStudent();
-        var session = await new CreateSessionCommand("owner", "Short help duration").ExecuteAsync();
+        var session = await new CreateSessionCommand("owner", "Queue pace").ExecuteAsync();
         await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
-        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
-        var completed = PendingActivity(session.Id, 1, "helped", helpType, queuedAt);
-        var waiting = PendingActivity(session.Id, 1, studentId, helpType, queuedAt.AddSeconds(1));
-        _requests.Saved.AddRange([completed, waiting]);
-
-        var initialStatus = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
-        Assert.Equal(2, initialStatus.GetProperty("waitingCount").GetInt32());
-        Assert.Equal(JsonValueKind.Null, initialStatus.GetProperty("estimatedWaitMinutes").ValueKind);
-
-        var startedAt = queuedAt.AddMinutes(9);
-        completed.Reserve("owner", startedAt);
-        if (helpType == HelpType.Physical)
-        {
-            completed.Start("owner", startedAt);
-            completed.Complete("owner", startedAt.AddSeconds(30));
-        }
-        else completed.Answer("owner", new MessageText("Answer"), startedAt.AddSeconds(30));
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-20);
+        var first = StartedActivity(session.Id, 1, "first", HelpType.Physical, queuedAt.AddMinutes(1), 1);
+        first.Complete("owner", queuedAt.AddMinutes(2.5));
+        var second = StartedActivity(session.Id, 1, "second", HelpType.Physical, queuedAt.AddMinutes(2), 3, "colleague");
+        second.Complete("colleague", queuedAt.AddMinutes(5.5));
+        var third = StartedActivity(session.Id, 1, "third", HelpType.Physical, queuedAt, 9);
+        // The activity query is ordered by queue time, which need not match start time.
+        _requests.Saved.AddRange([third, first, second,
+            PendingActivity(session.Id, 1, "waiting-1", HelpType.Physical, queuedAt.AddSeconds(1)),
+            PendingActivity(session.Id, 1, "waiting-2", HelpType.Digital, queuedAt.AddSeconds(2)),
+            PendingActivity(session.Id, 1, "waiting-3", HelpType.Physical, queuedAt.AddSeconds(3)),
+            PendingActivity(session.Id, 1, studentId, HelpType.Digital, queuedAt.AddSeconds(4))]);
 
         var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
         var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
 
-        Assert.Equal(1, status.GetProperty("waitingCount").GetInt32());
-        Assert.Equal(1, status.GetProperty("estimatedWaitMinutes").GetInt32());
-        Assert.Equal(0, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(4, status.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(14, status.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(4, ownQueue.GetProperty("position").GetInt32());
+        Assert.Equal(11, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+    }
+
+    [Fact]
+    public async Task StudentQueueEstimateNeedsASecondStartAndDoesNotUseFirstCompletionDuration()
+    {
+        var studentId = AuthenticateStudent();
+        var session = await new CreateSessionCommand("owner", "Three requests").ExecuteAsync();
+        await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var first = PendingActivity(session.Id, 1, "first", HelpType.Physical, queuedAt);
+        var second = PendingActivity(session.Id, 1, "second", HelpType.Digital, queuedAt.AddSeconds(1));
+        _requests.Saved.AddRange([
+            first,
+            second,
+            PendingActivity(session.Id, 1, studentId, HelpType.Physical, queuedAt.AddSeconds(2))
+        ]);
+
+        var beforeStart = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        Assert.Equal(3, beforeStart.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, beforeStart.GetProperty("estimatedWaitMinutes").ValueKind);
+
+        first.Reserve("owner", queuedAt.AddMinutes(2));
+        first.Start("owner", queuedAt.AddMinutes(2));
+
+        var whileHelping = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+        Assert.Equal(2, whileHelping.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, whileHelping.GetProperty("estimatedWaitMinutes").ValueKind);
+        Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
+
+        first.Complete("owner", queuedAt.AddMinutes(7));
+
+        var afterCompletion = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+        Assert.Equal(2, afterCompletion.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(JsonValueKind.Null, afterCompletion.GetProperty("estimatedWaitMinutes").ValueKind);
+        Assert.Equal(2, ownQueue.GetProperty("position").GetInt32());
+        Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
+
+        second.Reserve("owner", queuedAt.AddMinutes(9));
+
+        var afterSecondStart = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+        Assert.Equal(2, afterSecondStart.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(14, afterSecondStart.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(7, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
     }
 
     [Theory]
-    [InlineData(0, false, false)]
-    [InlineData(0, true, false)]
-    [InlineData(2, false, false)]
-    [InlineData(2, true, false)]
-    [InlineData(0, false, true)]
-    [InlineData(0, true, true)]
-    public async Task StudentQueueEstimatesAreNullWithoutPositiveCompletedDurations(
-        int waitingCount, bool includeZeroDurationCompletion, bool includeActiveRequest)
+    [InlineData(0, 0)]
+    [InlineData(0, 1)]
+    [InlineData(0, 2)]
+    [InlineData(2, 0)]
+    [InlineData(2, 1)]
+    [InlineData(2, 2)]
+    public async Task StudentQueueEstimatesAreNullWithoutDistinctStartTimes(int waitingCount, int startedCount)
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Unknown estimate").ExecuteAsync();
         await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
         var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
-        if (includeZeroDurationCompletion)
-            _requests.Saved.Add(CompletedActivity(session.Id, 1, "helped", HelpType.Digital, queuedAt, 0));
-        if (includeActiveRequest)
+        for (var index = 0; index < startedCount; index++)
         {
-            var active = PendingActivity(session.Id, 1, "active", HelpType.Physical, queuedAt);
-            active.Reserve("owner", queuedAt.AddMinutes(1));
-            active.Start("owner", queuedAt.AddMinutes(2));
-            _requests.Saved.Add(active);
+            var completed = StartedActivity(session.Id, 1, $"helped-{index}", HelpType.Physical, queuedAt, 2);
+            completed.Complete("owner", queuedAt.AddMinutes(3 + index));
+            _requests.Saved.Add(completed);
         }
         for (var index = 0; index < waitingCount; index++)
             _requests.Saved.Add(PendingActivity(session.Id, 1,
@@ -177,7 +211,7 @@ public sealed partial class CommandBusTests
     [Theory]
     [InlineData(HelpType.Physical)]
     [InlineData(HelpType.Digital)]
-    public async Task AcceptedFaqWithoutServiceDurationDoesNotCreateAQueueEstimate(HelpType helpType)
+    public async Task AcceptedFaqDoesNotCreateAQueueEstimate(HelpType helpType)
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "FAQ completion estimate").ExecuteAsync();
@@ -199,18 +233,82 @@ public sealed partial class CommandBusTests
     [Theory]
     [InlineData(HelpType.Physical)]
     [InlineData(HelpType.Digital)]
-    public async Task EmptyStudentQueueHasZeroEstimateWhenCompletedDurationIsKnown(HelpType helpType)
+    public async Task EmptyStudentQueueHasZeroEstimateWhenTimeBetweenStartsIsKnown(HelpType helpType)
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Known empty queue").ExecuteAsync();
         await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
-        _requests.Saved.Add(CompletedActivity(session.Id, 1, "helped", helpType,
-            DateTimeOffset.UtcNow.AddMinutes(-10), 4));
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var first = StartedActivity(session.Id, 1, "first", helpType, queuedAt, 2);
+        var second = StartedActivity(session.Id, 1, "second", helpType, queuedAt, 6);
+        if (helpType == HelpType.Physical)
+        {
+            first.Complete("owner", queuedAt.AddMinutes(2.5));
+            second.Complete("owner", queuedAt.AddMinutes(6.5));
+        }
+        else
+        {
+            first.Answer("owner", new MessageText("Answer"), queuedAt.AddMinutes(2.5));
+            second.Answer("owner", new MessageText("Answer"), queuedAt.AddMinutes(6.5));
+        }
+        _requests.Saved.AddRange([first, second]);
 
         var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
 
         Assert.Equal(0, status.GetProperty("waitingCount").GetInt32());
         Assert.Equal(0, status.GetProperty("estimatedWaitMinutes").GetInt32());
+    }
+
+    [Fact]
+    public async Task StudentQueueEstimatesIncludeSimultaneousStartsWhenTheQueueAlsoProgressedLater()
+    {
+        var studentId = AuthenticateStudent();
+        var session = await new CreateSessionCommand("owner", "Parallel teachers").ExecuteAsync();
+        await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-10);
+        _requests.Saved.AddRange([
+            StartedActivity(session.Id, 1, "first", HelpType.Physical, queuedAt, 2),
+            StartedActivity(session.Id, 1, "second", HelpType.Physical, queuedAt, 2, "colleague"),
+            StartedActivity(session.Id, 1, "third", HelpType.Physical, queuedAt, 5),
+            PendingActivity(session.Id, 1, "waiting", HelpType.Physical, queuedAt),
+            PendingActivity(session.Id, 1, studentId, HelpType.Physical, queuedAt.AddSeconds(1))
+        ]);
+
+        var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+
+        Assert.Equal(3, status.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(2, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+    }
+
+    [Fact]
+    public async Task StudentQueueEstimatesIgnoreCancelledRequestsAndOtherSessionsOrGenerations()
+    {
+        var studentId = AuthenticateStudent();
+        var session = await new CreateSessionCommand("owner", "Current queue pace").ExecuteAsync();
+        await new JoinSessionCommand(session.Code, studentId).ExecuteAsync();
+        var storedSession = (await _app.Services.GetRequiredService<ISessionRepository>().GetAsync(session.Id, default))!;
+        storedSession.Clear(1, DateTimeOffset.UtcNow);
+        var queuedAt = DateTimeOffset.UtcNow.AddMinutes(-30);
+        var cancelled = StartedActivity(session.Id, 2, "cancelled", HelpType.Digital, queuedAt, 1);
+        cancelled.Cancel("cancelled", AuthorRole.Student, queuedAt.AddMinutes(2));
+        _requests.Saved.AddRange([
+            cancelled,
+            StartedActivity(session.Id, 1, "previous", HelpType.Physical, queuedAt, 2),
+            StartedActivity(Guid.NewGuid(), 2, "unrelated", HelpType.Physical, queuedAt, 3),
+            AcceptedFaqActivity(session.Id, 2, "faq-student", HelpType.Digital, queuedAt, 4),
+            StartedActivity(session.Id, 2, "first", HelpType.Physical, queuedAt, 20),
+            StartedActivity(session.Id, 2, "second", HelpType.Physical, queuedAt, 23),
+            PendingActivity(session.Id, 2, "waiting", HelpType.Physical, queuedAt),
+            PendingActivity(session.Id, 2, studentId, HelpType.Physical, queuedAt.AddSeconds(1))
+        ]);
+
+        var status = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue/status");
+        var ownQueue = await ReadActivityAsync($"/api/students/sessions/{session.Id}/queue");
+
+        Assert.Equal(2, status.GetProperty("waitingCount").GetInt32());
+        Assert.Equal(6, status.GetProperty("estimatedWaitMinutes").GetInt32());
+        Assert.Equal(3, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
     }
 
     [Fact]
@@ -407,6 +505,16 @@ public sealed partial class CommandBusTests
 
     private static HelpRequest PendingActivity(Guid sessionId, int generation, string studentId, HelpType helpType, DateTimeOffset queuedAt) =>
         HelpRequest.Create(sessionId, generation, studentId, helpType, new MessageText("Question"), queuedAt);
+
+    private static HelpRequest StartedActivity(Guid sessionId, int generation, string studentId, HelpType helpType,
+        DateTimeOffset queuedAt, double startMinutes, string teacherId = "owner")
+    {
+        var request = PendingActivity(sessionId, generation, studentId, helpType, queuedAt);
+        var startedAt = queuedAt.AddMinutes(startMinutes);
+        request.Reserve(teacherId, startedAt);
+        if (helpType == HelpType.Physical) request.Start(teacherId, startedAt);
+        return request;
+    }
 
     private static HelpRequest CompletedActivity(Guid sessionId, int generation, string studentId, HelpType helpType,
         DateTimeOffset queuedAt, double waitMinutes)

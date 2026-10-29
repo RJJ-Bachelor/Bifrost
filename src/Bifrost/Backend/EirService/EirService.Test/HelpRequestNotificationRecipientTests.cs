@@ -54,6 +54,18 @@ public sealed partial class CommandBusTests
             request.SuggestFaq(faqId, "owner", new MessageText("Shared answer"), now);
         if (action is not ("Created" or "FaqCreated")) request.ClearDomainEvents();
 
+        if (action is "Started" or "Completed")
+        {
+            var historyStart = now.AddMinutes(-10);
+            var first = StartedActivity(session.Id, 1, "helped-1", HelpType.Physical, historyStart, 4);
+            first.Complete("owner", now.AddMinutes(-5.5));
+            var second = StartedActivity(session.Id, 1, "helped-2", HelpType.Physical, historyStart, 7);
+            second.Complete("owner", now.AddMinutes(-2.5));
+            first.ClearDomainEvents();
+            second.ClearDomainEvents();
+            _requests.Saved.AddRange([first, second]);
+        }
+
         var observerRequest = HelpRequest.Create(session.Id, 1, "observer", HelpType.Physical,
             new MessageText("Another question"), now.AddMinutes(1));
         observerRequest.ClearDomainEvents();
@@ -83,12 +95,20 @@ public sealed partial class CommandBusTests
             Assert.Equal(before with { UnreservedWaitingCount = before.UnreservedWaitingCount - 1 }, after);
         if (action == "Completed")
         {
-            Assert.NotEqual(before.EstimatedWaitMinutes, after.EstimatedWaitMinutes);
-            Assert.Equal(new StudentQueueStatusResult(1, null), idleBefore);
+            Assert.Equal(before.EstimatedWaitMinutes, after.EstimatedWaitMinutes);
+            Assert.Equal(new StudentQueueStatusResult(1, 3), idleBefore);
             Assert.Equal(new StudentQueueStatusResult(1, 3),
                 await new GetStudentQueueStatusQuery(session.Id, "idle").ExecuteAsync());
             Assert.All(_requests.Notifications,
                 item => Assert.Equal(NotificationDeliveryType.RealtimeOnly, item.Message.DeliveryType));
+        }
+        if (action == "Started")
+        {
+            Assert.Equal(3, before.EstimatedWaitMinutes);
+            Assert.Equal(0, after.EstimatedWaitMinutes);
+            Assert.Equal(new StudentQueueStatusResult(2, 6), idleBefore);
+            Assert.Equal(new StudentQueueStatusResult(1, 3),
+                await new GetStudentQueueStatusQuery(session.Id, "idle").ExecuteAsync());
         }
         var expected = affectsOtherStudents
             ? new[] { "colleague", "idle", "observer", "owner", "student" }

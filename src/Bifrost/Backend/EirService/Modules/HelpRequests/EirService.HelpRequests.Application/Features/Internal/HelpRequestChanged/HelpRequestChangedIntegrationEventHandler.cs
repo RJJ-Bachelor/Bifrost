@@ -41,7 +41,8 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             if (request.IsFaq)
                 notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                     new FaqAnsweredMessage(request.Id, request.SessionId, request.Generation,
-                        answer.Text.Value, request.AssignedTeacherId!, change.OccurredAt),
+                        answer.Text.Value, request.AssignedTeacherId!, change.OccurredAt,
+                        messages.Single(message => message.MessageType == HelpRequestMessageType.FaqQuestion).Text.Value),
                     MessageRoutes.Requests, MessageRoutes.FaqAnswered));
             else notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,

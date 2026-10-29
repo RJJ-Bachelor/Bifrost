@@ -34,15 +34,31 @@ public sealed class FaqAnswer : AggregateRoot<Guid>
         };
     }
 
-    public void RecordAnswer(string answer, string teacherId, DateTimeOffset now)
+    public static FaqAnswer CreateAnswered(Guid sessionId, int generation, string question,
+        string answer, string teacherId, DateTimeOffset now)
+    {
+        if (sessionId == Guid.Empty || generation < 1)
+            throw new ArgumentException("A FAQ requires a session and generation.");
+        var faq = new FaqAnswer
+        {
+            Id = Guid.NewGuid(), SessionId = sessionId, Generation = generation,
+            Question = Text(question), CreatedAt = now.ToUniversalTime()
+        };
+        faq.RecordAnswer(answer, teacherId, now);
+        return faq;
+    }
+
+    public void RecordAnswer(string answer, string teacherId, DateTimeOffset now, string? question = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(teacherId);
         var text = Text(answer);
+        var questionText = question is null ? Question : Text(question);
         if (Answer is not null)
         {
-            if (Answer == text && AnsweredByTeacherId == teacherId) return;
+            if (Answer == text && AnsweredByTeacherId == teacherId && Question == questionText) return;
             throw new InvalidOperationException("This FAQ has already been answered.");
         }
+        Question = questionText;
         Answer = text;
         AnsweredByTeacherId = teacherId;
         AnsweredAt = now.ToUniversalTime();

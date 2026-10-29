@@ -1,0 +1,50 @@
+info:
+  name: CreateFaq
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/sessions/{{sessionId}}/faqs'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "question": "Hvordan får jeg hjælp i sessionen?",
+        "answer": "Opret et spørgsmål i sessionen, og vælg fysisk eller digital hjælp."
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          const body = res.getBody();
+          const faq = typeof body === "string" ? JSON.parse(body) : body;
+          const payload = req.getBody();
+          const guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (!guid.test(faq?.id) || faq.sessionId !== bru.interpolate("{{sessionId}}") ||
+              !Number.isInteger(faq.generation) || faq.generation < 1 || faq.sourceCount !== 0 ||
+              faq.question !== payload.question.trim() || faq.answer !== payload.answer.trim() || !faq.answeredAt) {
+            throw new Error("Expected an answered, teacher-created FAQ in the selected session and its current generation.");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '201'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Creates a teacher's own question and answer together in KnowledgeBase.
+  Requires teacher login and membership of the selected session. Use GetSession first
+  to select sessionId. Edit question and answer directly in the JSON body; both are required.
+  The server chooses the session's current generation, so do not send generation or source ids.
+  Returns the answered FAQ immediately with sourceCount: 0; it does not reserve a queue item
+  or require student acceptance. GetTeacherFaqs and GetStudentFaqs include it immediately.
+  ArchiveSession includes it in that generation's archive; ArchiveSession/ClearSession start
+  a new generation whose FAQ lists do not include it.

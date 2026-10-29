@@ -1,4 +1,4 @@
 info:
-  name: GetTeacherQueueStatus
+  name: GetQueueStatus
   type: folder
   seq: 6

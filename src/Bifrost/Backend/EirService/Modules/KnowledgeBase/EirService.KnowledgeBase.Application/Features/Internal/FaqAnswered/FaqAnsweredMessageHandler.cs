@@ -12,7 +12,7 @@ public sealed class FaqAnsweredMessageHandler(IFaqRepository repository, IUnitOf
             ?? throw new InvalidOperationException("The FAQ must be stored before its answer.");
         if (faq.SessionId != message.SessionId || faq.Generation != message.Generation)
             throw new InvalidOperationException("The answer does not belong to this FAQ generation.");
-        faq.RecordAnswer(message.Answer, message.TeacherId, message.AnsweredAt);
+        faq.RecordAnswer(message.Answer, message.TeacherId, message.AnsweredAt, message.Question);
         await unitOfWork.SaveChangesAsync(cancellationToken);
     }
 }

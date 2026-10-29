@@ -10,3 +10,17 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Returns the student's queue position and estimated wait for the current generation.
+  estimatedWaitMinutes = ceil(average minutes per queue position × (queue position - 1)).
+  Minutes per queue position = (last StartedAt - first StartedAt) / (number of starts - 1).
+  Digital help starts on reservation; physical help starts on Start. Starts from all teachers are combined.
+  Cancelled and CompletedByFaq requests are excluded from the pace calculation; FAQ tasks themselves count.
+  At least two starts with a positive interval between the first and last are required.
+  Otherwise, estimatedWaitMinutes is null. Simultaneous starts count.
+  With a known pace and nobody ahead, the estimate is 0. Active requests are not added separately.
+  Reserved digital requests remain Pending and count in the queue.
+  Before joining the queue, use /queue/status to estimate the wait at the back of the queue.
+  This is a rough estimate, not a countdown; pauses between starts affect the pace.
+  averageWaitMinutes on the teacher's /statistics endpoint is a separate historical average:
+  the time from joining the queue to completion, including both waiting and help.

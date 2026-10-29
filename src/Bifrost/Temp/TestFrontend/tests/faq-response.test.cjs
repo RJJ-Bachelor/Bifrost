@@ -23,8 +23,10 @@ function fixture(role = 'students', helpType = 'Digital') {
   class Router {}
   const destroyed = new rx.Subject();
   const requests = [];
+  const responses = { post: null };
   const scrolls = [];
   let refreshes = 0;
+  const refreshParts = [];
   const source = { id: 'source-id', sessionId: 'session-id', generation: 2, studentId: 'student-id',
     isFaq: false, helpType, queuedAt: '2026-10-24T08:00:00Z', faqAnswerId: 'faq-id', status: 'AwaitingConfirmation', messages: [
       { messageType: 'StudentQuestion', text: 'Mit eget spørgsmål' },
@@ -36,14 +38,14 @@ function fixture(role = 'students', helpType = 'Digital') {
     return rx.of({ ...source, status: body.accept ? 'CompletedByFaq' : 'Pending', faqAnswerId: body.accept ? 'faq-id' : null });
   }), post: (url, body) => rx.defer(() => {
     requests.push({ url, body: { ...body } });
-    return rx.of({ ...source, status: 'Pending', faqAnswerId: null, assignedTeacherId: null });
+    return responses.post ?? rx.of({ ...source, status: 'Pending', faqAnswerId: null, assignedTeacherId: null });
   }) };
   const dependencies = new Map([
     [HeimdallService, api],
     [NotificationService, { received: rx.NEVER, reconnected: rx.NEVER }],
     [DestroyRef, { onDestroy: callback => destroyed.subscribe(callback) }],
     [ActivatedRoute, { snapshot: { data: { role }, queryParamMap: { get: () => null } }, paramMap: rx.NEVER, queryParamMap: rx.NEVER }],
-    [Router, {}]
+    [Router, { navigate: () => Promise.resolve(true) }]
   ]);
   const modules = {
     '@angular/common': { CommonModule: class {} },
@@ -71,9 +73,193 @@ function fixture(role = 'students', helpType = 'Digital') {
   page.requests = [source];
   page.conversation = source;
   page.selectedRequestId = source.id;
-  page.refresh = () => refreshes++;
-  return { page, source, requests, scrolls, refreshes: () => refreshes, destroy: () => { destroyed.next(); destroyed.complete(); } };
+  page.refresh = parts => { refreshes++; refreshParts.push(parts); };
+  return { page, source, requests, responses, refreshParts, scrolls, refreshes: () => refreshes,
+    destroy: () => { destroyed.next(); destroyed.complete(); } };
 }
+
+test('a teacher saves a revised FAQ question and its answer in the same request', t => {
+  const { page, source, requests, responses, refreshParts, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.conversation = { ...source, isFaq: true, status: 'Pending', assignedTeacherId: page.identity.userId };
+  page.selectedRequestId = 'stale-selection';
+  page.faqQuestionDraft = '  Det reviderede spørgsmål  ';
+  page.replyText = '  Det fælles svar  ';
+  responses.post = rx.of({ ...page.conversation, status: 'CompletedByDigital',
+    messages: [{ messageType: 'FaqQuestion', text: 'Det reviderede spørgsmål' },
+      { messageType: 'TeacherAnswer', text: 'Det fælles svar' }] });
+
+  page.sendMessage();
+
+  assert.deepEqual(requests, [{ url: 'teachers/requests/source-id/messages',
+    body: { text: 'Det fælles svar', question: 'Det reviderede spørgsmål' } }]);
+  assert.equal(page.conversation.status, 'CompletedByDigital');
+  assert.equal(page.questionForFaqAnswer, 'Det reviderede spørgsmål');
+  assert.equal(page.faqQuestionDraft, null);
+  assert.equal(page.replyText, '');
+  assert.ok(refreshParts[0] & model.SessionRefresh.Faqs);
+});
+
+test('a FAQ answer starts with its existing question and refuses an empty question', t => {
+  const { page, source, requests, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.conversation = { ...source, isFaq: true, status: 'Pending', assignedTeacherId: page.identity.userId };
+  page.replyText = 'Svar';
+  assert.equal(page.questionForFaqAnswer, 'Det fælles spørgsmål');
+  page.faqQuestionDraft = '  ';
+  page.sendMessage();
+  assert.equal(requests.length, 0);
+  page.faqQuestionDraft = null;
+  page.sendMessage();
+  assert.deepEqual(requests[0].body, { text: 'Svar', question: 'Det fælles spørgsmål' });
+});
+
+test('normal teacher answers do not include a FAQ question', t => {
+  const { page, source, requests, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.conversation = { ...source, status: 'Pending', assignedTeacherId: page.identity.userId };
+  page.faqQuestionDraft = 'An old FAQ draft';
+  page.replyText = 'Svar';
+  page.sendMessage();
+  assert.deepEqual(requests, [{ url: 'teachers/requests/source-id/messages', body: { text: 'Svar' } }]);
+});
+
+test('opening another conversation clears the FAQ question draft', t => {
+  const { page, source, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.faqQuestionDraft = 'Previous question draft';
+  page.teacherQueue = { requests: [{ ...source, id: 'next-id', messages: [
+    { messageType: 'FaqQuestion', text: 'Det næste spørgsmål' }] }] };
+  page.openRequest('next-id');
+  assert.equal(page.questionForFaqAnswer, 'Det næste spørgsmål');
+});
+
+test('reopening the displayed conversation preserves its FAQ question and answer drafts', t => {
+  const { page, source, refreshes, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.faqQuestionDraft = 'Det redigerede spørgsmål';
+  page.replyText = 'Et svar under udarbejdelse';
+  page.openRequest(source.id);
+  assert.equal(page.conversation, source);
+  assert.equal(page.faqQuestionDraft, 'Det redigerede spørgsmål');
+  assert.equal(page.replyText, 'Et svar under udarbejdelse');
+  assert.equal(refreshes(), 0);
+});
+
+test('a teacher creates an answered FAQ directly in the current session without a queue task', t => {
+  const { page, requests, responses, refreshParts, destroy } = fixture('teachers');
+  t.after(destroy);
+  const faq = { id: 'manual-faq', sessionId: 'session-id', generation: 2,
+    question: 'Eget spørgsmål', answer: 'Eget svar', sourceCount: 0 };
+  responses.post = rx.of(faq);
+  const conversation = page.conversation;
+  page.showCreateFaq = true;
+  page.newFaqQuestion = '  Eget spørgsmål  ';
+  page.newFaqAnswer = '  Eget svar  ';
+  page.createFaq();
+  assert.deepEqual(requests, [{ url: 'teachers/sessions/session-id/faqs',
+    body: { question: 'Eget spørgsmål', answer: 'Eget svar' } }]);
+  assert.equal(page.faqs[0], faq);
+  assert.equal(page.conversation, conversation);
+  assert.equal(page.showCreateFaq, false);
+  assert.equal(page.newFaqQuestion, '');
+  assert.equal(page.newFaqAnswer, '');
+  assert.deepEqual(refreshParts, [model.SessionRefresh.Session | model.SessionRefresh.Faqs]);
+});
+
+test('successful FAQ creation clears the draft if the session advanced generation before the response', t => {
+  const { page, responses, refreshParts, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.showCreateFaq = true;
+  page.newFaqQuestion = 'Eget spørgsmål';
+  page.newFaqAnswer = 'Eget svar';
+  responses.post = rx.of({ id: 'manual-faq', sessionId: 'session-id', generation: 3,
+    question: page.newFaqQuestion, answer: page.newFaqAnswer, sourceCount: 0 });
+  page.createFaq();
+  assert.equal(page.showCreateFaq, false);
+  assert.equal(page.newFaqQuestion, '');
+  assert.equal(page.newFaqAnswer, '');
+  assert.equal(page.faqs.length, 0);
+  assert.ok(page.notice);
+  assert.deepEqual(refreshParts, [model.SessionRefresh.Session | model.SessionRefresh.Faqs]);
+});
+
+test('a FAQ creation response from the previous session preserves the current session draft', t => {
+  const { page, responses, destroy } = fixture('teachers');
+  t.after(destroy);
+  const pending = new rx.Subject();
+  responses.post = pending;
+  page.newFaqQuestion = 'Previous session question';
+  page.newFaqAnswer = 'Previous session answer';
+  page.createFaq();
+  page.sessionId = 'next-session';
+  page.session = { id: page.sessionId, currentGeneration: 2 };
+  page.showCreateFaq = true;
+  page.newFaqQuestion = 'Current session question';
+  page.newFaqAnswer = 'Current session answer';
+  pending.next({ id: 'manual-faq', sessionId: 'session-id', generation: 2,
+    question: 'Previous session question', answer: 'Previous session answer', sourceCount: 0 });
+  pending.complete();
+  assert.equal(page.showCreateFaq, true);
+  assert.equal(page.newFaqQuestion, 'Current session question');
+  assert.equal(page.newFaqAnswer, 'Current session answer');
+  assert.equal(page.faqs.length, 0);
+  assert.equal(page.notice, '');
+});
+
+test('a failed FAQ creation preserves the question and answer for retry', t => {
+  const { page, responses, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.showCreateFaq = true;
+  page.newFaqQuestion = 'Eget spørgsmål';
+  page.newFaqAnswer = 'Eget svar';
+  responses.post = rx.throwError(() => new Error('Connection failed'));
+  page.createFaq();
+  assert.equal(page.showCreateFaq, true);
+  assert.equal(page.newFaqQuestion, 'Eget spørgsmål');
+  assert.equal(page.newFaqAnswer, 'Eget svar');
+  assert.equal(page.faqs.length, 0);
+  assert.equal(page.busy, false);
+  assert.ok(page.error);
+});
+
+test('FAQ creation requires a teacher, the current session, and both fields', t => {
+  const { page, requests, destroy } = fixture('teachers');
+  const student = fixture('students');
+  t.after(destroy);
+  t.after(student.destroy);
+  for (const candidate of [page, student.page]) {
+    candidate.newFaqQuestion = 'Spørgsmål';
+    candidate.newFaqAnswer = 'Svar';
+  }
+  student.page.createFaq();
+  page.newFaqQuestion = '  ';
+  page.createFaq();
+  page.newFaqQuestion = 'Spørgsmål';
+  page.newFaqAnswer = '  ';
+  page.createFaq();
+  page.newFaqAnswer = 'Svar';
+  page.busy = true;
+  page.createFaq();
+  page.busy = false;
+  page.session = { id: 'other-session', currentGeneration: 2 };
+  page.createFaq();
+  page.session = null;
+  page.createFaq();
+  assert.equal(requests.length, 0);
+  assert.equal(student.requests.length, 0);
+});
+
+test('FAQ answers cannot be sent for another session, generation, or assigned teacher', t => {
+  const { page, source, requests, destroy } = fixture('teachers');
+  t.after(destroy);
+  page.replyText = 'Svar';
+  for (const change of [{ sessionId: 'other-session' }, { generation: 1 }, { assignedTeacherId: 'other-teacher' }]) {
+    page.conversation = { ...source, isFaq: true, status: 'Pending', assignedTeacherId: page.identity.userId, ...change };
+    page.sendMessage();
+  }
+  assert.equal(requests.length, 0);
+});
 
 test('a student can find a ready FAQ response without an already selected conversation', t => {
   const { page, source, destroy } = fixture();

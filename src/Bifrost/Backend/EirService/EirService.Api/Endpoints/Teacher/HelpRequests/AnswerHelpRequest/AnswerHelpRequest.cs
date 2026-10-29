@@ -17,7 +17,7 @@ internal sealed class AnswerHelpRequest : Endpoint<AnswerHelpRequestRequest, Hel
 
     public override async Task HandleAsync(AnswerHelpRequestRequest request, CancellationToken cancellationToken)
     {
-        var result = await new AnswerHelpRequestCommand(Route<Guid>("id"), User.GetRequiredUserId(), request.Text).ExecuteAsync(cancellationToken);
+        var result = await new AnswerHelpRequestCommand(Route<Guid>("id"), User.GetRequiredUserId(), request.Text, request.Question).ExecuteAsync(cancellationToken);
         await Send.OkAsync(result, cancellationToken);
     }
 }

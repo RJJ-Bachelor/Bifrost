@@ -18,5 +18,7 @@ settings:
 docs: |-
   Lists pending and answered FAQ/generalization questions for the current session generation.
   Requires teacher login and membership of this session.
+  Includes answered FAQs created directly with KnowledgeBase/CreateFaq (sourceCount: 0).
   Use HelpRequests/TakeNextHelpRequest to reserve the shared queue item, then
-  HelpRequests/AnswerHelpRequest with the returned item id as helpRequestId.
+  HelpRequests/AnswerHelpRequest with the returned item id as teacherHelpRequestId.
+  Its optional question field edits a shared FAQ question together with the answer.

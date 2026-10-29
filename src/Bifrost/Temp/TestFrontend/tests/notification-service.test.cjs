@@ -20,6 +20,7 @@ function compile(filename, dependencies = {}, globals = {}) {
 
 function fixture({ failStarts = 0, startGate, closeDuringStart = false } = {}) {
   const connections = [];
+  const logs = [];
   const timers = new Map();
   let nextTimer = 0;
   class Connection {
@@ -68,9 +69,9 @@ function fixture({ failStarts = 0, startGate, closeDuringStart = false } = {}) {
   }, {
     setTimeout: callback => { const id = ++nextTimer; timers.set(id, callback); return id; },
     clearTimeout: id => timers.delete(id),
-    console: { warn() {} }
+    console: { warn() {}, info: (...entry) => logs.push(entry) }
   });
-  return { service: new NotificationService(), connections, timers,
+  return { service: new NotificationService(), connections, timers, logs, model,
     runRetry: async () => {
       const pending = [...timers];
       for (const [id, callback] of pending) { timers.delete(id); callback(); }
@@ -82,43 +83,51 @@ function fixture({ failStarts = 0, startGate, closeDuringStart = false } = {}) {
 const notification = (userId, id = 'notice-1') => ({ notificationId: id, userId, message: 'FAQ answer',
   eventType: 'FaqAnswered', generation: 3, status: 'AwaitingConfirmation', recipientRole: 'teachers' });
 
-test('typed notifications are queued once and routed by the actual connection identity', async () => {
-  const { service, connections } = fixture();
+test('typed notifications are logged once and routed by the actual connection identity', async () => {
+  const { service, connections, logs } = fixture();
+  const received = [];
+  const subscription = service.received.subscribe(message => received.push(message));
   await service.connect('students', 'student-a');
   const incoming = notification('student-a');
   connections[0].receive(incoming);
   connections[0].receive(incoming);
   connections[0].receive(notification('other-student'));
   connections[0].receive(notification('student-a', 'notice-2'));
-  assert.equal(service.count(), 2);
-  assert.equal(service.current().eventType, 'FaqAnswered');
-  assert.equal(service.current().generation, 3);
-  assert.equal(service.current().recipientRole, 'students');
-  service.dismiss();
-  assert.equal(service.current().notificationId, 'notice-2');
+  assert.equal(logs.length, 2);
+  assert.equal(received.length, 2);
+  assert.equal(logs[0][0], '[SignalR] Svar på dit fælles FAQ-spørgsmål');
+  assert.equal(logs[0][1], received[0]);
+  assert.equal(received[0].eventType, 'FaqAnswered');
+  assert.equal(received[0].generation, 3);
+  assert.equal(received[0].recipientRole, 'students');
+  assert.equal(logs[1][1].notificationId, 'notice-2');
+  subscription.unsubscribe();
   await service.stop();
 });
 
 test('changing the user within the same role closes old state and ignores delayed deliveries', async () => {
-  const { service, connections } = fixture();
+  const { service, connections, logs } = fixture();
   await service.connect('students', 'student-a');
   connections[0].receive(notification('student-a'));
   await service.connect('students', 'student-a');
   assert.equal(connections.length, 1);
   await service.connect('students', 'student-b');
   assert.equal(connections.length, 2);
-  assert.equal(service.count(), 0);
+  assert.equal(logs.length, 1);
   connections[0].receive(notification('student-a', 'late'));
-  assert.equal(service.count(), 0);
+  assert.equal(logs.length, 1);
   connections[1].receive(notification('student-b'));
-  assert.equal(service.current().userId, 'student-b');
+  assert.equal(logs.length, 2);
+  assert.equal(logs[1][1].userId, 'student-b');
   await service.stop('teachers');
-  assert.equal(service.count(), 1);
+  assert.equal(service.connected(), true);
   await service.stop();
+  connections[1].receive(notification('student-b', 'after-stop'));
+  assert.equal(logs.length, 2);
 });
 
 test('a slower previous role switch cannot replace the latest connection', async () => {
-  const { service, connections } = fixture();
+  const { service, connections, logs } = fixture();
   await service.connect('students', 'student-a');
   let finishStop;
   connections[0].stopGate = new Promise(resolve => finishStop = resolve);
@@ -129,7 +138,7 @@ test('a slower previous role switch cannot replace the latest connection', async
   assert.equal(connections.length, 2);
   assert.ok(connections[1].baseUrl.endsWith('/students/notifications'));
   connections[1].receive(notification('student-b'));
-  assert.equal(service.current().userId, 'student-b');
+  assert.equal(logs[0][1].userId, 'student-b');
   let reconnected = 0;
   const subscription = service.reconnected.subscribe(() => reconnected++);
   connections[0].reconnected();
@@ -140,25 +149,34 @@ test('a slower previous role switch cannot replace the latest connection', async
   await service.stop();
 });
 
-test('realtime-only changes refresh subscribers and show a modal once per notification', async () => {
-  const { service, connections } = fixture();
+test('realtime-only changes log their payload and still refresh the session once per notification', async () => {
+  const { service, connections, logs, model } = fixture();
   const received = [];
-  const subscription = service.received.subscribe(message => received.push(message));
+  const refreshes = [];
+  const context = { role: 'students', sessionId: '11111111-1111-1111-1111-111111111111', generation: 3 };
+  const subscription = service.received.subscribe(message => {
+    received.push(message);
+    refreshes.push(model.notificationRefreshParts(message, context));
+  });
   await service.connect('students', 'student-a');
-  const update = { ...notification('student-a'), eventType: 'SessionChanged', deliveryType: 'RealtimeOnly' };
+  const update = { ...notification('student-a'), sessionId: context.sessionId, eventType: 'SessionChanged',
+    deliveryType: 'RealtimeOnly', change: 'Archived', generation: 4 };
   connections[0].receive(update);
   connections[0].receive(update);
   assert.equal(received.length, 1);
   assert.equal(received[0].recipientRole, 'students');
-  assert.equal(service.count(), 1);
-  assert.equal(service.current().notificationId, update.notificationId);
-  assert.equal(service.title(), 'Sessionen er opdateret');
-  assert.equal(service.current().deliveryType, 'RealtimeOnly');
+  assert.equal(logs.length, 1);
+  assert.equal(logs[0][0], '[SignalR] Sessionen er opdateret');
+  assert.equal(logs[0][1], received[0]);
+  assert.equal(logs[0][1].notificationId, update.notificationId);
+  assert.equal(logs[0][1].deliveryType, 'RealtimeOnly');
+  assert.equal(logs[0][1].change, 'Archived');
+  assert.equal(refreshes[0], model.visibleSessionRefresh(context));
   connections[0].receive({ ...notification('student-a', 'answer'), deliveryType: 'RealtimeOrPush' });
   assert.equal(received.length, 2);
-  assert.equal(service.count(), 2);
-  service.dismiss();
-  assert.equal(service.current().notificationId, 'answer');
+  assert.equal(logs.length, 2);
+  assert.equal(logs[1][1].notificationId, 'answer');
+  assert.equal(logs[1][1].deliveryType, 'RealtimeOrPush');
   subscription.unsubscribe();
   await service.stop();
 });

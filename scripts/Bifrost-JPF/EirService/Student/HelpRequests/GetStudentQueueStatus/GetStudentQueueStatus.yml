@@ -16,12 +16,18 @@ settings:
   timeout: 30000
   followRedirects: false
 docs: |-
-  Returns waitingCount and estimatedWaitMinutes for the current session generation.
-  Join the session first; this request reuses the student cookie and sessionId.
-  The estimate is for a new request joining the back of the queue, even before submitting one.
-  It uses the existing queue estimate, including active help and positive completed treatment durations.
-  Treatment time is measured from reservation to answer for digital help, and from Start to Complete
-  for physical help. Without positive completed durations in the current generation,
-  estimatedWaitMinutes is null, even when the queue is empty.
-  waitingCount includes all Pending requests, including reservations and FAQ questions.
-  With positive completed durations and no waiting or active requests, both values are zero.
+  Returns waitingCount and estimatedWaitMinutes for the session's current generation.
+  Join the session first; this request uses the student's cookie and sessionId.
+  The estimated wait applies to a new request at the back of the queue, even before joining it:
+  ceil(average minutes per queue position × waitingCount).
+  Minutes per queue position = (last StartedAt - first StartedAt) / (number of starts - 1).
+  Digital help starts on reservation; physical help starts on Start. Starts from all teachers are combined.
+  Cancelled and CompletedByFaq requests are excluded from the pace calculation; FAQ tasks themselves count.
+  At least two starts with a positive interval between the first and last are required.
+  Otherwise, estimatedWaitMinutes is null, even for an empty queue. Simultaneous starts count.
+  waitingCount includes all Pending requests, including reserved requests and FAQ tasks.
+  Active requests are not added separately. A known pace and an empty queue yield 0 minutes.
+  Example: starts at minutes 2, 5 and 9 give 3.5 minutes per position; 4 waiting requests give 14 minutes.
+  This is a rough estimate, not a countdown; pauses between starts affect the pace.
+  averageWaitMinutes is available on the teacher's /statistics endpoint and measures the average time
+  from joining the queue to completion (ClosedAt - QueuedAt), including both waiting and help.
