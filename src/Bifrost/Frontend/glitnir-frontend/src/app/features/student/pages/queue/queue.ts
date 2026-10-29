@@ -156,10 +156,11 @@ export class Queue {
         ) {
           const wasOurs =
             notification.helpRequestId !== null &&
-            notification.helpRequestId === this.queue.value().ownRequestId;
+            this.requests.value().some((request) => request.id === notification.helpRequestId);
 
           if (
             notification.eventType === 'HelpRequestAnswered' &&
+            wasOurs &&
             notification.helpRequestId !== null
           ) {
             this.answeredRequestId.set(notification.helpRequestId);
@@ -224,7 +225,7 @@ export class Queue {
   protected readonly sendingMessage = signal(false);
   protected readonly sendError = signal<string | null>(null);
 
-  private readonly answeredRequestId = signal<string | null>(null);
+  protected readonly answeredRequestId = signal<string | null>(null);
 
   protected respondToFaq(accept: boolean): void {
     const request = this.activeRequest();
