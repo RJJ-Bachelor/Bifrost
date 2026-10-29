@@ -13,6 +13,7 @@ export class Chat {
   readonly sending = input.required<boolean>();
   readonly error = input<string | null>(null);
   readonly closeLabel = input<string>('Luk');
+  readonly closeDisabled = input(false);
   readonly sendLabel = input<string>('Send');
   readonly composerHint = input<string | null>(null);
   readonly placeholder = input<string>('Skriv en besked...');

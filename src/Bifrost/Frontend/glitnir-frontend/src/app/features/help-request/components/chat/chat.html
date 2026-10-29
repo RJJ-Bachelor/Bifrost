@@ -33,7 +33,12 @@
   }
 
   <div class="form-actions">
-    <button type="button" class="btn btn--secondary" (click)="onClose()">
+    <button
+      type="button"
+      class="btn btn--secondary"
+      [disabled]="closeDisabled()"
+      (click)="onClose()"
+    >
       {{ closeLabel() }}
     </button>
     @if (canSend()) {
