@@ -19,8 +19,24 @@ const { fakeConnections, fakeUrls, control } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@microsoft/signalr', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@microsoft/signalr')>();
+vi.mock('@microsoft/signalr', () => {
+  const HubConnectionState = {
+    Disconnected: 'Disconnected',
+    Connecting: 'Connecting',
+    Connected: 'Connected',
+    Disconnecting: 'Disconnecting',
+    Reconnecting: 'Reconnecting',
+  } as const;
+
+  const LogLevel = {
+    Trace: 0,
+    Debug: 1,
+    Information: 2,
+    Warning: 3,
+    Error: 4,
+    Critical: 5,
+    None: 6,
+  } as const;
 
   class FakeConnection implements FakeHubConnection {
     handlers = new Map<string, (...args: unknown[]) => void>();
@@ -71,7 +87,7 @@ vi.mock('@microsoft/signalr', async (importOriginal) => {
     }
   }
 
-  return { ...actual, HubConnectionBuilder: FakeBuilder };
+  return { HubConnectionBuilder: FakeBuilder, HubConnectionState, LogLevel };
 });
 
 function makeNotification(overrides: Partial<NotificationMessage> = {}): NotificationMessage {
