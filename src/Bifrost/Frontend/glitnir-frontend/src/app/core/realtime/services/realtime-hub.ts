@@ -1,4 +1,4 @@
-import { Service, inject, signal } from '@angular/core';
+import { Service, signal } from '@angular/core';
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -6,13 +6,11 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
-import { AuthStore } from '../../auth/services/auth-store';
 import { UserRole } from '../../auth/auth.model';
 import { NotificationMessage } from '../notification.model';
 
 @Service()
 export class RealtimeHub {
-  private readonly authStore = inject(AuthStore);
   private connection: HubConnection | null = null;
   private connectionRole: UserRole | null = null;
 
@@ -44,25 +42,44 @@ export class RealtimeHub {
 
     connection.onreconnecting(() => this._status.set(HubConnectionState.Reconnecting));
     connection.onreconnected(() => this._status.set(HubConnectionState.Connected));
-    connection.onclose(() => this._status.set(HubConnectionState.Disconnected));
+    connection.onclose(() => {
+      // Ignore stale close events from a superseded connection.
+      if (this.connection === connection) {
+        this.connection = null;
+        this.connectionRole = null;
+        this._status.set(HubConnectionState.Disconnected);
+      }
+    });
 
     this.connection = connection;
     this._status.set(HubConnectionState.Connecting);
 
     try {
       await connection.start();
-      this._status.set(HubConnectionState.Connected);
+      if (this.connection === connection) {
+        this._status.set(HubConnectionState.Connected);
+      }
     } catch {
-      this._status.set(HubConnectionState.Disconnected);
+      if (this.connection === connection) {
+        this.connection = null;
+        this.connectionRole = null;
+        this._status.set(HubConnectionState.Disconnected);
+      }
     }
   }
 
   async disconnect(): Promise<void> {
-    if (this.connection) {
-      await this.connection.stop();
-      this.connection = null;
-      this.connectionRole = null;
-      this._status.set(HubConnectionState.Disconnected);
+    const connection = this.connection;
+    if (connection === null) return;
+
+    this.connection = null;
+    this.connectionRole = null;
+    this._status.set(HubConnectionState.Disconnected);
+
+    try {
+      await connection.stop();
+    } catch {
+      // stop() may throw; state is already reset above.
     }
   }
 }
