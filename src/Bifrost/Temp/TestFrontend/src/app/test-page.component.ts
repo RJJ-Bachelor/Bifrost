@@ -58,6 +58,10 @@ export class TestPageComponent {
   helpType: HelpType = 'Physical';
   message = '';
   replyText = '';
+  faqQuestionDraft: string | null = null;
+  showCreateFaq = false;
+  newFaqQuestion = '';
+  newFaqAnswer = '';
   selectedRequestId = '';
   loading = true;
   busy = false;
@@ -104,7 +108,10 @@ export class TestPageComponent {
   get hasOpenRequest() {
     return this.requests.some(request => ['Pending', 'Active', 'AwaitingFaq', 'AwaitingConfirmation'].includes(request.status));
   }
-  get canAct() { return !!this.conversation && this.conversation.generation === this.session?.currentGeneration; }
+  get canAct() {
+    return !!this.conversation && this.conversation.sessionId === this.sessionId
+      && this.conversation.generation === this.session?.currentGeneration;
+  }
   get isAssignedTeacher() { return this.isTeacher && !!this.identity && this.conversation?.assignedTeacherId === this.identity.userId; }
   get canRespondToFaq() {
     const request = this.conversation;
@@ -123,6 +130,10 @@ export class TestPageComponent {
   }
   get faqAnswer() {
     return this.conversation?.messages.filter(message => message.messageType === 'FaqAnswer').at(-1)?.text;
+  }
+  get questionForFaqAnswer() {
+    return this.faqQuestionDraft ?? this.conversation?.messages
+      .filter(message => message.messageType === 'FaqQuestion').at(-1)?.text ?? '';
   }
   get canStart() {
     return this.canAct && this.isAssignedTeacher && this.conversation?.helpType === 'Physical' && this.conversation.status === 'Pending';
@@ -183,6 +194,8 @@ export class TestPageComponent {
       this.archiveLoading = false;
       this.archiveError = '';
       this.replyText = '';
+      this.faqQuestionDraft = null;
+      this.cancelCreateFaq();
       this.selectedRequestId = requestedId ?? this.readSelectedRequest();
       this.loading = true;
       this.loadIdentity();
@@ -294,6 +307,8 @@ export class TestPageComponent {
           this.generalizationContext = context;
           this.pendingGeneralizationId = '';
           this.generalizationAttempt = undefined;
+          this.faqQuestionDraft = null;
+          this.cancelCreateFaq();
         } else if (this.pendingGeneralizationId && (this.teacherQueue?.requests.some(request => request.id === this.pendingGeneralizationId)
           || this.faqs.some(faq => faq.id === this.pendingGeneralizationId))) {
           this.pendingGeneralizationId = '';
@@ -342,6 +357,26 @@ export class TestPageComponent {
     }, SessionRefresh.Queue);
   }
 
+  cancelCreateFaq() {
+    this.showCreateFaq = false;
+    this.newFaqQuestion = '';
+    this.newFaqAnswer = '';
+  }
+
+  createFaq() {
+    if (!this.isTeacher || !this.identity || !this.session || this.session.id !== this.sessionId || this.busy
+      || !this.newFaqQuestion.trim() || !this.newFaqAnswer.trim()) return;
+    const sessionId = this.sessionId;
+    this.execute(this.api.post<Faq>('teachers/sessions/' + sessionId + '/faqs',
+      { question: this.newFaqQuestion.trim(), answer: this.newFaqAnswer.trim() }), faq => {
+      if (this.sessionId !== sessionId || faq.sessionId !== sessionId) return;
+      if (faq.generation === this.session?.currentGeneration)
+        this.faqs = [...this.faqs.filter(item => item.id !== faq.id), faq];
+      this.cancelCreateFaq();
+      this.notice = 'FAQ-spørgsmålet og svaret er oprettet.';
+    }, SessionRefresh.Session | SessionRefresh.Faqs);
+  }
+
   takeNext() {
     if (!this.canTakeNext) return;
     this.execute(this.api.post<HelpRequest | null>('teachers/sessions/' + this.sessionId + '/queue/take-next', null), request => {
@@ -350,6 +385,7 @@ export class TestPageComponent {
         this.applyRequest(request);
         if (this.teacherQueueStatus) this.teacherQueueStatus = { ...this.teacherQueueStatus, myReservedRequestId: request.id };
         this.replyText = '';
+        this.faqQuestionDraft = null;
         this.notice = 'Du har taget ' + request.displayNumber + '.';
       }
       else this.notice = 'Der er ingen ledige hjælpeanmodninger i køen.';
@@ -357,9 +393,11 @@ export class TestPageComponent {
   }
 
   openRequest(id: string) {
+    if (this.selectedRequestId === id && this.conversation?.id === id) return;
     this.selectRequest(id);
     this.conversation = null;
     this.replyText = '';
+    this.faqQuestionDraft = null;
     const queued = [...(this.teacherQueue?.requests ?? []), ...this.activeRequests].find(request => request.id === id);
     if (this.isTeacher && queued && !this.refreshing) this.conversation = queued;
     else this.refresh(SessionRefresh.Conversation);
@@ -375,13 +413,19 @@ export class TestPageComponent {
   }
 
   sendMessage() {
-    if (!this.canSendMessage || !this.replyText.trim()) return;
-    this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.selectedRequestId + '/messages',
-      { text: this.replyText.trim() }), request => {
+    if (!this.canSendMessage || !this.replyText.trim() || this.busy) return;
+    const isFaqAnswer = this.isTeacher && this.conversation!.isFaq;
+    if (isFaqAnswer && !this.questionForFaqAnswer.trim()) return;
+    const body = isFaqAnswer ? { text: this.replyText.trim(), question: this.questionForFaqAnswer.trim() }
+      : { text: this.replyText.trim() };
+    this.execute(this.api.post<HelpRequest>(this.role + '/requests/' + this.conversation!.id + '/messages',
+      body), request => {
       this.applyRequest(request);
       this.replyText = '';
+      this.faqQuestionDraft = null;
       this.notice = this.isTeacher ? 'Dit svar er sendt, og hjælpen er afsluttet.' : 'Din besked er sendt. Anmodningen er tilbage i køen.';
-    }, SessionRefresh.Queue | (this.isTeacher ? SessionRefresh.Statistics : SessionRefresh.None));
+    }, SessionRefresh.Queue | (this.isTeacher ? SessionRefresh.Statistics : SessionRefresh.None)
+      | (isFaqAnswer ? SessionRefresh.Faqs : SessionRefresh.None));
   }
 
   respondToFaq(accept: boolean) {

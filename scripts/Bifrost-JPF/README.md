@@ -96,7 +96,8 @@ EirService/
     │   ├── AnswerHelpRequest/
     │   └── ChangeHelpRequestStatus/
     ├── KnowledgeBase/
-    │   └── GetTeacherFaqs/
+    │   ├── GetTeacherFaqs/
+    │   └── CreateFaq/
     └── Insights/
         └── GetSessionStatistics/
 ```
@@ -163,9 +164,10 @@ For en eksisterende frontend-session kan GetSession kaldes med dens konkrete ID 
 | GetSessionStatistics | `GET /api/teachers/sessions/{{sessionId}}/statistics` |
 | TakeNextHelpRequest | `POST /api/teachers/sessions/{{sessionId}}/queue/take-next` |
 | GetHelpRequest | `GET /api/teachers/requests/{{teacherHelpRequestId}}` |
-| AnswerHelpRequest | `POST /api/teachers/requests/{{teacherHelpRequestId}}/messages` med `text` |
+| AnswerHelpRequest / AnswerFaq | `POST /api/teachers/requests/{{teacherHelpRequestId}}/messages` with `text` and optional `question` for a FAQ |
 | Start / Complete / Cancel | `PATCH /api/teachers/requests/{{teacherHelpRequestId}}/status` med `action` |
 | GetTeacherFaqs | `GET /api/teachers/sessions/{{sessionId}}/faqs` |
+| CreateFaq | `POST /api/teachers/sessions/{{sessionId}}/faqs` with `question` and `answer` |
 
 ## Student
 
@@ -215,13 +217,25 @@ Brug **ArchiveSession**, når generationen skal gemmes og kunne findes i arkivli
 
 ## FAQ og generalisering
 
-**Teacher → KnowledgeBase → GetTeacherFaqs** viser både ubesvarede og besvarede fællesspørgsmål.
-**Student → KnowledgeBase → GetStudentFaqs** viser kun besvarede spørgsmål i sessionens aktuelle generation.
-Begge bruger `sessionId` fra Local og den relevante rolle-cookie.
+**Teacher → KnowledgeBase → GetTeacherFaqs** lists pending and answered shared questions as well as teachers' own FAQs.
+**Student → KnowledgeBase → GetStudentFaqs** lists only answered questions in the session's current generation.
+Both use `sessionId` from Local and the relevant role cookie.
 
-Underviseren reserverer en FAQ gennem **Teacher → HelpRequests → TakeNextHelpRequest**
-og besvarer den gennem **AnswerHelpRequest**. `teacherHelpRequestId` sættes automatisk til
-den returnerede FAQ's ID, som også er `generalizationId`. Der bruges de samme endpoints som til almindelig digital hjælp.
+**Teacher → KnowledgeBase → CreateFaq** creates a teacher's own question and answer in one call.
+Select the session with **GetSession**, then edit `question` and `answer` directly in the JSON body.
+Both fields are required. The server selects the session's current generation; do not send a
+generation or student request IDs. `201 Created` returns the answered FAQ with `sourceCount: 0`.
+It appears immediately in both FAQ lists and requires neither a queue reservation nor student acceptance.
+Archiving includes it in that generation's archive; after ArchiveSession or ClearSession, the
+FAQ lists show only questions from the new generation.
+
+The teacher reserves a FAQ through **Teacher → HelpRequests → TakeNextHelpRequest**
+and answers it through **AnswerHelpRequest**. **AnswerFaq (edit question)** sends
+`text` and `question` together, allowing the question to be revised when answering. Omit `question`
+to preserve the existing wording. This field is only accepted for a FAQ; ordinary digital
+help still uses only `text`. `teacherHelpRequestId` is automatically set to the returned
+FAQ's ID, which is also its `generalizationId`. The reservation must belong to the current
+teacher and the session's current generation.
 
 Eleven svarer gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**.
 Her er `studentHelpRequestId` elevens **oprindelige anmodning**, og elevcookien skal tilhøre den anmodning.
@@ -230,9 +244,9 @@ Accept afslutter anmodningen; afvisning sender den tilbage i køen med samme kø
 så en fysisk anmodning fortsat venter på fysisk hjælp. Svaret kræver status
 `AwaitingConfirmation`, og hver elev vælger én af mulighederne.
 
-Til hele seed-forløbet bruges **Development → FAQ demo**: kaldene vælger ID'er og elevcookies automatisk.
-FAQ-listerne ligger under de almindelige EirService-mapper. Det genbrugelige FAQ-svar leveres
-asynkront til KnowledgeBase, så studentens liste kan være tom lige efter besvarelsen.
+Use **Development → FAQ demo** for the complete seeded workflow: its requests select IDs and student cookies automatically.
+FAQ lists are under the ordinary EirService folders. The reusable question and answer
+from the queue reach KnowledgeBase asynchronously, so the student's list may be empty immediately after answering.
 
 ## Kø og samtaler
 

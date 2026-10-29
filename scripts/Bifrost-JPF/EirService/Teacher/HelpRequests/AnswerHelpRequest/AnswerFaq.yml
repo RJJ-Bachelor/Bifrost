@@ -1,0 +1,48 @@
+info:
+  name: AnswerFaq (edit question)
+  type: http
+  seq: 2
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/teachers/requests/{{teacherHelpRequestId}}/messages'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "text": "Sørg for, at løkkens betingelse kan blive falsk, og opdater variablen inde i løkken.",
+        "question": "Hvordan sikrer jeg, at en løkke stopper?"
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          const body = res.getBody();
+          const request = typeof body === "string" ? JSON.parse(body) : body;
+          const payload = req.getBody();
+          if (!request.isFaq || !request.messages?.some(message =>
+              message.messageType === "FaqQuestion" && message.text === payload.question.trim()) ||
+              !request.messages?.some(message =>
+              message.messageType === "FaqAnswer" && message.text === payload.text.trim())) {
+            throw new Error("Expected the shared FAQ to contain the edited question and its answer.");
+          }
+        }
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Reserves no new item: run TakeNextHelpRequest first and check isFaq: true.
+  The same teacher must own the reservation in the session's current generation.
+  Sends the edited FAQ question and answer together through the ordinary message endpoint.
+  question is optional; omit it to keep the original question. Only shared FAQs accept question.
+  Linked students receive the edited question and answer and can accept or reject the FAQ.
+  KnowledgeBase receives both values asynchronously through the existing answer event.

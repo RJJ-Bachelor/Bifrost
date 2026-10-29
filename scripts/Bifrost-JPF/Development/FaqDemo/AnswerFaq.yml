@@ -13,7 +13,8 @@ http:
     type: json
     data: |-
       {
-        "text": "Sørg for, at løkkens betingelse kan blive falsk, og opdater variablen inde i løkken."
+        "text": "Sørg for, at løkkens betingelse kan blive falsk, og opdater variablen inde i løkken.",
+        "question": "Hvordan sikrer jeg, at en løkke stopper?"
       }
 runtime:
   scripts:
@@ -35,6 +36,7 @@ settings:
   followRedirects: false
 docs: |-
   Answers the seeded shared FAQ through the ordinary teacher message endpoint.
-  Run Take next FAQ first with the same teacher login. Edit text directly in the body.
-  Both linked student requests move to AwaitingConfirmation and receive this answer.
-  The reusable answer appears in KnowledgeBase after asynchronous event delivery.
+  Run Take next FAQ first with the same teacher login. Edit text and question directly in the body.
+  question is optional; omit it to preserve the original FAQ question.
+  Both linked student requests move to AwaitingConfirmation and receive the edited question and answer.
+  The reusable question and answer appear in KnowledgeBase after asynchronous event delivery.

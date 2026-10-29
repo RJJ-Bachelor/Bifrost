@@ -14,13 +14,15 @@ public sealed class AnswerHelpRequestCommandHandler(HelpRequestAccess access, IH
     {
         var request = await access.ForRequestAsync(command.Id, command.TeacherId, AuthorRole.Teacher, true, cancellationToken);
         var now = timeProvider.GetUtcNow();
-        request.Answer(command.TeacherId, new MessageText(command.Text), now);
+        var answer = new MessageText(command.Text);
+        var question = command.Question is null ? null : new MessageText(command.Question);
+        request.Answer(command.TeacherId, answer, now, question);
         if (request.IsFaq)
         {
             var linked = await repository.GetLinkedToFaqAsync(request.Id, cancellationToken);
             foreach (var source in linked.Where(source => source.Status == HelpRequestStatus.AwaitingFaq &&
                 source.SessionId == request.SessionId && source.Generation == request.Generation))
-                source.SuggestFaq(request.Id, command.TeacherId, new MessageText(command.Text), now);
+                source.SuggestFaq(request.Id, command.TeacherId, answer, now, question);
         }
         await unitOfWork.SaveChangesAsync(cancellationToken);
         return await request.ToResultAsync(cancellationToken);

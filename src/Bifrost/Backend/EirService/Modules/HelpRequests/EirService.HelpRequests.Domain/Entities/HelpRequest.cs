@@ -81,10 +81,11 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         Changed("FaqLinked", now);
     }
 
-    public void SuggestFaq(Guid faqId, string teacherId, MessageText answer, DateTimeOffset now)
+    public void SuggestFaq(Guid faqId, string teacherId, MessageText answer, DateTimeOffset now, MessageText? question = null)
     {
         Require(!IsFaq && Status == HelpRequestStatus.AwaitingFaq && FaqAnswerId == faqId,
             "The request is not awaiting this FAQ.");
+        if (question is not null) ReviseFaqQuestion(question);
         AddMessage(teacherId, AuthorRole.Teacher, HelpRequestMessageType.FaqAnswer, answer, now);
         Status = HelpRequestStatus.AwaitingConfirmation;
         Changed("FaqSuggested", now);
@@ -116,10 +117,15 @@ public sealed class HelpRequest : AggregateRoot<Guid>
         Changed("Completed", now);
     }
 
-    public void Answer(string teacherId, MessageText text, DateTimeOffset now)
+    public void Answer(string teacherId, MessageText text, DateTimeOffset now, MessageText? question = null)
     {
         RequireTeacher(teacherId);
         Require(HelpType == HelpType.Digital && Status == HelpRequestStatus.Pending, "Only waiting digital help can receive an answer.");
+        if (question is not null)
+        {
+            Require(IsFaq, "Only FAQ questions can be edited when answering.");
+            ReviseFaqQuestion(question);
+        }
         AddMessage(teacherId, AuthorRole.Teacher,
             IsFaq ? HelpRequestMessageType.FaqAnswer : HelpRequestMessageType.TeacherAnswer, text, now);
         StartedAt ??= now.ToUniversalTime();
@@ -187,6 +193,14 @@ public sealed class HelpRequest : AggregateRoot<Guid>
 
     private void RequireTeacher(string teacherId) => Require(
         !string.IsNullOrWhiteSpace(teacherId) && AssignedTeacherId == teacherId, "Take the request before helping the student.");
+
+    private void ReviseFaqQuestion(MessageText text)
+    {
+        var question = messages.Where(message => message.MessageType == HelpRequestMessageType.FaqQuestion && !message.IsRejected)
+            .MaxBy(message => message.SequenceNumber);
+        Require(question is not null, "The FAQ question is missing from the conversation.");
+        question!.ReviseFaqQuestion(text);
+    }
 
     private void AddMessage(string authorId, AuthorRole role, HelpRequestMessageType messageType, MessageText text, DateTimeOffset now) =>
         messages.Add(new HelpRequestMessage(Id, authorId, role, messageType, text, now, messages.Count + 1));

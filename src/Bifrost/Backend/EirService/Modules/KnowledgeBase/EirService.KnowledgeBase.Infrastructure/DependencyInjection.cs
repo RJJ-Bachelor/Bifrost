@@ -5,6 +5,7 @@ using EirService.KnowledgeBase.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Shared.Application.Persistence;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Infrastructure.Persistence.UnitOfWork;
@@ -21,6 +22,7 @@ public static class DependencyInjection
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "knowledgebase")));
         services.AddScoped<IFaqRepository, FaqRepository>();
         services.AddUnitOfWork<IFaqRepository, EirKnowledgeBaseDbContext>();
+        services.AddScoped<IUnitOfWork<IFaqRepository>, KnowledgeBaseUnitOfWork>();
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirKnowledgeBaseDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddHostedService<RegisterGeneralizationMessageSubscriber>();

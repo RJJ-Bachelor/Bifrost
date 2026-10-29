@@ -12,6 +12,11 @@ http:
       {
         "text": "Her er svaret på dit spørgsmål."
       }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '200'
 settings:
   encodeUrl: true
   timeout: 30000
@@ -21,4 +26,7 @@ docs: |-
   Run TakeNextHelpRequest first; it automatically sets teacherHelpRequestId to the reserved id.
   For a shared FAQ, this id is the generalizationId. Each linked student receives the answer
   and can accept or reject it through Student/HelpRequests/RespondToFaq.
+  For a shared FAQ, optionally add question to edit its wording together with the answer;
+  see AnswerFaq (edit question). Omitting question preserves the existing wording.
+  Do not send question for ordinary digital help requests.
   The current teacher must own the reservation. Development/Answer FAQ handles the seeded demo.

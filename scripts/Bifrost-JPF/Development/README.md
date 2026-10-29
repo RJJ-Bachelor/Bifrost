@@ -23,12 +23,17 @@ Hvis du allerede har data fra frontenden, kan du bruge
 4. Åbn den nye session i test-frontenden med samme underviser. Svaret indeholder session-id, studenterkode og underviserkode. En anden underviser kan joine med underviserkoden.
 5. Send **MimirService → Publish generalization (dummy data)**, når du vil sende et fælles spørgsmål om de to første HelpRequests via Mimir. JSON-bodyen kan redigeres direkte, og seed-kaldet har udfyldt ID'erne. Forvent `202 Accepted`. Beskeden leveres asynkront gennem den normale outbox og RabbitMQ.
 6. Brug **Get teacher queue**, indtil FAQ'en står først med `isFaq: true` og uden en tildelt underviser. Genlevering med samme generaliserings-id tilføjer ikke spørgsmålet igen.
-7. Kør **Take next FAQ** én gang og derefter **Answer FAQ** med samme teacher-login. Svaret kan redigeres direkte i JSON-bodyen. Answer-kaldet kontrollerer, at det reserverede ID er demoens FAQ.
-8. **Get first student request** og **Get second student request** viser nu det generaliserede spørgsmål, underviserens svar og status `AwaitingConfirmation`.
+7. Run **Take next FAQ** once, then **Answer FAQ** with the same teacher login. Edit the answer in `text` and the FAQ question in the optional `question` field directly in the JSON body. Omit `question` to preserve the original question. The answer request verifies that the reserved ID belongs to the demo's FAQ.
+8. **Get first student request** and **Get second student request** now show the revised FAQ question, if supplied, the teacher's answer, and status `AwaitingConfirmation`.
 9. Kør **Accept first student FAQ** og **Reject second student FAQ**. Kaldene vælger hver sin elevcookie og oprindelige anmodning. Første elev afsluttes med `CompletedByFaq`, mens den anden vender tilbage til `Pending` i køen. Et nyt svar på samme anmodning giver `409`.
 10. **EirService → Teacher → KnowledgeBase → GetTeacherFaqs** viser alle sessionens fællesspørgsmål. **EirService → Student → KnowledgeBase → GetStudentFaqs** viser de besvarede spørgsmål for den aktuelle elevcookie. Begge bruger `sessionId` fra Local; svaret kan først ses i KnowledgeBase, når svar-eventet er leveret.
 
 De almindelige accept-/afvisningskald findes under **EirService → Student → HelpRequests → RespondToFaq**.
+
+Create teachers' own questions with answers through **EirService → Teacher → KnowledgeBase → CreateFaq**
+without seeding, Mimir, or a queue reservation. The server uses the selected session's
+current generation, and the answered FAQ can be read immediately.
+
 Efter RejectFaq udelades det afviste FAQ-spørgsmål og FAQ-svar fra både svaret,
 GetQueue og elevens/underviserens samtale. De oprindelige beskeder og køpladsen bevares.
 Den fælles FAQ i KnowledgeBase kan stadig læses; accepterede FAQ-svar bevares i samtalen.
@@ -118,10 +123,11 @@ Dette forløb kræver ikke Seed FAQ demo og bruger dine eksisterende anmodninger
    asynkront. Svarets `generalizationId`, `sessionId` og generation gemmes automatisk
    i runtime og det valgte miljø. Næste køkald bruger dermed også en session indsat
    fra frontenden, selv om Bruno tidligere havde en anden session valgt.
-5. Brug **EirService → Teacher → HelpRequests → GetQueue** og derefter
-   **TakeNextHelpRequest**, når FAQ'en er den næste ureserverede anmodning. Kontrollér
-   `isFaq: true`, før du besvarer den med **AnswerHelpRequest**. Kaldet bruger automatisk
-   ID'et på den faktiske reservation som `teacherHelpRequestId`.
+5. Use **EirService → Teacher → HelpRequests → GetQueue**, then
+   **TakeNextHelpRequest** when the FAQ is the next unreserved request. Check
+   `isFaq: true` before answering with **AnswerHelpRequest** or **AnswerFaq (edit question)**.
+   The latter sends the revised question in `question` together with the answer in `text`.
+   Both requests automatically use the actual reservation's ID as `teacherHelpRequestId`.
 6. Åbn de oprindelige fysiske eller digitale elevanmodninger i test-frontenden eller Bruno. Underviserens FAQ-svar
    giver `AwaitingConfirmation`. Eleven kan nu acceptere eller afvise i frontenden eller
    gennem **Student → HelpRequests → RespondToFaq → AcceptFaq / RejectFaq**. Brug den

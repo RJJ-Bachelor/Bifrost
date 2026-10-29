@@ -4,7 +4,9 @@ using EirService.KnowledgeBase.Application.Features.Internal.GetArchivedFaqCount
 using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
 using EirService.KnowledgeBase.Application.Features.Internal.GetArchivedFaqs;
 using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
+using EirService.KnowledgeBase.Application.Features.Teacher.CreateFaq;
 using FastEndpoints;
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace EirService.KnowledgeBase.Application;
@@ -15,6 +17,7 @@ public static class DependencyInjection
     {
         services.AddScoped<RegisterGeneralizationMessageHandler>();
         services.AddScoped<FaqAnsweredMessageHandler>();
+        services.AddTransient<IValidator<CreateFaqCommand>, CreateFaqCommandValidator>();
         services.AddScoped<ICommandHandler<GetArchivedFaqsQuery, IReadOnlyList<ArchivedFaq>>, GetArchivedFaqsQueryHandler>();
         services.AddScoped<ICommandHandler<GetArchivedFaqCountsQuery, IReadOnlyDictionary<int, int>>, GetArchivedFaqCountsQueryHandler>();
         return services;

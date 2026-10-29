@@ -69,14 +69,21 @@
           <app-student-help-requests *ngIf="!isTeacher" [view]="this" />
           <app-teacher-help-requests *ngIf="isTeacher" [view]="this" />
           <section class="card faq-section" aria-labelledby="faq-title">
-            <div class="section-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div></div>
+            <div class="section-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div><button *ngIf="isTeacher && !showCreateFaq" type="button" class="secondary" (click)="showCreateFaq = true" [disabled]="busy">Tilføj FAQ</button></div>
+            <form *ngIf="isTeacher && showCreateFaq" #faqForm="ngForm" (ngSubmit)="createFaq()" class="reply-form">
+              <label for="new-faq-question">FAQ-spørgsmål</label>
+              <textarea id="new-faq-question" name="newFaqQuestion" [(ngModel)]="newFaqQuestion" rows="3" maxlength="4000" required [disabled]="busy"></textarea>
+              <label for="new-faq-answer">Svar</label>
+              <textarea id="new-faq-answer" name="newFaqAnswer" [(ngModel)]="newFaqAnswer" rows="4" maxlength="4000" required [disabled]="busy"></textarea>
+              <div class="actions"><button type="submit" [disabled]="busy || faqForm.invalid || !newFaqQuestion.trim() || !newFaqAnswer.trim()">Gem spørgsmål og svar</button><button type="button" class="secondary" (click)="cancelCreateFaq()" [disabled]="busy">Annuller</button></div>
+            </form>
             <p *ngIf="!isTeacher && faqs.length" class="hint">Du kan læse alle fælles FAQ-svar her. Er din anmodning allerede besvaret, kræver det ingen handling. Ubesvarede fysiske og digitale anmodninger, som indgår i FAQ'en, får svaret til accept eller afvisning i deres egen samtale.</p>
-            <p *ngIf="!faqs.length" class="hint">{{ isTeacher ? 'Generaliserede spørgsmål vises her og forrest i den fælles kø.' : 'Her vises fælles FAQ-svar fra underviserne.' }}</p>
+            <p *ngIf="!faqs.length" class="hint">{{ isTeacher ? 'Tilføj dit eget spørgsmål med svar. Generaliserede spørgsmål vises også her og forrest i den fælles kø.' : 'Her vises fælles FAQ-svar fra underviserne.' }}</p>
             <details *ngFor="let faq of faqs" class="faq-item">
               <summary>{{ faq.question }} <span class="status">{{ faq.answer ? 'Besvaret' : 'Afventer svar' }}</span></summary>
-              <p class="hint">Fælles spørgsmål fra {{ faq.sourceCount }} hjælpeanmodninger.</p>
+              <p class="hint">{{ faq.sourceCount > 0 ? 'Fælles spørgsmål fra ' + faq.sourceCount + ' hjælpeanmodninger.' : 'Oprettet af en underviser.' }}</p>
               <p *ngIf="faq.answer" class="faq-answer">{{ faq.answer }}</p>
-              <button *ngIf="isTeacher" class="text-button" (click)="openRequest(faq.id)" [disabled]="busy">{{ faq.answer ? 'Se FAQ-samtale' : 'Åbn FAQ-opgave' }}</button>
+              <button *ngIf="isTeacher && faq.sourceCount > 0" class="text-button" (click)="openRequest(faq.id)" [disabled]="busy">{{ faq.answer ? 'Se FAQ-samtale' : 'Åbn FAQ-opgave' }}</button>
             </details>
           </section>
         </div>
@@ -122,10 +129,14 @@
               <button *ngIf="request.status === 'Active'" (click)="changeStatus('Complete')" [disabled]="busy || !canComplete">Afslut fysisk hjælp</button>
             </div>
             <form *ngIf="(!isTeacher || request.helpType === 'Digital') && canSendMessage" #replyForm="ngForm" (ngSubmit)="sendMessage()" class="reply-form">
+              <ng-container *ngIf="isTeacher && request.isFaq">
+                <label for="faq-question">FAQ-spørgsmål</label>
+                <textarea id="faq-question" name="faqQuestion" [ngModel]="questionForFaqAnswer" (ngModelChange)="faqQuestionDraft = $event" rows="3" maxlength="4000" required [disabled]="busy"></textarea>
+              </ng-container>
               <label for="reply-text">{{ isTeacher ? 'Dit svar' : 'Ny besked til underviseren' }}</label>
               <p class="hint">{{ isTeacher ? (request.isFaq ? 'Svaret gemmes som FAQ og sendes til de tilknyttede studerende.' : 'Når du sender dit svar, afsluttes anmodningen.') : 'En ny besked placerer anmodningen bagest i køen igen.' }}</p>
               <textarea id="reply-text" name="replyText" [(ngModel)]="replyText" rows="4" maxlength="4000" required [disabled]="busy" placeholder="Skriv din besked …"></textarea>
-              <button type="submit" [disabled]="busy || replyForm.invalid || !replyText.trim()">{{ isTeacher ? 'Send svar og afslut' : 'Send besked' }}</button>
+              <button type="submit" [disabled]="busy || replyForm.invalid || !replyText.trim() || (isTeacher && request.isFaq && !questionForFaqAnswer.trim())">{{ isTeacher ? 'Send svar og afslut' : 'Send besked' }}</button>
             </form>
             <p *ngIf="request.status === 'Cancelled'" class="hint">Anmodningen er annulleret. Opret en ny, hvis du stadig har brug for hjælp.</p>
             <div class="conversation-footer" *ngIf="canCancel"><button class="text-button" [class.danger]="!isTeacher" (click)="changeStatus('Cancel')" [disabled]="busy">{{ isTeacher ? 'Send forrest i køen' : 'Annuller anmodning' }}</button></div>
@@ -152,7 +163,7 @@
           <p *ngIf="!selected.faqs.length" class="hint">Der er ingen FAQ-spørgsmål i denne generation.</p>
           <details *ngFor="let faq of selected.faqs" class="faq-item">
             <summary>{{ faq.question }} <span class="status">{{ faq.answer ? 'Besvaret' : 'Ubesvaret ved arkivering' }}</span></summary>
-            <p class="hint">Fælles spørgsmål fra {{ faq.sourceCount }} hjælpeanmodninger.</p>
+            <p class="hint">{{ faq.sourceCount > 0 ? 'Fælles spørgsmål fra ' + faq.sourceCount + ' hjælpeanmodninger.' : 'Oprettet af en underviser.' }}</p>
             <p *ngIf="faq.answer" class="faq-answer">{{ faq.answer }}</p>
           </details>
           <h3 class="archive-conversations-title">{{ isTeacher ? 'Personlige samtaler' : 'Dine samtaler' }} <span class="count">{{ selected.conversations.length }}</span></h3>
