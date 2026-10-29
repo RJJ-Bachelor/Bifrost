@@ -18,7 +18,11 @@ import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-he
 @Component({
   selector: 'app-test-page',
   imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent],
-  templateUrl: './test-page.component.html'
+  templateUrl: './test-page.component.html',
+  host: {
+    '[class.teacher-page]': 'isTeacher',
+    '[class.student-page]': '!isTeacher'
+  }
 })
 export class TestPageComponent {
   readonly api = inject(HeimdallService);

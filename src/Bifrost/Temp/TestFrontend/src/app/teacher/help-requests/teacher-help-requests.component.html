@@ -4,7 +4,7 @@
   </div>
 </section>
 <section *ngIf="view.statistics as statistics" class="card" aria-labelledby="statistics-title">
-  <p class="eyebrow">AKTUEL GENERATION</p><h2 id="statistics-title">Dagens statistik</h2>
+  <header class="panel-heading"><div><p class="eyebrow">AKTUEL GENERATION</p><h2 id="statistics-title">Dagens statistik</h2></div></header>
   <dl class="statistics-grid">
     <div><dt>Fysiske anmodninger afsluttet</dt><dd>{{ statistics.physicalCount }}</dd></div>
     <div><dt>Digitale anmodninger afsluttet</dt><dd>{{ statistics.digitalCount }}</dd></div>
@@ -13,8 +13,8 @@
   </dl>
   <p class="hint">Afsluttede anmodninger i generation {{ view.session?.currentGeneration }}. Tiden omfatter både ventetid og hjælp.</p>
 </section>
-<section class="card">
-  <div class="section-heading"><div><p class="eyebrow">FÆLLES HJÆLPEKØ</p><h2>Ledige <span class="count">{{ view.waitingRequests.length }}</span></h2></div></div>
+<section class="card" aria-labelledby="waiting-title">
+  <header class="panel-heading"><div><p class="eyebrow">FÆLLES HJÆLPEKØ</p><h2 id="waiting-title">Ledige <span class="count">{{ view.waitingRequests.length }}</span></h2></div></header>
   <p class="hint">Alle undervisere deler køen. Når du tager en anmodning, bliver den tildelt dig.</p>
   <div *ngIf="view.waitingRequests.length === 0" class="empty-state compact"><span class="empty-symbol" aria-hidden="true">✓</span><h3>Ingen ledige anmodninger</h3><p>{{ view.assignedRequests.length ? 'De øvrige anmodninger er allerede taget af en underviser.' : 'Nye spørgsmål vises her automatisk.' }}</p></div>
   <div class="queue-list">
@@ -25,8 +25,8 @@
     </button>
   </div>
 </section>
-<section class="card">
-  <div class="section-heading"><div><p class="eyebrow">DIN HJÆLP</p><h2>Dine anmodninger <span class="count">{{ view.myRequests.length }}</span></h2></div></div>
+<section class="card" aria-labelledby="assigned-title">
+  <header class="panel-heading"><div><p class="eyebrow">DIN HJÆLP</p><h2 id="assigned-title">Dine anmodninger <span class="count">{{ view.myRequests.length }}</span></h2></div></header>
   <p *ngIf="view.myRequests.length === 0" class="hint">Du har ingen anmodninger. Tag den næste fra den fælles kø.</p>
   <div class="request-list">
     <button *ngFor="let request of view.myRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">
@@ -35,8 +35,8 @@
     </button>
   </div>
 </section>
-<section *ngIf="view.otherTeacherRequests.length" class="card">
-  <div class="section-heading"><div><p class="eyebrow">FÆLLES OVERBLIK</p><h2>Hos andre undervisere <span class="count">{{ view.otherTeacherRequests.length }}</span></h2></div></div>
+<section *ngIf="view.otherTeacherRequests.length" class="card" aria-labelledby="colleague-title">
+  <header class="panel-heading"><div><p class="eyebrow">FÆLLES OVERBLIK</p><h2 id="colleague-title">Hos andre undervisere <span class="count">{{ view.otherTeacherRequests.length }}</span></h2></div></header>
   <p class="hint">Disse anmodninger håndteres af dine kolleger. Du kan åbne og læse samtalerne.</p>
   <div class="request-list">
     <button *ngFor="let request of view.otherTeacherRequests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">

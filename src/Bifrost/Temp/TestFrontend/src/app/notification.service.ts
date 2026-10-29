@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
 import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import { Subject } from 'rxjs';
-import { Notification, notificationTarget, notificationTitle } from './notification.model';
+import { Notification, notificationTitle } from './notification.model';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
@@ -11,13 +11,8 @@ export class NotificationService {
   private startingConnection?: HubConnection;
   private retry?: ReturnType<typeof setTimeout>;
   private readonly seen = new Set<string>();
-  private readonly pending = signal<Notification[]>([]);
   private readonly connectionState = signal(HubConnectionState.Disconnected);
   readonly connected = computed(() => this.connectionState() === HubConnectionState.Connected);
-  readonly current = computed(() => this.pending()[0] ?? null);
-  readonly title = computed(() => notificationTitle(this.current()));
-  readonly target = computed(() => notificationTarget(this.current()));
-  readonly count = computed(() => this.pending().length);
   readonly reconnected = new Subject<void>();
   readonly received = new Subject<Notification>();
 
@@ -37,7 +32,7 @@ export class NotificationService {
       this.seen.add(key);
       if (this.seen.size > 200) this.seen.delete(this.seen.values().next().value!);
       const received = { ...notification, recipientRole: role };
-      this.pending.update(messages => [...messages, received]);
+      console.info(`[SignalR] ${notificationTitle(received)}`, received);
       this.received.next(received);
     });
     connection.onreconnecting(() => {
@@ -56,8 +51,6 @@ export class NotificationService {
     await this.start(connection);
   }
 
-  dismiss() { this.pending.update(messages => messages.slice(1)); }
-
   async stop(role?: 'students' | 'teachers') {
     if (role && !this.connection?.baseUrl.endsWith(`/api/${role}/notifications`)) return;
     this.connectionVersion++;
@@ -70,7 +63,6 @@ export class NotificationService {
     this.connection = undefined;
     this.connectionUserId = undefined;
     this.connectionState.set(HubConnectionState.Disconnected);
-    this.pending.set([]);
     this.seen.clear();
     await previous?.stop();
   }

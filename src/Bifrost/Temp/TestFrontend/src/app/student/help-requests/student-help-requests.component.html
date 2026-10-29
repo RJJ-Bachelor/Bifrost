@@ -1,6 +1,6 @@
 <section *ngIf="view.faqResponsesAwaitingConfirmation.length" class="card faq-response-notice" aria-labelledby="faq-response-title">
-  <p class="eyebrow">FAQ-SVAR KLAR</p>
-  <h2 id="faq-response-title">Acceptér eller afvis dit fælles svar</h2>
+  <header class="panel-heading"><div><p class="eyebrow">FAQ-SVAR KLAR</p>
+  <h2 id="faq-response-title">Acceptér eller afvis dit fælles svar</h2></div></header>
   <p>Underviseren har besvaret et generaliseret spørgsmål, som din anmodning indgår i. Læs svaret, og vælg, om det hjælper dig.</p>
   <div *ngFor="let request of view.faqResponsesAwaitingConfirmation" class="faq-response-link">
     <p><strong>{{ request.displayNumber }}</strong> · {{ request.message }}</p>
@@ -11,8 +11,8 @@
   <div><p class="eyebrow">DIN PLADS I KØEN</p><strong class="queue-number">{{ queue.position !== null ? '#' + queue.position : '–' }}</strong><p>{{ queue.position !== null ? (queue.estimatedWaitMinutes !== null ? 'Ca. ' + queue.estimatedWaitMinutes + ' minutters ventetid' : 'Ventetid kan endnu ikke beregnes') : (queue.ownRequestId ? 'Din anmodning afventer hjælp eller et fælles svar' : 'Du står ikke i ventekøen') }}</p></div>
   <div class="queue-summary-side"><strong>{{ queue.waitingCount }}</strong><span>ventende</span><button *ngIf="queue.ownRequestId" class="text-button" (click)="view.openRequest(queue.ownRequestId)" [disabled]="view.busy">{{ queue.displayNumber }} →</button></div>
 </section>
-<section class="card">
-  <p class="eyebrow">FÅ HJÆLP</p><h2>Opret en hjælpeanmodning</h2>
+<section class="card" aria-labelledby="new-request-title">
+  <header class="panel-heading"><div><p class="eyebrow">FÅ HJÆLP</p><h2 id="new-request-title">Opret en hjælpeanmodning</h2></div></header>
   <p *ngIf="!view.hasOpenRequest && view.studentQueueStatus as queue" class="hint">{{ queue.waitingCount }} i kø · {{ queue.estimatedWaitMinutes !== null ? 'Ca. ' + (queue.estimatedWaitMinutes | number:'1.0-1') + ' min. ved en ny anmodning.' : 'Ventetid kan endnu ikke beregnes.' }}</p>
   <p *ngIf="view.hasOpenRequest" class="hint">Du har allerede en åben anmodning. Åbn samtalen nedenfor for at se status eller annullere.</p>
   <form #helpForm="ngForm" (ngSubmit)="view.createHelpRequest()">
@@ -24,7 +24,7 @@
   </form>
 </section>
 <section class="card" aria-labelledby="requests-title">
-  <div class="section-heading"><h2 id="requests-title">Mine anmodninger</h2><span class="count">{{ view.requests.length }}</span></div>
+  <header class="panel-heading"><div><p class="eyebrow">DIT OVERBLIK</p><h2 id="requests-title">Mine anmodninger <span class="count">{{ view.requests.length }}</span></h2></div></header>
   <p *ngIf="view.requests.length === 0" class="hint">Du har endnu ikke stillet et spørgsmål i denne session.</p>
   <div class="request-list">
     <button *ngFor="let request of view.requests" class="request-item" [class.selected]="request.id === view.selectedRequestId" (click)="view.openRequest(request.id)" [disabled]="view.busy">

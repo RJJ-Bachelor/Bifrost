@@ -23,3 +23,8 @@ docs: |-
   and averageWaitMinutes as the average of ClosedAt - QueuedAt in minutes.
   Completed statuses are CompletedByFaq, CompletedByDigital and CompletedByPhysical.
   With no completed requests, counts are zero and averageWaitMinutes is null.
+  Gennemsnitlig tid (averageWaitMinutes) beskriver hele forløbet fra indmelding til afslutning:
+  både ventetid i kø og hjælp. En elev, der venter 6 minutter og får hjælp i 4, bidrager med 10.
+  Forventet ventetid (estimatedWaitMinutes) på studenternes kø-endpoints beregnes separat:
+  gennemsnitlig tid mellem starter × antal foran, rundet op til hele minutter.
+  averageWaitMinutes bruges ikke som minutter pr. køplads i det estimat.

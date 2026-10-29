@@ -10,3 +10,17 @@ settings:
   encodeUrl: true
   timeout: 30000
   followRedirects: false
+docs: |-
+  Returnerer den studerendes køplacering og forventede ventetid i den aktuelle generation.
+  estimatedWaitMinutes = rund op(gennemsnitlige minutter pr. køplads × (køplacering - 1)).
+  Minutter pr. køplads = (sidste StartedAt - første StartedAt) / (antal starter - 1).
+  Digital hjælp starter ved reservation; fysisk hjælp ved Start. Alle undervisere tæller sammen.
+  Cancelled og CompletedByFaq udelades fra tempoet; selve FAQ-opgaven tæller med.
+  Der kræves mindst to starter med et positivt tidsrum mellem første og sidste.
+  Ellers er estimatedWaitMinutes null. Samtidige starter tæller med.
+  Med kendt tempo og ingen foran er estimatet 0. Aktive anmodninger lægges ikke oveni.
+  Reserverede digitale anmodninger er fortsat Pending og tæller med i køen.
+  Før egen indmelding bruges /queue/status, som estimerer ventetiden bagest i køen.
+  Estimatet er et overslag, ikke en nedtælling; pauser mellem starter påvirker tempoet.
+  averageWaitMinutes på underviserens /statistics er et separat historikgennemsnit:
+  tiden fra indmelding til afslutning, inklusive både ventetid og hjælp.

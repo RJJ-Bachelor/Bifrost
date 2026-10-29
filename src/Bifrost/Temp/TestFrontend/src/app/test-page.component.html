@@ -15,7 +15,7 @@
 <p *ngIf="notice" class="alert success" role="status">{{ notice }}</p>
 
 <section *ngIf="loginRequired" class="card login-card">
-  <p class="eyebrow">VELKOMMEN</p><h2>Log ind som underviser</h2>
+  <header class="panel-heading"><div><p class="eyebrow">VELKOMMEN</p><h2>Log ind som underviser</h2></div></header>
   <p>Log ind for at se dine sessioner og hjælpe de studerende.</p>
   <button (click)="login()">Log ind som underviser →</button>
 </section>
@@ -23,23 +23,30 @@
 
 <ng-container *ngIf="identity">
   <ng-container *ngIf="!sessionId">
-    <section class="card join-card">
-      <div><p class="eyebrow">DELTAG I UNDERVISNINGEN</p><h2>{{ isTeacher ? 'Deltag som underviser' : 'Tilmeld en session' }}</h2><p>{{ isTeacher ? 'Brug underviserkoden fra en kollega for at hjælpe i den fælles kø.' : 'Brug studenterkoden, du har fået af din underviser.' }}</p></div>
+    <div class="overview-actions" [class.with-create]="isTeacher">
+    <section class="card join-card" aria-labelledby="join-title">
+      <header class="panel-heading"><div><p class="eyebrow">DELTAG I UNDERVISNINGEN</p><h2 id="join-title">{{ isTeacher ? 'Deltag som underviser' : 'Tilmeld en session' }}</h2></div></header>
+      <div class="join-content">
+      <p>{{ isTeacher ? 'Brug underviserkoden fra en kollega for at hjælpe i den fælles kø.' : 'Brug studenterkoden, du har fået af din underviser.' }}</p>
       <form #joinForm="ngForm" (ngSubmit)="joinSession()" class="join-form">
         <label for="join-code">{{ isTeacher ? 'Underviserkode' : 'Studenterkode' }}</label>
         <div class="input-action"><input id="join-code" name="code" [(ngModel)]="joinCode" placeholder="Fx AB23CD45" required pattern="[A-HJ-NP-Za-hj-np-z2-9]{8}" maxlength="8" autocomplete="off" spellcheck="false" [disabled]="busy"><button type="submit" [disabled]="busy || joinForm.invalid">{{ isTeacher ? 'Deltag →' : 'Tilmeld →' }}</button></div>
       </form>
+      </div>
     </section>
-    <div *ngIf="isTeacher" class="create-session">
+    <section *ngIf="isTeacher" class="card create-session" aria-labelledby="create-title">
+      <header class="panel-heading"><div><p class="eyebrow">DIN UNDERVISNING</p><h2 id="create-title">Start en ny session</h2></div></header>
+      <p>Opret en session, og del koderne med dine studerende og medundervisere.</p>
       <button (click)="showCreateSession = !showCreateSession" [attr.aria-expanded]="showCreateSession" aria-controls="create-session-form" [disabled]="busy">＋ Opret session</button>
-      <form *ngIf="showCreateSession" id="create-session-form" class="card" #sessionForm="ngForm" (ngSubmit)="createSession()">
-        <h2>Ny session</h2><label for="session-title">Sessionens titel</label>
+      <form *ngIf="showCreateSession" id="create-session-form" class="create-session-form" #sessionForm="ngForm" (ngSubmit)="createSession()">
+        <h3>Ny session</h3><label for="session-title">Sessionens titel</label>
         <div class="input-action"><input id="session-title" name="title" [(ngModel)]="sessionTitle" required maxlength="200" placeholder="Fx Programmering · Hold 2" [disabled]="busy"><button type="submit" [disabled]="busy || sessionForm.invalid || !sessionTitle.trim()">Opret session</button><button type="button" class="secondary" (click)="showCreateSession = false" [disabled]="busy">Fortryd</button></div>
       </form>
+    </section>
     </div>
-    <section class="sessions-section" aria-labelledby="sessions-title">
-      <div class="section-heading"><div><h2 id="sessions-title">{{ isTeacher ? 'Mine sessioner' : 'Mine tilmeldte sessioner' }} <span class="count">{{ sessions.length }}</span></h2><p class="hint">Åbn en session for at se spørgsmål og hjælp.</p></div><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></div>
-      <div *ngIf="!loading && sessions.length === 0" class="card empty-state"><h3>Ingen sessioner endnu</h3><p>{{ isTeacher ? 'Deltag med en underviserkode, eller opret din egen session.' : 'Tilmeld dig med en studenterkode ovenfor.' }}</p></div>
+    <section class="card sessions-section" aria-labelledby="sessions-title">
+      <header class="panel-heading"><div><p class="eyebrow">DIT OVERBLIK</p><h2 id="sessions-title">{{ isTeacher ? 'Mine sessioner' : 'Mine tilmeldte sessioner' }} <span class="count">{{ sessions.length }}</span></h2><p class="hint">Åbn en session for at se spørgsmål og hjælp.</p></div><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></header>
+      <div *ngIf="!loading && sessions.length === 0" class="empty-state"><h3>Ingen sessioner endnu</h3><p>{{ isTeacher ? 'Deltag med en underviserkode, eller opret din egen session.' : 'Tilmeld dig med en studenterkode ovenfor.' }}</p></div>
       <div class="session-grid">
         <a *ngFor="let item of sessions" class="session-card" [routerLink]="['/' + role + '/sessions', item.id]">
           <span class="session-card-top"><span class="eyebrow">UNDERVISNINGSSESSION</span><span class="arrow" aria-hidden="true">↗</span></span>
@@ -57,19 +64,21 @@
   <ng-container *ngIf="sessionId">
     <section *ngIf="sessionUnavailable" class="card empty-state"><h2>Sessionen er ikke tilgængelig</h2><p>Den kan være slettet, eller du mangler adgang. Vælg en af dine sessioner fra oversigten.</p></section>
     <ng-container *ngIf="session">
-      <section class="session-toolbar" *ngIf="isTeacher">
+      <section class="card session-sharing" *ngIf="isTeacher" aria-labelledby="sharing-title">
+        <header class="panel-heading"><div><p class="eyebrow">INVITÉR DELTAGERE</p><h2 id="sharing-title">Del sessionen</h2></div><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></header>
+        <div class="session-toolbar">
         <div class="session-invites">
           <div class="session-invite"><span class="hint">Studenterkode</span><strong class="session-code">{{ sessionCode }}</strong><button class="secondary" (click)="copySessionLink('students')">Kopiér studenterlink</button></div>
           <div *ngIf="teacherCode" class="session-invite"><span class="hint">Underviserkode</span><strong class="session-code">{{ teacherCode }}</strong><button class="secondary" (click)="copySessionLink('teachers')">Kopiér underviserlink</button></div>
         </div>
-        <button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button>
+        </div>
       </section>
       <div class="session-layout">
         <div class="session-workspace">
           <app-student-help-requests *ngIf="!isTeacher" [view]="this" />
           <app-teacher-help-requests *ngIf="isTeacher" [view]="this" />
           <section class="card faq-section" aria-labelledby="faq-title">
-            <div class="section-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div><button *ngIf="isTeacher && !showCreateFaq" type="button" class="secondary" (click)="showCreateFaq = true" [disabled]="busy">Tilføj FAQ</button></div>
+            <header class="panel-heading"><div><p class="eyebrow">FÆLLES VIDEN</p><h2 id="faq-title">Spørgsmål og svar <span class="count">{{ faqs.length }}</span></h2></div><button *ngIf="isTeacher && !showCreateFaq" type="button" class="secondary" (click)="showCreateFaq = true" [disabled]="busy">Tilføj FAQ</button></header>
             <form *ngIf="isTeacher && showCreateFaq" #faqForm="ngForm" (ngSubmit)="createFaq()" class="reply-form">
               <label for="new-faq-question">FAQ-spørgsmål</label>
               <textarea id="new-faq-question" name="newFaqQuestion" [(ngModel)]="newFaqQuestion" rows="3" maxlength="4000" required [disabled]="busy"></textarea>
@@ -89,7 +98,7 @@
         </div>
         <section class="card conversation-panel" aria-labelledby="conversation-title">
           <ng-container *ngIf="conversation as request; else noConversation">
-            <div class="section-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">{{ request.displayNumber }}</h2></div><span class="status" [attr.data-status]="request.status">{{ requestStatusLabel(request) }}</span></div>
+            <header class="panel-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">{{ request.displayNumber }}</h2></div><span class="status" [attr.data-status]="request.status">{{ requestStatusLabel(request) }}</span></header>
             <p class="hint">{{ request.isFaq ? 'Fælles FAQ-spørgsmål' : (request.helpType === 'Physical' ? 'Fysisk hjælp' : 'Digital hjælp') }}</p>
             <p *ngIf="isTeacher && request.assignedTeacherId" class="assignment-label" [class.own-assignment]="isAssignedTeacher">{{ assignmentLabel(request) }}</p>
             <dl class="request-details">
@@ -141,11 +150,11 @@
             <p *ngIf="request.status === 'Cancelled'" class="hint">Anmodningen er annulleret. Opret en ny, hvis du stadig har brug for hjælp.</p>
             <div class="conversation-footer" *ngIf="canCancel"><button class="text-button" [class.danger]="!isTeacher" (click)="changeStatus('Cancel')" [disabled]="busy">{{ isTeacher ? 'Send forrest i køen' : 'Annuller anmodning' }}</button></div>
           </ng-container>
-          <ng-template #noConversation><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">Her vises din samtale</h2><p class="hint">{{ selectedRequestId && refreshing ? 'Henter samtalen …' : (isTeacher ? 'Tag næste anmodning, eller åbn en samtale fra køen.' : 'Opret en hjælpeanmodning, eller vælg en af dine samtaler.') }}</p></ng-template>
+          <ng-template #noConversation><header class="panel-heading"><div><p class="eyebrow">SAMTALE</p><h2 id="conversation-title">Her vises din samtale</h2></div></header><div class="conversation-empty"><span class="conversation-symbol" aria-hidden="true">↔</span><p class="hint">{{ selectedRequestId && refreshing ? 'Henter samtalen …' : (isTeacher ? 'Tag næste anmodning, eller åbn en samtale fra køen.' : 'Opret en hjælpeanmodning, eller vælg en af dine samtaler.') }}</p></div></ng-template>
         </section>
       </div>
       <section class="card archive-section" aria-labelledby="archives-title">
-        <div class="section-heading"><div><p class="eyebrow">TIDLIGERE UNDERVISNING</p><h2 id="archives-title">Arkiverede generationer <span class="count">{{ archives.length }}</span></h2></div><span class="status">Aktuel generation {{ session.currentGeneration }}</span></div>
+        <header class="panel-heading"><div><p class="eyebrow">TIDLIGERE UNDERVISNING</p><h2 id="archives-title">Arkiverede generationer <span class="count">{{ archives.length }}</span></h2></div><span class="status">Aktuel generation {{ session.currentGeneration }}</span></header>
         <p class="hint">Læs fælles FAQ-spørgsmål og {{ isTeacher ? 'sessionens personlige samtaler' : 'dine egne samtaler' }} fra tidligere generationer.</p>
         <p *ngIf="!archives.length" class="hint">Sessionen har ingen arkiverede generationer endnu.</p>
         <div class="archive-list">
@@ -183,7 +192,7 @@
           </details>
         </article>
       </section>
-      <details *ngIf="isTeacher" class="session-settings"><summary>Test af Mimir-generalisering</summary>
+      <details *ngIf="isTeacher" class="card session-settings"><summary>Test af Mimir-generalisering</summary>
         <p>Kopiér JSON-dataene til Bruno-kaldet <strong>MimirService → Generalize own help requests</strong>, eller send dem til <code>POST /api/teachers/development/generalizations/from-help-requests</code> gennem Heimdall. Mimir bruger teksten “Dette er et generaliseret spørgsmål.”</p>
         <p>Ubesvarede, ventende og ureserverede fysiske og digitale anmodninger får FAQ-spørgsmålet, svaret og besked om at acceptere eller afvise. Accept afslutter anmodningen. Afvisning bevarer den oprindelige køplads og hjælpetype, så en fysisk anmodning fortsat venter på fysisk hjælp. Allerede besvarede spørgsmål og deres opfølgninger fortsætter deres eget forløb; det fælles svar kan læses i oversigten.</p>
         <pre *ngIf="canTestGeneralization" class="test-payload">{{ generalizationExample }}</pre>
@@ -191,7 +200,7 @@
         <p *ngIf="pendingGeneralizationId" class="hint">Generaliseringen er sendt. Afventer FAQ i køen …</p>
         <p *ngIf="!canTestGeneralization">Opret mindst to ledige anmodninger fra forskellige studenterprofiler for at få et eksempel.</p>
       </details>
-      <details *ngIf="isTeacher" class="session-settings"><summary>Sessionindstillinger</summary>
+      <details *ngIf="isTeacher" class="card session-settings"><summary>Sessionindstillinger</summary>
         <p>Arkivér den aktuelle generation for at gemme alle FAQ-spørgsmål og personlige samtaler. Køen tømmes, og sessionen fortsætter med næste generation. Alle deltagere forbliver tilmeldt.</p>
         <button class="secondary" (click)="archiveSession()" [disabled]="busy">Arkivér generation {{ session.currentGeneration }}</button>
         <p class="clear-session-hint">Du kan også rydde sessionen uden at oprette et arkiv.</p><button class="text-button danger" (click)="clearSession()" [disabled]="busy">Ryd session uden arkiv</button>

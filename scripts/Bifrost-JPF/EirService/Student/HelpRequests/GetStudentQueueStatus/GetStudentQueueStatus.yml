@@ -16,12 +16,18 @@ settings:
   timeout: 30000
   followRedirects: false
 docs: |-
-  Returns waitingCount and estimatedWaitMinutes for the current session generation.
-  Join the session first; this request reuses the student cookie and sessionId.
-  The estimate is for a new request joining the back of the queue, even before submitting one.
-  It uses the existing queue estimate, including active help and positive completed treatment durations.
-  Treatment time is measured from reservation to answer for digital help, and from Start to Complete
-  for physical help. Without positive completed durations in the current generation,
-  estimatedWaitMinutes is null, even when the queue is empty.
-  waitingCount includes all Pending requests, including reservations and FAQ questions.
-  With positive completed durations and no waiting or active requests, both values are zero.
+  Returnerer waitingCount og estimatedWaitMinutes for sessionens aktuelle generation.
+  Tilmeld dig sessionen først; kaldet bruger den studerendes cookie og sessionId.
+  Forventet ventetid gælder en ny anmodning bagest i køen, også før indmelding:
+  rund op(gennemsnitlige minutter pr. køplads × waitingCount).
+  Minutter pr. køplads = (sidste StartedAt - første StartedAt) / (antal starter - 1).
+  Digital hjælp starter ved reservation; fysisk hjælp ved Start. Alle undervisere tæller sammen.
+  Cancelled og CompletedByFaq udelades fra tempoet; selve FAQ-opgaven tæller med.
+  Der kræves mindst to starter med et positivt tidsrum mellem første og sidste.
+  Ellers er estimatedWaitMinutes null, også ved tom kø. Samtidige starter tæller med.
+  waitingCount omfatter alle Pending, herunder reserverede anmodninger og FAQ-opgaver.
+  Aktive anmodninger lægges ikke oveni. Kendt tempo og tom kø giver 0 minutter.
+  Eksempel: starter ved minut 2, 5 og 9 giver 3,5 minutter pr. plads; 4 i kø giver 14 minutter.
+  Estimatet er et overslag, ikke en nedtælling; pauser mellem starter påvirker tempoet.
+  averageWaitMinutes findes på underviserens /statistics og måler gennemsnitlig tid
+  fra indmelding til afslutning (ClosedAt - QueuedAt), inklusive både ventetid og hjælp.

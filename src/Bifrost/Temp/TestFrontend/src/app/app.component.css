@@ -3,12 +3,5 @@
 .connection-status { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 20px; height: 20px; }
 .connection-status-dot { width: 11px; height: 11px; border-radius: 50%; background: #f87171; border: 1px solid rgb(255 255 255 / 65%); }
 .connection-status.connected .connection-status-dot { background: #4ade80; }
-.notification-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgb(0 25 49 / 55%); }
-.notification-modal { width: min(100%, 620px); max-height: calc(100dvh - 40px); overflow-y: auto; border-top: 4px solid var(--blue); border-radius: 3px; padding: 32px; background: #fff; box-shadow: 0 16px 60px rgb(0 0 0 / 18%); }
-.notification-details { display: grid; gap: 10px; margin: 20px 0 24px; }
-.notification-details > div { display: flex; flex-wrap: wrap; gap: 4px 8px; }
-.notification-details dt { font-weight: 600; }
-.notification-details dd { min-width: 0; margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.notification-modal > a { display: inline-block; margin-right: 20px; }
 
 @media (max-width: 600px) { .connection-status { position: absolute; top: 22px; right: 20px; } }

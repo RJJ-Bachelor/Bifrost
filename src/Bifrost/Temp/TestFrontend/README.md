@@ -1,6 +1,6 @@
 # Bifrost testfrontend
 
-En enkel Angular-frontend til EirService gennem Heimdall. Designet er inspireret af [Aarhus Universitets blå farver og stil](https://www.au.dk/).
+En Angular-testfrontend til EirService gennem Heimdall. Designet er inspireret af [Aarhus Universitets blå farver og stil](https://www.au.dk/) med indrammede sektioner, tydelige overskriftsbjælker og separate blå og petrolfarvede baggrunde til undervisere og studerende. Layoutet tilpasser sig mobil, tablet og desktop.
 
 Start backendservices og Heimdall på `http://localhost:6004`. Kør `npm start` i denne mappe, og åbn **http://localhost:7003**. Brug `localhost`, så login-cookies deles med Heimdall. Aspire kan også starte frontenden på sin konfigurerede port.
 
@@ -26,7 +26,9 @@ Køkortets **Tag næste** styres af det lette status-endpoints `unreservedWaitin
 
 Dagens statistik hører til Insights-modulet, som henter afsluttede anmodninger gennem en intern Contracts-query til HelpRequests. Kø og køstatus hører til HelpRequests-modulet.
 
-Køestimatet bruger den gennemsnitlige positive behandlingstid for afsluttede anmodninger i den aktuelle generation. Digital behandlingstid måles fra Tag næste (reservation) til svar; fysisk behandlingstid måles fra Start til Complete. Uden brugbare målinger er `estimatedWaitMinutes` `null`, også ved en tom kø. Frontenden viser da “Ventetid kan endnu ikke beregnes” og bevarer antal ventende og køplacering. Med brugbare målinger og en tom kø er estimatet `0` minutter. Tidligere digitale afslutninger med samme start- og sluttid tæller ikke som en måling.
+**Forventet ventetid** (`estimatedWaitMinutes`) er gennemsnitlige minutter pr. køplads × antal foran, rundet op til hele minutter. Køens tempo måles som `(sidste StartedAt - første StartedAt) / (antal starter - 1)` i den aktuelle generation, samlet for alle undervisere. Digital hjælp starter ved reservation; fysisk hjælp ved Start. Annullerede anmodninger og `CompletedByFaq` udelades; selve FAQ-opgaven tæller med. Før indmelding tælles alle `Pending`-anmodninger; for en elev i køen bruges køplacering minus én. Reserverede digitale anmodninger er fortsat `Pending`; aktive lægges ikke oveni. Der kræves mindst to starter og et positivt tidsrum mellem første og sidste. Ellers er estimatet `null`, også ved tom kø, og frontenden viser “Ventetid kan endnu ikke beregnes”. Med kendt tempo og ingen foran er estimatet `0`. Starter ved minut 2, 5 og 9 giver 3,5 minutter pr. plads og dermed 14 minutter med fire foran. Estimatet er et overslag, ikke en nedtælling; pauser mellem starter indgår.
+
+**Gennemsnitlig tid** (`averageWaitMinutes`) i Dagens statistik er fortsat gennemsnittet af `ClosedAt - QueuedAt` for afsluttede anmodninger: både ventetid og hjælp. Det beskriver tidligere forløb og bruges ikke til at beregne køens tempo. Se [forklaring og beregninger](../../../../docs/QUEUE_WAIT_TIMES.md).
 
 | GET-endpoint | Brug |
 | --- | --- |
@@ -53,7 +55,7 @@ Brug en separat browserprofil til hver studerende. Faner i samme profil deler de
 
 Cirklen øverst til højre viser SignalR-forbindelsens tilstand. Grøn betyder forbundet. Rød betyder afbrudt, opkobling eller genforbindelse. Hold markøren over cirklen for en tekststatus. Status følger den aktuelle rolle og identitet, også ved fejl og genforbindelse.
 
-SignalR-forbindelsen tilhører hele appen. Efter besøg på student- eller undervisersiden bevares den ved navigation, også på den tomme forside, hvor notifikationer stadig vises. Den senest autentificerede rolle bruges; et rolleskift skifter forbindelsen. Udløbet login lukker den relevante forbindelse.
+SignalR-forbindelsen tilhører hele appen. Efter besøg på student- eller undervisersiden bevares den ved navigation, også på den tomme forside, hvor notifikationer stadig logges. Den senest autentificerede rolle bruges; et rolleskift skifter forbindelsen. Udløbet login lukker den relevante forbindelse.
 
 Siden henter aktuelle data ved første indlæsning, relevante SignalR-notifikationer, genforbindelse og egne handlinger. Der bruges ingen periodisk polling af kø- eller sessionsdata. SignalR kan anvende Long Polling som transportfallback, hvis WebSocket ikke er tilgængelig; dette henter notifikationer og er ikke polling af kø-endpointet.
 
@@ -77,7 +79,7 @@ Request-ID og status medfølger kun til ejeren og autoriserede undervisere. Andr
 
 Flere tætliggende hændelser samles efter højst 150 ms, også ved vedvarende trafik. Ressourcer, der ændres under igangværende kald, flettes til én efterfølgende opdatering. Der bruges ingen tidsbaseret undertrykkelse af hændelser. Kladder bevares. API-kald og sidens abonnementer stoppes ved navigation; SignalR-forbindelsen skiftes ved rolleskift eller ændret identitet og stoppes ved udløbet identitet eller lukning af appen.
 
-Alle modtagne notifikationer vises i en modal i testfrontenden, også almindelige køændringer med `SessionChanged` og `RealtimeOnly`. `deliveryType` angiver leveringskanalen: `RealtimeOnly` leveres kun via SignalR, mens `RealtimeOrPush` også tillader push ved behov. Typen skjuler ikke modalen. Modalen viser en overskrift ud fra `eventType`, leveringstype, beskeden og dens session, generation, status og anmodning. **Åbn sessionen** åbner den relevante session ved en almindelig sessionsændring, og **Åbn samtalen** åbner en konkret HelpRequest. Flere notifikationer vises én ad gangen. Genlevering med samme notifikations-ID behandles kun én gang på samme forbindelse.
+Alle modtagne notifikationer logges med `console.info` i browserens udviklerkonsol uden at åbne en modal, også almindelige køændringer med `SessionChanged` og `RealtimeOnly`. Filtrér konsollen på `[SignalR]` for at se dem. Loggen indeholder en overskrift ud fra `eventType` og det fulde notifikationsobjekt med blandt andet besked, leveringstype, session, generation, status og anmodning. `deliveryType` angiver leveringskanalen: `RealtimeOnly` leveres kun via SignalR, mens `RealtimeOrPush` også tillader push ved behov. Begge typer behandles fortsat af sidens abonnementer, så sessioner, kø og samtaler opdateres som før. Genlevering med samme notifikations-ID behandles og logges kun én gang på samme forbindelse.
 
 | `eventType` | Modtager og årsag |
 |---|---|
@@ -87,9 +89,9 @@ Alle modtagne notifikationer vises i en modal i testfrontenden, også almindelig
 | `HelpRequestAnswered` | Eleven, når underviseren besvarer en almindelig anmodning |
 | `FaqCreated` | Alle sessionens undervisere samt de studerende, hvis anmodninger kobles på generaliseringen |
 | `FaqAnswered` | Hver tilknyttet elev, når det fælles FAQ-svar er klar til accept eller afvisning |
-| `SessionChanged` | Øvrige deltagere og undervisere opdaterer sessionsdata via `RealtimeOnly` og får en modal i testfrontenden |
+| `SessionChanged` | Øvrige deltagere og undervisere opdaterer sessionsdata via `RealtimeOnly`; hændelsen logges i konsollen |
 
-Ældre eller ukendte eventtyper vises som en almindelig notifikation. Annullerede anmodninger får ikke nye FAQ-svar.
+Ældre eller ukendte eventtyper logges som en almindelig notifikation. Annullerede anmodninger får ikke nye FAQ-svar.
 
 Eirs HelpRequests-outbox og Gnas leverings-outbox kontrolleres hvert 500 ms. Gnas `NotificationOutboxDispatcher` læser leveringsopgaver direkte fra databasen og kalder `NotificationDispatcher`, som sender via SignalR eller anvender den tilladte push-fallback. Der er ingen intern RabbitMQ-runde fra Gna til sig selv. Notifikation og leveringsopgave gemmes stadig atomisk, og allerede behandlede opgaver genafsendes ikke. En utilgængelig klient afslutter leveringsforsøget; ved genforbindelse henter frontenden den aktuelle tilstand. Uventede fejl i outboxbehandlingen genforsøges. Dette er backendens outboxpolling, mens kødata i frontenden fortsat opdateres ved hændelser. Web Push-afsendelsen er endnu ikke implementeret.
 
