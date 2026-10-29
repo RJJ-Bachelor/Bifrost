@@ -140,7 +140,7 @@ export class Queue {
     effect(() => {
       if (this.queue.isLoading() || this.requests.isLoading()) return;
       if (this.viewState() === 'none') {
-        this.router.navigate(['..'], { relativeTo: this.route });
+        this.backToSession();
       }
     });
 
@@ -238,7 +238,7 @@ export class Queue {
       next: () => {
         this.responding.set(false);
         if (accept) {
-          this.router.navigate(['..'], { relativeTo: this.route });
+          this.backToSession();
         } else {
           this.queue.reload();
           this.requests.reload();
@@ -263,7 +263,7 @@ export class Queue {
         this.cancelling.set(false);
         this.cancelDialogOpen.set(false);
         this.queue.reload();
-        this.router.navigate(['..'], { relativeTo: this.route });
+        this.backToSession();
       },
       error: () => {
         this.cancelling.set(false);
