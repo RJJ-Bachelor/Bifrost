@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using MimirService.Application.Services.Generalizations;
+using MimirService.Domain.Entities;
 
 namespace MimirService.Test;
 
@@ -56,6 +57,20 @@ public sealed class GeneralizationDeciderTests
     {
         var decision = await Decider(new FakeLlmClient { Answer = answer })
             .DecideAsync("opgave 3 hænger", [LoopRequest, LastElementGeneralization], CancellationToken.None);
+
+        Assert.Equal(GeneralizationDecision.Standalone, decision);
+    }
+
+    [Fact]
+    public async Task TooLongFaqQuestionIsStandalone()
+    {
+        var faqQuestion = new string('a', Generalization.MaxQuestionLength + 1);
+        var llm = new FakeLlmClient
+        {
+            Answer = $$"""{"decision":"pair","candidateId":"r1","faqQuestion":"{{faqQuestion}}"}"""
+        };
+
+        var decision = await Decider(llm).DecideAsync("opgave 3 hænger", [LoopRequest], CancellationToken.None);
 
         Assert.Equal(GeneralizationDecision.Standalone, decision);
     }

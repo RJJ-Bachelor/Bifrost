@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Unicode;
 using Microsoft.Extensions.Logging;
 using MimirService.Application.Services.Llm;
+using MimirService.Domain.Entities;
 
 namespace MimirService.Application.Services.Generalizations;
 
@@ -90,7 +91,8 @@ public sealed class GeneralizationDecider(ILlmClient llmClient, ILogger<Generali
                 return new GeneralizationDecision(GeneralizationDecisionType.Join, candidate.Id, null);
 
             if (parsed.Decision == "pair" && candidate.Type == GeneralizationCandidateType.Request
-                && !string.IsNullOrWhiteSpace(parsed.FaqQuestion))
+                && !string.IsNullOrWhiteSpace(parsed.FaqQuestion)
+                && parsed.FaqQuestion.Trim().Length <= Generalization.MaxQuestionLength)
                 return new GeneralizationDecision(GeneralizationDecisionType.Pair, candidate.Id, parsed.FaqQuestion.Trim());
         }
 
