@@ -20,7 +20,8 @@ interface HelpRequestDto {
   id: string;
   displayNumber: string;
   status: string;
-  message: string;
+  // Student-only; teacher detail surfaces the question via HelpRequestDetail.question.
+  message?: string;
   helpType: string;
   requestNumber: number;
   queuedAt: string;
@@ -143,7 +144,7 @@ function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
     id: dto.id,
     displayNumber: dto.displayNumber,
     status: normalizeStatus(dto.status),
-    message: dto.message,
+    message: dto.message ?? '',
     helpType: normalizeHelpType(dto.helpType),
     requestNumber: dto.requestNumber,
     queuedAt: dto.queuedAt,
@@ -152,9 +153,22 @@ function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
 }
 
 function mapDetail(dto: HelpRequestDetailDto): HelpRequestDetail {
+  const messages = dto.messages.map(mapMessage);
+  const question =
+    messages
+      .filter((m) => m.messageType === 'studentQuestion')
+      .sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0]?.text ?? '';
+
   return {
-    ...mapHelpRequest(dto),
-    messages: dto.messages.map(mapMessage),
+    id: dto.id,
+    displayNumber: dto.displayNumber,
+    status: normalizeStatus(dto.status),
+    helpType: normalizeHelpType(dto.helpType),
+    requestNumber: dto.requestNumber,
+    queuedAt: dto.queuedAt,
+    assignedTeacherName: dto.assignedTeacherName ?? null,
+    messages,
+    question,
   };
 }
 

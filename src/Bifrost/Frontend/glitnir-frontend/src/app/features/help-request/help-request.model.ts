@@ -46,8 +46,9 @@ export interface HelpRequestMessage {
   sequenceNumber: number;
 }
 
-export interface HelpRequestDetail extends HelpRequest {
+export interface HelpRequestDetail extends Omit<HelpRequest, 'message'> {
   messages: HelpRequestMessage[];
+  question: string;
 }
 
 export interface SessionQueue {

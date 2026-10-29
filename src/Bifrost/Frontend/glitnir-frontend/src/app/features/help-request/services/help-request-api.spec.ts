@@ -381,6 +381,20 @@ describe('HelpRequestApi', () => {
 
       http.expectNone('/api/teachers/requests/null');
     });
+
+    it('derives question from the student message when backend omits message field', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherRequest(() => 'request-1'),
+      );
+      TestBed.tick();
+
+      const { message: _omitted, ...teacherDetail } = rawDetail();
+      http.expectOne('/api/teachers/requests/request-1').flush(teacherDetail);
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()?.question).toBe('Hvordan starter jeg Docker?');
+    });
   });
 
   describe('answerTeacherRequest', () => {
