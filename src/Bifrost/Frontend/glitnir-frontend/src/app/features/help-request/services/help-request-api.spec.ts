@@ -34,9 +34,10 @@ function rawRequest(overrides: Partial<RawRequest> = {}): RawRequest {
   };
 }
 
-function rawDetail(overrides: Partial<RawRequest & { messages: unknown[] }> = {}) {
+function rawDetail(overrides: Partial<Omit<RawRequest, 'message'> & { messages: unknown[] }> = {}) {
+  const { message: _omitted, ...base } = rawRequest();
   return {
-    ...rawRequest(),
+    ...base,
     messages: [
       {
         id: 'message-1',
@@ -388,8 +389,7 @@ describe('HelpRequestApi', () => {
       );
       TestBed.tick();
 
-      const { message: _omitted, ...teacherDetail } = rawDetail();
-      http.expectOne('/api/teachers/requests/request-1').flush(teacherDetail);
+      http.expectOne('/api/teachers/requests/request-1').flush(rawDetail());
 
       await TestBed.inject(ApplicationRef).whenStable();
 

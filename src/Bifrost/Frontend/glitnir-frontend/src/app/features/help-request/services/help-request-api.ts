@@ -16,16 +16,22 @@ import {
   TeacherStatusAction,
 } from '../help-request.model';
 
-interface HelpRequestDto {
+interface HelpRequestBaseDto {
   id: string;
   displayNumber: string;
   status: string;
-  // Student-only; teacher detail surfaces the question via HelpRequestDetail.question.
-  message?: string;
   helpType: string;
   requestNumber: number;
   queuedAt: string;
   assignedTeacherName: string | null;
+}
+
+interface HelpRequestSummaryDto extends HelpRequestBaseDto {
+  message: string;
+}
+
+interface HelpRequestDetailDto extends HelpRequestBaseDto {
+  messages: HelpRequestMessageDto[];
 }
 
 const STATUS_MAP: Record<string, HelpRequestStatus> = {
@@ -71,10 +77,6 @@ interface HelpRequestMessageDto {
   text: string;
   createdAt: string;
   sequenceNumber: number;
-}
-
-interface HelpRequestDetailDto extends HelpRequestDto {
-  messages: HelpRequestMessageDto[];
 }
 
 interface TeacherQueueEntryDto {
@@ -139,12 +141,12 @@ function mapMessage(dto: HelpRequestMessageDto): HelpRequestMessage {
   };
 }
 
-function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
+function mapSummary(dto: HelpRequestSummaryDto): HelpRequest {
   return {
     id: dto.id,
     displayNumber: dto.displayNumber,
     status: normalizeStatus(dto.status),
-    message: dto.message ?? '',
+    message: dto.message,
     helpType: normalizeHelpType(dto.helpType),
     requestNumber: dto.requestNumber,
     queuedAt: dto.queuedAt,
@@ -185,7 +187,7 @@ export class HelpRequestApi {
       }),
       {
         defaultValue: [],
-        parse: (raw) => (raw as HelpRequestDto[]).map(mapHelpRequest),
+        parse: (raw) => (raw as HelpRequestSummaryDto[]).map(mapSummary),
       },
     );
   }
