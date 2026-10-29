@@ -1,0 +1,13 @@
+<bifrost-chat
+  [messages]="messages()"
+  viewerRole="teacher"
+  [canSend]="true"
+  [sending]="busy()"
+  [error]="error()"
+  placeholder="Skriv dit svar..."
+  sendLabel="Send svar"
+  closeLabel="Læg tilbage i køen"
+  [closeDisabled]="busy()"
+  (sent)="sent.emit($event)"
+  (closed)="cancelRequested.emit()"
+/>
