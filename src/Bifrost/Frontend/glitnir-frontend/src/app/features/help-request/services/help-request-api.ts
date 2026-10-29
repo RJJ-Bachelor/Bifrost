@@ -13,6 +13,7 @@ import {
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
+  TeacherStatusAction,
 } from '../help-request.model';
 
 interface HelpRequestDto {
@@ -40,6 +41,12 @@ const STATUS_MAP: Record<string, HelpRequestStatus> = {
 const HELP_TYPE_MAP: Record<string, HelpType> = {
   Digital: 'digital',
   Physical: 'physical',
+};
+
+const STATUS_ACTION_MAP: Record<TeacherStatusAction, string> = {
+  start: 'Start',
+  complete: 'Complete',
+  cancel: 'Cancel',
 };
 
 const AUTHOR_ROLE_MAP: Record<string, AuthorRole> = {
@@ -281,5 +288,42 @@ export class HelpRequestApi {
       null,
       { withCredentials: true },
     );
+  }
+
+  getTeacherRequest(id: () => string | null): HttpResourceRef<HelpRequestDetail | undefined> {
+    return httpResource<HelpRequestDetail>(
+      () => {
+        const requestId = id();
+        if (requestId === null) return undefined;
+        return {
+          url: `/api/teachers/requests/${requestId}`,
+          method: 'GET',
+          withCredentials: true,
+        };
+      },
+      {
+        parse: (raw) => mapDetail(raw as HelpRequestDetailDto),
+      },
+    );
+  }
+
+  answerTeacherRequest(requestId: string, text: string, question?: string): Observable<HelpRequestDetail> {
+    return this.http
+      .post<HelpRequestDetailDto>(
+        `/api/teachers/requests/${requestId}/messages`,
+        { text, question },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
+  }
+
+  changeTeacherStatus(requestId: string, action: TeacherStatusAction): Observable<HelpRequestDetail> {
+    return this.http
+      .patch<HelpRequestDetailDto>(
+        `/api/teachers/requests/${requestId}/status`,
+        { action: STATUS_ACTION_MAP[action] },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
   }
 }

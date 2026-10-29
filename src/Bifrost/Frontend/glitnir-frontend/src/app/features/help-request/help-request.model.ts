@@ -1,5 +1,7 @@
 export type HelpType = 'physical' | 'digital';
 
+export type TeacherStatusAction = 'start' | 'complete' | 'cancel';
+
 export type HelpRequestStatus =
   | 'pending'
   | 'active'
