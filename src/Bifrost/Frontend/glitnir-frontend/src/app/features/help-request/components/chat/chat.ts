@@ -32,6 +32,10 @@ export class Chat {
     return message.authorRole === this.viewerRole();
   }
 
+  protected isStudentMessage(message: HelpRequestMessage): boolean {
+    return message.authorRole === 'student';
+  }
+
   protected isTeacherMessage(message: HelpRequestMessage): boolean {
     return message.authorRole === 'teacher';
   }

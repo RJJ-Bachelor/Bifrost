@@ -4,6 +4,7 @@
       <div
         class="chat__bubble"
         [class.chat__bubble--mine]="isMine(message)"
+        [class.chat__bubble--student]="isStudentMessage(message)"
         [class.chat__bubble--teacher]="isTeacherMessage(message)"
       >
         <p class="chat__text">{{ message.text }}</p>

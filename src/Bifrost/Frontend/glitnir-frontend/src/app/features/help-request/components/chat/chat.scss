@@ -25,6 +25,11 @@
   color: var(--color-primary-dark);
   align-self: flex-start;
 
+  &--student {
+    background-color: var(--color-chat-student);
+    color: var(--color-chat-text);
+  }
+
   &--teacher {
     background-color: var(--color-chat-teacher);
     color: var(--color-chat-text);
@@ -32,13 +37,7 @@
 
   &--mine {
     align-self: flex-end;
-    background-color: var(--color-chat-student);
-    color: var(--color-chat-text);
     border-radius: 1.25rem 1.25rem 0 1.25rem;
-
-    &.chat__bubble--teacher {
-      background-color: var(--color-chat-teacher);
-    }
   }
 }
 
