@@ -69,7 +69,6 @@ Console.WriteLine();
 
 EvalReport.WriteToConsole(results);
 
-// Results go next to the dataset instead of into bin.
 var evalsDirectory = typeof(EvalReport).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
     .Single(attribute => attribute.Key == "EvalsDirectory").Value!;
 var reportPath = EvalReport.WriteMarkdown(results, string.Join("+", gemini.Models), startedAt,

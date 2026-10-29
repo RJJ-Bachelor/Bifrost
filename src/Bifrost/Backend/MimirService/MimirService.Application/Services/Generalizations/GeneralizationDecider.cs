@@ -40,7 +40,6 @@ public sealed class GeneralizationDecider(ILlmClient llmClient, ILogger<Generali
         }
         """);
 
-    // Keeps æøå readable for the model instead of escaping them as æ.
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
         Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)

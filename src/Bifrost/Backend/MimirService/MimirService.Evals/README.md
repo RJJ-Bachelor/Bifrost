@@ -99,7 +99,7 @@ Standardmodellen står i `appsettings.json`. En anden model vælges ved kørslen
 dotnet run --project src/Bifrost/Backend/MimirService/MimirService.Evals -- --Gemini:Models:0=gemini-3.5-flash
 ```
 
-- Modellen kaldes én gang pr. case, undtagen ved tom kø. Den gratis kvote er 15 kald i minuttet pr. model, så harnessen venter 5 sekunder mellem kaldene (`Eval:DelaySeconds`). En kørsel tager ca. 8 minutter.
+- Modellen kaldes én gang pr. case, undtagen ved tom kø. Den gratis kvote er 15 kald i minuttet pr. model, så harnessen venter 5 sekunder mellem kaldene (`Eval:DelaySeconds`).
 - Svarer modellen ikke, venter harnessen 60 sekunder og prøver casen igen. Fejler det igen, tælles casen under `No model responded` og ikke som overset. Senere cases prøves så ikke igen, fordi dagskvoten typisk er brugt.
 - Ugyldig JSON tælles også under `No model responded`, fordi Gemini-klienten afviser den. Mimirs advarsler er slået fra, så de ikke drukner resultatet. Se dem med `-- --Logging:LogLevel:MimirService=Warning`.
 - Resultatet skrives også som Markdown med tabeller i `results/<tidspunkt>-<model>.md`. Git ignorerer mappen, så kopiér de kørsler, der skal bruges i rapporten.

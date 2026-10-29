@@ -2,7 +2,6 @@ using System.Text;
 
 namespace MimirService.Evals;
 
-// Prints the results to the console and writes the same numbers as Markdown tables.
 internal static class EvalReport
 {
     public static void WriteToConsole(IReadOnlyList<EvalResult> results)
