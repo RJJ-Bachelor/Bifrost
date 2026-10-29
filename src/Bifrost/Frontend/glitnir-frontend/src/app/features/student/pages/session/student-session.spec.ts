@@ -1,4 +1,3 @@
-import { HttpResourceRef } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -16,16 +15,9 @@ import {
   NotificationEventType,
   type NotificationMessage,
 } from '../../../../core/realtime/notification.model';
+import { fakeResource } from '../../../../../test-utils/fake-resource';
+import { makeNotification } from '../../../../../test-utils/notification';
 import { StudentSession } from './student-session';
-
-function fakeResource<T>(initial: T): HttpResourceRef<T> {
-  return {
-    value: signal(initial).asReadonly(),
-    isLoading: signal(false).asReadonly(),
-    error: signal(null).asReadonly(),
-    reload: vi.fn(),
-  } as unknown as HttpResourceRef<T>;
-}
 
 function makeRequest(index: number): HelpRequest {
   return {
@@ -50,23 +42,6 @@ function makeRequestWith(status: HelpRequestStatus, helpType: HelpType): HelpReq
     requestNumber: 1,
     queuedAt: '2026-01-01T10:00:00Z',
     assignedTeacherName: null,
-  };
-}
-
-function makeNotification(overrides: Partial<NotificationMessage> = {}): NotificationMessage {
-  return {
-    notificationId: 'notification-1',
-    userId: 'user-1',
-    message: '',
-    createdAt: '2026-01-01T10:00:00Z',
-    sessionId: 'session-1',
-    helpRequestId: null,
-    generation: null,
-    change: null,
-    status: null,
-    eventType: NotificationEventType.SessionChanged,
-    deliveryType: 'RealtimeOnly',
-    ...overrides,
   };
 }
 
