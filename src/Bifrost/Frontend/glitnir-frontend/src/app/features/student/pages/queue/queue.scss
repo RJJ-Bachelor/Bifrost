@@ -1,0 +1,14 @@
+:host {
+  display: block;
+}
+
+.queue-page {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-8);
+}
+
+.queue-card-wrapper {
+  max-width: 32rem;
+  width: 100%;
+  margin: 0 auto;
+}

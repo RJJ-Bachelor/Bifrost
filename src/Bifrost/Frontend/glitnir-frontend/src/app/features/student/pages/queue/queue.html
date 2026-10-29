@@ -1,2 +1,82 @@
 <bifrost-topbar>
+  <span topbar-center class="topbar-pill">
+    <span class="topbar-pill__text">{{ sessionTitle() }}</span>
+  </span>
+  <button topbar-right class="topbar-btn" (click)="backToSession()">
+    <span class="btn__label-long">Tilbage til session</span>
+    <span class="btn__label-short">Tilbage</span>
+  </button>
 </bifrost-topbar>
+
+<div class="page-container queue-page">
+  @if (activeRequest() || answeredRequestId()) {
+    <div class="queue-card-wrapper">
+      <bifrost-card [title]="cardTitle()">
+        @if (viewState() === 'in-queue' && activeRequest(); as request) {
+          <bifrost-queue-in-queue
+            [displayNumber]="displayNumber()"
+            [position]="position()"
+            [waitLabel]="waitLabel()"
+            [estimatedWait]="estimatedWait()"
+            [question]="request.message"
+            [awaitingFaq]="isAwaitingFaq()"
+            (cancelled)="cancelRequest()"
+          />
+        } @else if (viewState() === 'my-turn' && activeRequest(); as request) {
+          <bifrost-queue-my-turn
+            [displayNumber]="displayNumber()"
+            [teacherName]="request.assignedTeacherName"
+          />
+        } @else if (viewState() === 'awaiting-confirmation' && activeRequest(); as request) {
+          <bifrost-queue-awaiting-confirmation
+            [question]="request.message"
+            [faqQuestion]="faqQuestion()"
+            [faqAnswer]="faqAnswer()"
+            [responding]="responding()"
+            [error]="respondError()"
+            (responded)="respondToFaq($event)"
+          />
+        } @else if (viewState() === 'completed-digital') {
+          @if (activeDetail.value(); as detail) {
+            <bifrost-chat
+              [messages]="detail.messages"
+              viewerRole="student"
+              [canSend]="true"
+              [sending]="sendingMessage()"
+              [error]="sendError()"
+              placeholder="Skriv hvis du stadig mangler hjælp..."
+              sendLabel="Send opfølgning"
+              composerHint="Du sættes i kø igen. Underviseren ser hele samtalen."
+              (sent)="sendFollowUp($event)"
+              (closed)="closeChat()"
+            />
+          } @else {
+            <p class="state-message">Indlæser samtale...</p>
+          }
+        }
+      </bifrost-card>
+    </div>
+  }
+</div>
+
+<bifrost-dialog
+  [open]="cancelDialogOpen()"
+  title="Forlad køen?"
+  size="sm"
+  (closed)="closeCancelDialog()"
+>
+  <p class="state-message">
+    Hvis du forlader køen, mister du din plads og skal stille spørgsmålet igen.
+  </p>
+  @if (cancelError()) {
+    <p class="form-error">{{ cancelError() }}</p>
+  }
+  <div class="form-actions">
+    <button class="btn btn--secondary" [disabled]="cancelling()" (click)="closeCancelDialog()">
+      Behold min plads
+    </button>
+    <button class="btn btn--danger" [disabled]="cancelling()" (click)="confirmCancel()">
+      {{ cancelling() ? 'Forlader...' : 'Forlad køen' }}
+    </button>
+  </div>
+</bifrost-dialog>

@@ -1,0 +1,70 @@
+:host {
+  display: block;
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.chat__messages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: var(--space-2) 0;
+}
+
+.chat__bubble {
+  max-width: 75%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: 1.25rem 1.25rem 1.25rem 0;
+  background-color: var(--color-grey-100);
+  color: var(--color-primary-dark);
+  align-self: flex-start;
+
+  &--student {
+    background-color: var(--color-chat-student);
+    color: var(--color-chat-text);
+  }
+
+  &--teacher {
+    background-color: var(--color-chat-teacher);
+    color: var(--color-chat-text);
+  }
+
+  &--mine {
+    align-self: flex-end;
+    border-radius: 1.25rem 1.25rem 0 1.25rem;
+  }
+}
+
+.chat__text {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.chat__composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.chat__input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.chat__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--color-muted);
+}
+
+.chat__input {
+  flex: 1;
+}

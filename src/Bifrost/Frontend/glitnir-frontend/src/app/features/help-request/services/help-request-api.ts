@@ -1,15 +1,18 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import {
+  AuthorRole,
   CreateHelpRequestInput,
   HelpRequest,
+  HelpRequestDetail,
+  HelpRequestMessage,
+  HelpRequestMessageType,
   HelpRequestStatus,
   HelpType,
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
-  TeacherQueueEntry,
 } from '../help-request.model';
 
 interface HelpRequestDto {
@@ -19,13 +22,18 @@ interface HelpRequestDto {
   message: string;
   helpType: string;
   requestNumber: number;
+  queuedAt: string;
+  assignedTeacherName: string | null;
 }
 
 const STATUS_MAP: Record<string, HelpRequestStatus> = {
   Pending: 'pending',
   Active: 'active',
   AwaitingConfirmation: 'awaitingConfirmation',
-  Completed: 'completed',
+  AwaitingFaq: 'awaitingFaq',
+  CompletedByFaq: 'completedByFaq',
+  CompletedByDigital: 'completedByDigital',
+  CompletedByPhysical: 'completedByPhysical',
   Cancelled: 'cancelled',
 };
 
@@ -33,6 +41,33 @@ const HELP_TYPE_MAP: Record<string, HelpType> = {
   Digital: 'digital',
   Physical: 'physical',
 };
+
+const AUTHOR_ROLE_MAP: Record<string, AuthorRole> = {
+  Student: 'student',
+  Teacher: 'teacher',
+  System: 'system',
+};
+
+const MESSAGE_TYPE_MAP: Record<string, HelpRequestMessageType> = {
+  StudentQuestion: 'studentQuestion',
+  FollowUpQuestion: 'followUpQuestion',
+  FaqQuestion: 'faqQuestion',
+  FaqAnswer: 'faqAnswer',
+  TeacherAnswer: 'teacherAnswer',
+};
+
+interface HelpRequestMessageDto {
+  id: string;
+  authorRole: string;
+  messageType: string;
+  text: string;
+  createdAt: string;
+  sequenceNumber: number;
+}
+
+interface HelpRequestDetailDto extends HelpRequestDto {
+  messages: HelpRequestMessageDto[];
+}
 
 interface TeacherQueueEntryDto {
   id: string;
@@ -43,6 +78,8 @@ interface TeacherQueueEntryDto {
 interface TeacherQueueDto {
   generation: number;
   waitingCount: number;
+  unreservedWaitingCount: number;
+  myReservedRequestId: string | null;
   requests: TeacherQueueEntryDto[];
   activeRequests: TeacherQueueEntryDto[];
 }
@@ -65,6 +102,55 @@ function normalizeHelpType(raw: string): HelpType {
   return mapped;
 }
 
+function normalizeAuthorRole(raw: string): AuthorRole {
+  const mapped = AUTHOR_ROLE_MAP[raw];
+  if (mapped === undefined) {
+    console.warn(`Unknown authorRole "${raw}" from backend, falling back to "system"`);
+    return 'system';
+  }
+  return mapped;
+}
+
+function normalizeMessageType(raw: string): HelpRequestMessageType {
+  const mapped = MESSAGE_TYPE_MAP[raw];
+  if (mapped === undefined) {
+    console.warn(`Unknown messageType "${raw}" from backend, falling back to "teacherAnswer"`);
+    return 'teacherAnswer';
+  }
+  return mapped;
+}
+
+function mapMessage(dto: HelpRequestMessageDto): HelpRequestMessage {
+  return {
+    id: dto.id,
+    authorRole: normalizeAuthorRole(dto.authorRole),
+    messageType: normalizeMessageType(dto.messageType),
+    text: dto.text,
+    createdAt: dto.createdAt,
+    sequenceNumber: dto.sequenceNumber,
+  };
+}
+
+function mapHelpRequest(dto: HelpRequestDto): HelpRequest {
+  return {
+    id: dto.id,
+    displayNumber: dto.displayNumber,
+    status: normalizeStatus(dto.status),
+    message: dto.message,
+    helpType: normalizeHelpType(dto.helpType),
+    requestNumber: dto.requestNumber,
+    queuedAt: dto.queuedAt,
+    assignedTeacherName: dto.assignedTeacherName ?? null,
+  };
+}
+
+function mapDetail(dto: HelpRequestDetailDto): HelpRequestDetail {
+  return {
+    ...mapHelpRequest(dto),
+    messages: dto.messages.map(mapMessage),
+  };
+}
+
 @Service()
 export class HelpRequestApi {
   private readonly http = inject(HttpClient);
@@ -78,25 +164,49 @@ export class HelpRequestApi {
       }),
       {
         defaultValue: [],
-        parse: (raw) =>
-          (raw as HelpRequestDto[]).map((item) => ({
-            id: item.id,
-            displayNumber: item.displayNumber,
-            status: normalizeStatus(item.status),
-            message: item.message,
-            helpType: normalizeHelpType(item.helpType),
-            requestNumber: item.requestNumber,
-          })),
+        parse: (raw) => (raw as HelpRequestDto[]).map(mapHelpRequest),
+      },
+    );
+  }
+
+  getStudentRequest(id: () => string | null): HttpResourceRef<HelpRequestDetail | undefined> {
+    return httpResource<HelpRequestDetail>(
+      () => {
+        const requestId = id();
+        if (requestId === null) return undefined;
+        return {
+          url: `/api/students/requests/${requestId}`,
+          method: 'GET',
+          withCredentials: true,
+        };
+      },
+      {
+        parse: (raw) => mapDetail(raw as HelpRequestDetailDto),
       },
     );
   }
 
   getStudentQueue(sessionId: () => string): HttpResourceRef<SessionQueue> {
-    return httpResource<SessionQueue>(() => ({
-      url: `/api/students/sessions/${sessionId()}/queue`,
-      method: 'GET',
-      withCredentials: true,
-    }), { defaultValue: { ownRequestId: null } });
+    return httpResource<SessionQueue>(
+      () => ({
+        url: `/api/students/sessions/${sessionId()}/queue`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          sessionId: '',
+          generation: 0,
+          waitingCount: 0,
+          unreservedWaitingCount: 0,
+          ownRequestId: null,
+          position: null,
+          estimatedWaitMinutes: null,
+          requestNumber: null,
+          displayNumber: null,
+        },
+      },
+    );
   }
 
   createHelpRequest(sessionId: string, input: CreateHelpRequestInput): Observable<HelpRequest> {
@@ -105,6 +215,34 @@ export class HelpRequestApi {
       input,
       { withCredentials: true },
     );
+  }
+
+  cancelRequest(requestId: string): Observable<HelpRequest> {
+    return this.http.patch<HelpRequest>(
+      `/api/students/requests/${requestId}/status`,
+      { action: 'Cancel' },
+      { withCredentials: true },
+    );
+  }
+
+  respondToFaq(requestId: string, accept: boolean): Observable<HelpRequestDetail> {
+    return this.http
+      .patch<HelpRequestDetailDto>(
+        `/api/students/requests/${requestId}/faq`,
+        { accept },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
+  }
+
+  addStudentMessage(requestId: string, text: string): Observable<HelpRequestDetail> {
+    return this.http
+      .post<HelpRequestDetailDto>(
+        `/api/students/requests/${requestId}/messages`,
+        { text },
+        { withCredentials: true },
+      )
+      .pipe(map((dto) => mapDetail(dto)));
   }
 
   getTeacherQueue(sessionId: () => string): HttpResourceRef<TeacherQueue> {
@@ -117,30 +255,20 @@ export class HelpRequestApi {
       {
         defaultValue: {
           waitingCount: 0,
-          availableCount: 0,
+          unreservedWaitingCount: 0,
           generation: 0,
           frontQueuedAt: null,
-          pendingRequests: [],
-          activeRequests: [],
+          myReservedRequestId: null,
         },
         parse: (raw) => {
           const dto = raw as TeacherQueueDto;
           const requests = dto.requests ?? [];
-          const activeRequests = dto.activeRequests ?? [];
-          // TODO(BF-46): read availableCount and myReservedRequestId from backend.
           return {
             waitingCount: dto.waitingCount,
-            availableCount: requests.filter((item) => item.assignedTeacherId === null).length,
+            unreservedWaitingCount: dto.unreservedWaitingCount,
             generation: dto.generation,
             frontQueuedAt: requests[0]?.queuedAt ?? null,
-            pendingRequests: requests.map((item) => ({
-              id: item.id,
-              assignedTeacherId: item.assignedTeacherId,
-            })),
-            activeRequests: activeRequests.map((item) => ({
-              id: item.id,
-              assignedTeacherId: item.assignedTeacherId,
-            })),
+            myReservedRequestId: dto.myReservedRequestId,
           };
         },
       },

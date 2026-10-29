@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
@@ -30,6 +31,7 @@ export class TeacherSessions {
   private readonly sessionApi = inject(SessionApi);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly authStore = inject(AuthStore);
 
   protected readonly sessions = this.sessionApi.getTeacherSessions();
 
@@ -74,6 +76,10 @@ export class TeacherSessions {
     this.router.navigate(['sessions', session.id], {
       relativeTo: this.route,
     });
+  }
+
+  protected onLogout(): void {
+    this.authStore.logout('/teacher');
   }
 
   protected onJoin(code: string): void {

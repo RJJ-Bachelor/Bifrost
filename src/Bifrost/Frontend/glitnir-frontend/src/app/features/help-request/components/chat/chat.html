@@ -1,0 +1,50 @@
+<div class="chat">
+  <div class="chat__messages">
+    @for (message of visibleMessages(); track message.id) {
+      <div
+        class="chat__bubble"
+        [class.chat__bubble--mine]="isMine(message)"
+        [class.chat__bubble--student]="isStudentMessage(message)"
+        [class.chat__bubble--teacher]="isTeacherMessage(message)"
+      >
+        <p class="chat__text">{{ message.text }}</p>
+      </div>
+    }
+  </div>
+
+  @if (canSend()) {
+    <form class="chat__composer" (submit)="onSubmit($event)">
+      <input
+        type="text"
+        class="input-field chat__input"
+        [placeholder]="placeholder()"
+        [value]="draft()"
+        (input)="draft.set($any($event.target).value)"
+        [disabled]="sending()"
+      />
+      @if (composerHint()) {
+        <p class="chat__hint">{{ composerHint() }}</p>
+      }
+    </form>
+  }
+
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="onClose()">
+      {{ closeLabel() }}
+    </button>
+    @if (canSend()) {
+      <button
+        type="button"
+        class="btn btn--primary"
+        [disabled]="sending() || draft().trim().length === 0"
+        (click)="submitDraft()"
+      >
+        {{ sendLabel() }}
+      </button>
+    }
+  </div>
+</div>

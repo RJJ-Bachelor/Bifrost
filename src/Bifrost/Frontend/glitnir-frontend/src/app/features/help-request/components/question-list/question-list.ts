@@ -6,7 +6,10 @@ const STATUS_LABELS: Record<HelpRequestStatus, string> = {
   pending: 'Venter i kø',
   active: 'Underviser på vej',
   awaitingConfirmation: 'Afventer bekræftelse',
-  completed: 'Besvaret',
+  awaitingFaq: 'FAQ-forslag',
+  completedByFaq: 'Besvaret i FAQ',
+  completedByDigital: 'Digitalt svar',
+  completedByPhysical: 'Fysisk svar',
   cancelled: 'Annulleret',
 };
 
@@ -39,7 +42,7 @@ export class QuestionList {
 
   protected isClickable(item: HelpRequest): boolean {
     if (OPEN_STATUSES.includes(item.status)) return true;
-    return item.status === 'completed' && item.helpType === 'digital';
+    return item.status === 'completedByDigital';
   }
 
   protected isOpen(status: HelpRequestStatus): boolean {
@@ -47,6 +50,6 @@ export class QuestionList {
   }
 
   protected isDigitalCompleted(item: HelpRequest): boolean {
-    return item.status === 'completed' && item.helpType === 'digital';
+    return item.status === 'completedByDigital';
   }
 }

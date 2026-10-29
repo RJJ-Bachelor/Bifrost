@@ -1,0 +1,25 @@
+<div class="queue-card-body">
+  <div class="queue-faq">
+    @if (faqQuestion(); as question) {
+      <p class="queue-faq__question">{{ question }}</p>
+    }
+    @if (faqAnswer(); as answer) {
+      <div class="queue-faq__answer">{{ answer }}</div>
+    }
+  </div>
+  <div class="queue-question-preview">
+    <span class="queue-question-preview__label">Dit spørgsmål</span>
+    <p class="queue-question-preview__text">”{{ question() }}”</p>
+  </div>
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions">
+    <button class="btn btn--secondary" [disabled]="responding()" (click)="responded.emit(false)">
+      Mangler stadig hjælp
+    </button>
+    <button class="btn btn--primary" [disabled]="responding()" (click)="responded.emit(true)">
+      Svar nok
+    </button>
+  </div>
+</div>

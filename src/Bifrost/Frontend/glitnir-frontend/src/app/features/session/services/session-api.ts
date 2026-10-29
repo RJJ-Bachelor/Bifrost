@@ -1,5 +1,5 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
-import { Service, inject, signal, Signal } from '@angular/core';
+import { Service, Signal, inject, signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ArchiveResult, Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
 
@@ -85,32 +85,33 @@ export class SessionApi {
     );
   }
 
-  getTeacherStatistics(id: () => string): Signal<TeacherStatistics> {
-    // TODO(BF-35): replace with real endpoint when available.
-    // return httpResource<TeacherStatistics>(() => ({
-    //   url: `/api/teachers/sessions/${id()}/statistics`,
-    //   method: 'GET',
-    //   withCredentials: true,
-    // }), { defaultValue: { physicalCount: 0, digitalCount: 0, helpedStudentCount: 0, averageWaitMinutes: null } });
-
-    void id;
-    return signal({
-      physicalCount: 12,
-      digitalCount: 2,
-      helpedStudentCount: 11,
-      averageWaitMinutes: 10,
-    });
+  getTeacherStatistics(id: () => string): HttpResourceRef<TeacherStatistics> {
+    return httpResource<TeacherStatistics>(
+      () => ({
+        url: `/api/teachers/sessions/${id()}/statistics`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      {
+        defaultValue: {
+          physicalCount: 0,
+          digitalCount: 0,
+          helpedStudentCount: 0,
+          averageWaitMinutes: null,
+        },
+      },
+    );
   }
 
-  getSessionStatus(id: () => string): Signal<SessionStatus> {
-    // TODO(BF-J7): replace with real endpoint when available.
-    // return httpResource<SessionStatus>(() => ({
-    //   url: `/api/students/sessions/${id()}/status`,
-    //   method: 'GET',
-    //   withCredentials: true,
-    // }), { defaultValue: { waitingCount: 0, estimatedWaitMinutes: 0 } });
-
-    return signal({ waitingCount: 4, estimatedWaitMinutes: 10 });
+  getSessionStatus(id: () => string): HttpResourceRef<SessionStatus> {
+    return httpResource<SessionStatus>(
+      () => ({
+        url: `/api/students/sessions/${id()}/queue/status`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      { defaultValue: { waitingCount: 0, estimatedWaitMinutes: null } },
+    );
   }
 
   deleteSession(id: string): Observable<void> {
