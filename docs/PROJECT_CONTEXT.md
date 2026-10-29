@@ -13,32 +13,26 @@ Key capabilities:
 ---
 
 ## 2. Tech Stack & Key Technologies
-- **Backend Runtime & Language:** .NET 10 (`net10.0`), C# 13.
+- **Backend Runtime & Language:** .NET 10 (`net10.0`), C# 14 (SDK default — no explicit `LangVersion`).
 - **Orchestration & Diagnostics:** .NET Aspire (`YggdrasilService.AppHost` & `YggdrasilService.ServiceDefaults`) orchestrating PostgreSQL databases, RabbitMQ broker, OpenTelemetry metrics, traces, and health checks.
 - **API Framework:** FastEndpoints 8.3.0 (REPR pattern: Request-Endpoint-Response) for API endpoints, internal in-process commands, and domain event notifications. Global serializer uses `JsonStringEnumConverter` for string-based enum serialization.
-- **Validation:** FluentValidation 12.1.1 integrated into FastEndpoints via pipeline command middleware (`CommandValidationMiddleware`).
+- **Validation:** FluentValidation 12.2.0 integrated into FastEndpoints via pipeline command middleware (`CommandValidationMiddleware`).
 - **Gateway & Reverse Proxy:** YARP (Yet Another Reverse Proxy) in `HeimdallGateway` managing edge routing, token extraction, and student cookie issuance.
 - **Identity & Authentication:**
   - **Teachers:** Duende IdentityServer (in `VarService`) with ASP.NET Core Identity for OAuth 2.0 / OpenID Connect authorization code flow with PKCE and JWT Bearer tokens.
   - **Students:** ASP.NET Core Data Protection encrypted cookie authentication (`bifrost-anonymous-user`) issuing anonymous student identifiers.
 - **Databases & Persistence:**
-  - PostgreSQL 16+ via Entity Framework Core 10 (`10.0.12`) and Npgsql.
+  - PostgreSQL 16+ via Entity Framework Core 10 (`10.0.14`) and Npgsql EF provider (`10.0.3`).
   - Isolated database per service (`eir`, `gna`, `mimir`, `var`).
   - Isolated database schema per module in `EirService` (`sessions`, `participants`, `helprequests`, `knowledgebase`).
 - **Message Broker & Event-Driven Architecture:**
-  - RabbitMQ 4+ (`RabbitMQ.Client 7.1.2`).
+  - RabbitMQ 4+ (`RabbitMQ.Client 7.2.2`).
   - Custom abstraction `IMessageBus` (`RabbitMqMessageBus`) with W3C distributed trace context propagation via OpenTelemetry `ActivitySource`.
   - Transactional Outbox Pattern (`OutboxDispatcher`, `OutboxMessage`, `OutgoingMessage`) for reliable at-least-once message dispatching.
   - Unit of Work pattern (`IUnitOfWork`, `IUnitOfWork<TContext>`) guaranteeing atomic persistence of aggregate changes and outbox messages.
-  - Outbox message coalescing (`OutgoingMessage.Coalesce`) for keyed deduplication of messages within a single database commit, prioritizing personal notifications over generic updates.
+  - Outbox coalescing (`OutgoingMessage.Coalesce`) — keyed dedup within a single commit; highest `Priority` wins (see §5).
 - **Real-time Notifications:** SignalR hubs (`/api/students/notifications`, `/api/teachers/notifications`) in `GnaService`, supporting both student identity cookies and query-string JWT bearer tokens (`access_token`).
-- **Frontend:**
-  - Angular 22 (`glitnir-frontend`), standalone components, signals, zoneless change detection, Vitest.
-  - Feature-based structure (`core/`, `features/`, `shared/`) with role-split routing (`/` for students, `/teacher/*` for teachers).
-  - Cookie-based OAuth via HeimdallGateway (`bifrost-teacher`) and anonymous student identity cookies (`bifrost-anonymous-user`); `HttpClient` / `httpResource` configured with `withCredentials: true`.
-  - Component selectors standardized with the `bifrost-` prefix across all modules.
-  - Role-based visual themes applied via host class bindings (`.theme-teacher`) driven by the global `AuthStore`; favicon switches automatically based on role.
-  - Integrated into Aspire orchestration via `.esproj` and `AddJavaScriptApp` in AppHost.
+- **Frontend:** Angular 22 (`glitnir-frontend`) — standalone components, signals, zoneless change detection, Vitest. Orchestrated via Aspire (`.esproj` / `AddJavaScriptApp`). See §3.3 for architecture, auth, routing, realtime, and conventions.
 - **CI/CD:** GitHub Actions (automated builds, tests, and automated AI Pull Request code reviewer bot).
 
 ---
@@ -71,46 +65,34 @@ Every service and module strictly adheres to Clean Architecture:
 
 ### 3.3 Frontend Architecture
 
-The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feature-based architecture:
+Feature-based with three layers: **`core/`** (global singletons: auth, layout, guards, realtime; no feature knowledge), **`shared/`** (UI-only components: `Card`, `Dialog`, `ListRow`, `StatusDialog`, `StatTile`), **`features/`** (`session`, `faq`, `help-request`, `student`, `teacher`, `not-found` — isolated, own services/components/models).
 
-- **`core/`** — global singletons (auth, layout, guards). No feature knowledge.
-- **`shared/`** — reusable UI-only components with no domain knowledge (`Card`, `Dialog`, `ListRow`, `StatusDialog`, `StatTile`).
-- **`features/`** — business domains (`session`, `faq`, `student`, `teacher`, `not-found`), each isolated with its own services, components and models.
+**Conventions:**
 
-**Rules:**
+- `@Service()` (Angular v22 shorthand) for singleton services/stores; `.model.ts` suffix for models (Angular exception to "no type suffixes").
+- Features are isolated — cross-feature imports only via each feature's `index.ts` barrel; no deep imports into another feature's internals.
+- Selector prefix `bifrost` (enforced in `angular.json`); never `app-`.
+- State via signals + `httpResource`/`HttpClient` for cookie-backed calls (`withCredentials: true`). Layout utilities (`surface-box`, `icon-mask`, `input-field`, `form-error`) in `styles/_utilities.scss` — compose via class lists. Topbar per page (not global in `app.html`) with named content-projection slots.
+- Forms use signal-based `@angular/forms/signals` (`form`, `FormField`, `validate`, `required`) — never Reactive or Template-driven. `withComponentInputBinding()` binds `:id`/`:requestId` to component `input()` signals — no `ActivatedRoute` snapshots.
+- **No legacy Angular patterns:** no `NgModule`, no constructor injection (use `inject()`), no `*ngIf`/`*ngFor` (use `@if`/`@for`), no Karma/Jasmine (Vitest only).
+- Dev proxy (`proxy.conf.json`) forwards `/api/**` (incl. WS) and `/account/**` to `http://localhost:6004`. `tsconfig.json` lacks `strict: true` but enables `noImplicitOverride`/`noImplicitReturns`/`noFallthroughCasesInSwitch`/`noPropertyAccessFromIndexSignature` + Angular strict injection/input.
 
-- Features are isolated. Cross-feature imports happen only via public APIs.
-- One feature never imports from another feature's internals.
-- `core/` services and stores are exposed via `@Service()` (Angular v22 shorthand).
-- Models use `.model.ts` suffix (Angular official exception to the "no type suffixes" rule).
-- Role-based access is enforced with `CanMatchFn` guards (`studentGuard`, `teacherGuard`) that short-circuit lazy loading.
-- Topbar layout is included per page (not global in `app.html`) and supports content projection through named slots.
-- State management relies on Angular signals, service singletons, and `httpResource` / `HttpClient` for cookie-backed API calls.
-- Global layout utilities (`surface-box`, `icon-mask`, `input-field`, `form-error`) live in `styles/_utilities.scss` and are composed via class lists rather than duplicated per component.
-- Real-time view updates use bitmasked `SessionRefresh` flags so SignalR events trigger only the necessary reloads (session, queue, FAQ, statistics) rather than a full-page refresh.
+**Auth, routing & realtime:**
 
-**Teacher session view (`features/teacher/pages/session`):**
+- Cookie-based OAuth via HeimdallGateway (`bifrost-teacher`) + anonymous student cookies (`bifrost-anonymous-user`). Identity loaded lazily per guard. `studentGuard` always `true` except under `/teacher/*`; `teacherGuard` calls `loadIdentity('teacher')` and redirects to `${environment.authBaseUrl}/account/login?returnUrl=…` otherwise. Roles lowercased; `teacher` wins if both present. `authBaseUrl` hardcoded to `http://localhost:6004` in both env files (known debt).
+- `CanMatchFn` guards short-circuit lazy loading. Student routes: `/`, `/sessions/:id`, `/sessions/:id/queue`. Teacher routes: `/teacher`, `/teacher/sessions/:id`, `/teacher/sessions/:id/dashboard`, `/teacher/sessions/:id/answer/:requestId`.
+- Role-based theme via `.theme-teacher` host binding on root `App`; favicon switches on `isTeacher()`.
+- `RealtimeHub` (`@Service()`) exposes `status` (signal) + `notifications$` (RxJS `Subject`, not a signal); listens only to `NotificationReceived`. Connect/disconnect driven by an `effect()` in root `App` on `authStore.role()` — guards never touch SignalR. Pages react by checking `eventType`/`change` and calling targeted `httpResource.reload()` (no bitmasks/flags).
 
-- `TeacherSession` is a smart/container component orchestrating queue reservations (`takeNext`), archiving, statistics tiles, and FAQ CRUD.
-- Modal flows are split into dedicated presentational components:
-  - `SessionSettingsDialog` — session codes, rename (placeholder until BF-47), delete trigger
-  - `SessionDeleteDialog` — destructive confirmation, calls delete API
-  - `ArchiveConfirmDialog` — archive title form, calls archive API
-- FAQ management lives in `features/faq/components`:
-  - `FaqFormDialog` — create/edit via discriminated `FaqDialogState` (`closed` | `create` | `edit`)
-  - `FaqDeleteDialog` — delete confirmation
-- Dialog state that spans multiple dialogs (settings → delete) is held by the parent; dialog-local state uses `linkedSignal` for automatic reset when the source (open state or target item) changes.
+**Session views:**
 
-**Student session view (`features/student/pages/session`):**
-
-- `StudentSession` renders queue status, question history, FAQ archive list, and message form.
-- Session generation history is exposed via `FaqArchiveList` with a dynamic `maxItems` count.
+- **Teacher (`features/teacher/pages/session`):** `TeacherSession` orchestrates queue reservations (`takeNext`), archiving, statistics, FAQ CRUD. Dialogs: `SessionSettingsDialog` (codes, rename — placeholder until BF-47, delete trigger), `SessionDeleteDialog`, `ArchiveConfirmDialog`; FAQ dialogs in `features/faq/components`: `FaqFormDialog` (create/edit via `FaqDialogState` union — `closed`/`create`/`edit`), `FaqDeleteDialog`. Parent owns cross-dialog state; dialog-local state uses `linkedSignal`.
+- **Student (`features/student/pages/session`):** `StudentSession` — queue status, question history, FAQ archive, message form; `FaqArchiveList` takes a dynamic `maxItems`.
 
 **Testing:**
 
-- All services and non-trivial business logic must have unit tests. Pure shell components (layout-only) are exempt.
-- Dialog components with real logic (`FaqFormDialog`, `ArchiveConfirmDialog`, `SessionSettingsDialog`, `FaqDeleteDialog`, `SessionDeleteDialog`) are tested in isolation via Vitest + Angular TestBed.
-- jsdom does not implement `<dialog>.showModal()` / `.close()`; tests stub these on `HTMLDialogElement.prototype` in `beforeAll`.
+- All services and non-trivial logic require unit tests; pure shell components exempt. Dialog components with logic are tested in isolation via Vitest + TestBed. Shared Vitest helpers in `src/test-utils/` (`fake-resource.ts`, `notification.ts`) should be reused.
+- jsdom lacks `<dialog>.showModal()`/`.close()`; tests stub these on `HTMLDialogElement.prototype` in `beforeAll`.
 
 ---
 
@@ -119,7 +101,7 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
 ### 4.1 HeimdallGateway (Edge API Gateway)
 - **Role:** Central entry point for external traffic (port 6004). Routes incoming traffic via YARP to backend services.
 - **Authentication Handling:**
-  - `/api/students/**`: Requires `Student` authorization policy. The `StudentIdentityMiddleware` automatically intercepts requests missing the `bifrost-student` cookie, mints an encrypted identity cookie, and forwards the authenticated request downstream.
+  - `/api/students/**`: Requires `Student` authorization policy. The `StudentIdentityMiddleware` automatically intercepts requests missing the `bifrost-anonymous-user` cookie (Data Protection–encrypted), mints it, and forwards the authenticated request downstream.
   - `/api/teachers/**`: Requires `Teacher` authorization policy. Accepts Bearer JWT tokens or reads the `bifrost-teacher` cookie (OIDC session) and attaches the access token as a `Bearer` header to downstream requests.
   - `/api/monitoring/**`: Anonymous access pass-through to backend health/monitoring endpoints.
   - `/account/login` and `/account/logout`: OIDC login/logout challenge endpoints interacting with `VarService`.
@@ -127,56 +109,63 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
 ### 4.2 VarService (Identity & Access Management)
 - **Role:** Dedicated Duende IdentityServer instance (port 6003) backed by ASP.NET Core Identity and PostgreSQL (`var` database).
 - **Clients & Scopes:**
-  - `interactive`: Code flow with PKCE for teacher web interfaces (scopes: `openid`, `profile`, `roles`, `Bifrost`).
-  - `m2m.client`: Machine-to-machine client credentials (scopes: `Bifrost`).
-- **Seed Users:**
-  - Teachers: `knud`, `bob` (Role: `Teacher`).
-  - Students (dev only): `learner` (Role: `Student`).
+  - `interactive`: Code flow with PKCE for teacher web interfaces (scopes: `openid`, `profile`, `roles`, `Bifrost`, plus unused placeholder `scope2`). Redirect URIs target `http://localhost:6004/signin-oidc` (plus legacy `https://localhost:44300`/`:51004`).
+  - `m2m.client`: Client credentials (scope: `Bifrost`).
+  - API scope `Bifrost` exposes claims `name` + `role`.
+- **Seed users** (password `Pass123$`):
+  - `knud`, `bob` — default role `Teacher`.
+  - `learner` — role `Student`, seeded only in Development.
 
 ### 4.3 EirService (Core Modular Monolith)
 - **Role:** Central domain service (port 6000) managing classroom sessions, participants, help requests, and the knowledge base.
 - **Modules:**
   1. **Sessions Module (`sessions` schema):**
-     - **Aggregate:** `Session` (Title, 8-char Crockford Base32 `SessionCode`, distinct `TeacherCode`, `CreatedByTeacherId`, `CurrentGeneration`, `LastClearedAtUtc`).
-     - **Domain Events:** `SessionClearedDomainEvent`, `SessionDeletedDomainEvent`, `SessionArchivedDomainEvent`.
+     - **Aggregate:** `Session` (Title, 8-char `Code` and distinct `TeacherCode` — both `SessionCode` value objects generated with `RandomNumberGenerator` from the alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (excludes `I`/`O`; **not** Crockford Base32), `CreatedByTeacherId`, `CreatedByDisplayName`, `CurrentGeneration`, `LastClearedAtUtc`).
+     - **Domain Events:** `SessionClearedDomainEvent`, `SessionDeletedDomainEvent`, `SessionArchivedDomainEvent`, `SessionRenamedDomainEvent`.
      - **Integration Promotion:** Domain events promote to `SessionUpdatedIntegrationEvent` (`Cleared` | `Deleted` | `Archived`) and stage them into the `sessions` outbox.
-     - **Lifecycle:** Clearing bumps generation and resets queue/FAQ; archiving snapshots the current generation (JSONB conversation snapshot + knowledge base read model) before advancing the generation; deletion removes the session and broadcasts to participants and teachers. Role-restricted archive inspection endpoints enforce that students access only their own conversations and answered FAQs.
+     - **Lifecycle:** Clearing bumps generation and resets queue/FAQ; deletion removes the session and broadcasts to participants and teachers. Archiving stores only metadata in `SessionArchive` (`SessionId`, `Title`, `Generation`, `StartedAtUtc`, `ArchivedAtUtc`); the `jsonb` conversation snapshot is written asynchronously by the HelpRequests module (`SessionUpdated(Archived)` → `ArchiveQueueAsync` → `helprequests.ArchivedConversation.Data`). Read endpoints (`GetSessionArchive[s]`) reassemble via in-process contracts; `SessionArchiveAccess` restricts students to their own conversation + answered FAQs.
      - **Concurrency:** Generation-based concurrency validation on archive execution guarantees strict atomic lifecycle transitions under concurrent requests.
      - **Endpoints — Teacher:**
        - `POST /api/teachers/sessions` (Create)
        - `GET /api/teachers/sessions` (`GetSessions` — includes live `WaitingCount` per generation, excluding active/confirmation-waiting items)
        - `GET /api/teachers/sessions/{id}` (Details)
+       - `PATCH /api/teachers/sessions/{id}` (`UpdateSession` — rename; body `{ title }`)
        - `POST /api/teachers/sessions/{id}/clear` (Clear / bump generation)
        - `POST /api/teachers/sessions/{id}/archive` (`ArchiveSession`; `ArchiveSessionCommand` accepts an optional title)
        - `POST /api/teachers/sessions/join` (Join by `TeacherCode`)
        - `DELETE /api/teachers/sessions/{id}` (Delete)
        - `GET /api/teachers/sessions/{id}/archives` (List archives)
+       - `GET /api/teachers/sessions/{id}/archives/{archiveId}` (Single archive)
      - **Endpoints — Student:**
-       - `GET /api/students/sessions/{code}` (Lookup session summary by code)
+       - `GET /api/students/sessions/{id}` (Session summary by GUID — code lookup happens via Participants `POST /api/students/sessions/join`)
        - `GET /api/students/sessions/{id}/archives` (Own archive view)
-     - **Contracts:** Exposes `FindSessionByCodeQuery`, `GetSessionGenerationsQuery`, `GetSessionSummariesQuery`, `GetSessionTeacherIdsQuery`, `GetTeacherSessionIdsQuery`, `IsSessionTeacherQuery` for in-process module consumption.
+       - `GET /api/students/sessions/{id}/archives/{archiveId}` (Single archive)
+     - **Contracts:** Exposes `FindSessionByCodeQuery`, `GetSessionGenerationsQuery`, `GetSessionSummariesQuery`, `GetHelpRequestSessionQuery`, `GetSessionTeacherNamesQuery`.
   2. **Participants Module (`participants` schema):**
-     - **Entity:** `SessionParticipant` (Composite key: `SessionId`, `StudentSubjectId`, `JoinedAtUtc`) with explicit `ParticipantRole` (`Student` | `Teacher`) for fine-grained permission boundaries.
+     - **Entity:** `SessionParticipant` (`Entity<SessionParticipantId>`, composite key `(SessionId, SubjectId, ParticipantRole)` via `SessionParticipantId`). Explicit `ParticipantRole` (`Student` | `Teacher`) for fine-grained permission boundaries; `DisplayName` and `JoinedAtUtc` are payload fields, not part of the key.
      - **Endpoints:**
        - Student: `POST /api/students/sessions/join` (Join session by code), `GET /api/students/sessions` (List joined sessions), `GET /api/students/me` (Student identity).
-       - Teacher: `GET /api/teachers/me` (Teacher identity).
-     - **Contracts:** Exposes `IsSessionParticipantQuery` and `IsSessionTeacherQuery` to verify enrollment and teacher access.
+       - Teacher: `GET /api/teachers/me` (Teacher identity), `POST /api/teachers/sessions/join` (Join by `TeacherCode`; uses `JoinTeacherSessionCommand` and returns a `SessionResult`).
+     - **Contracts:** Exposes `IsSessionParticipantQuery`, `IsSessionTeacherQuery`, `GetSessionParticipantIdsQuery`, `GetSessionTeacherIdsQuery`, `GetTeacherSessionIdsQuery`, `GetSessionTeachersQuery`, `RememberSessionTeacherCommand`.
   3. **HelpRequests Module (`helprequests` schema):**
-     - **Aggregate:** `HelpRequest` is a conversation thread containing child `HelpRequestMessage` entities ordered by `SequenceNumber`. Fields include `UserId`, `SessionId`, `Generation`, `HelpType` (`Physical` | `Digital`), `HelpRequestStatus`, `FaqAnswerId`, `HelpRequestMessageType` (`Original` | `FollowUp` | `SystemFaq`), and a per-generation `RequestNumber`.
-     - **Status Lifecycle:** `Pending` → `Active` → `AwaitingConfirmation` → `Completed`. FAQ-linked requests enter `AwaitingFaq` while a generalization awaits student confirmation. Students can append follow-up messages to reopen `Completed` requests back into `Pending`. Teacher cancellation returns a request to `Pending` with front-of-queue priority; student cancellation closes it as `Cancelled`.
-     - **Queueing & Reservation:** Queue is ordered by `ReturnedToQueueAt DESC NULLS LAST`, then `QueuedAt ASC`, then `Id ASC`. Atomic teacher reservation uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`. The queue is shared across all teachers joined to a session, while atomic request reservations remain bound to the individual claiming teacher. A partial unique index enforces at most one open request (`Pending` | `Active` | `AwaitingConfirmation`) per student per session generation.
+     - **Aggregate:** `HelpRequest` is a conversation thread containing child `HelpRequestMessage` entities ordered by `SequenceNumber`. Fields include `StudentId` (nullable — `null` = FAQ request), `SessionId`, `Generation`, `HelpType` (`Physical` | `Digital`), `Status`, `FaqAnswerId`, `RequestNumber` (per-generation, unique via `(SessionId, Generation, RequestNumber)`), plus computed `DisplayNumber`. `HelpRequestMessageType` values: `StudentQuestion` | `FollowUpQuestion` | `FaqQuestion` | `FaqAnswer` | `TeacherAnswer`.
+     - **Status Lifecycle:** `Pending` → `Active` → terminal `CompletedByPhysical` (physical) or `CompletedByDigital` (digital answer). FAQ-linked requests go `AwaitingFaq` → `CompletedByFaq` (accept) or back to queue (reject). `AwaitingConfirmation` exists as an open state. Student follow-up on a completed request reopens it via `ResetForQueue` (`Pending`, `AssignedTeacherId` cleared). Teacher cancel also uses `ResetForQueue` with `ReturnedToQueueAt` set (front-of-queue priority); student cancel closes as `Cancelled` and is only allowed before `Active`. `IsOpen` = `Pending | Active | AwaitingFaq | AwaitingConfirmation`.
+     - **Queueing & Reservation:** Queue is ordered by `ReturnedToQueueAt DESC NULLS LAST`, then `QueuedAt ASC`, then `Id ASC`. Atomic teacher reservation uses PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`. The queue is shared across all teachers joined to a session, while atomic request reservations remain bound to the individual claiming teacher. A partial unique index `IX_HelpRequest_OneOpenPerStudent` on `(SessionId, Generation, StudentId)` filtered by `Status IN ('Pending','Active','AwaitingFaq','AwaitingConfirmation')` enforces at most one open request per student per session generation.
      - **Queue Metrics:** Teacher session summaries differentiate between total waiting help requests and unreserved requests (`UnreservedWaitingCount`) to support multi-teacher load balancing. Cross-module waiting count queries aggregate generation-specific metrics using single-pass database groupings.
      - **Concurrency:** PostgreSQL `xmin` is used as the concurrency token on `HelpRequest`; message mutations update the aggregate root's timestamp to detect concurrent updates.
-     - **Display Numbering:** A per-session/per-generation `HelpRequestNumberCounter` with a PostgreSQL `BEFORE INSERT` trigger assigns sequential `DisplayNumber` values (`BF-001`, `BF-002`, ...), resetting per generation.
-     - **Contracts:** Exposes `GetHelpRequestSessionQuery` (verifies session ownership, generation, and teacher identity) alongside `IsSessionParticipantQuery`. The `HelpRequestAccess` helper centralizes cross-module authorization checks.
+     - **Display Numbering:** A per-session/per-generation `HelpRequestNumberCounter` plus a PostgreSQL `BEFORE INSERT` trigger (`assign_request_number`) assigns sequential `RequestNumber` values. The computed `DisplayNumber` prefixes `BF-` for student requests and `FAQ-` for FAQ entries (e.g. `BF-001`, `FAQ-002`), resetting per generation.
+     - **Contracts:** Exposes `GetWaitingCountsQuery`, `GetCompletedRequestStatisticsQuery`, `GetFaqAnswerRecipientsQuery`, `GetArchivedConversationsQuery`, `GetArchivedConversationCountsQuery`, `CanApplyGeneralizationQuery`, `ApplyGeneralizationCommand`. Cross-module authorization is centralized in the `HelpRequestAccess` helper (in-process `IsSessionParticipantQuery` / `IsSessionTeacherQuery` / `GetHelpRequestSessionQuery`).
      - **Endpoints — Student:**
        - `POST /api/students/sessions/{sessionId}/requests` (Create)
+       - `GET /api/students/requests` (List own requests)
        - `GET /api/students/sessions/{sessionId}/queue` (Privacy-preserving queue status: position, waiting count, estimated wait time)
+       - `GET /api/students/sessions/{sessionId}/queue/status` (Lightweight status poll)
        - `GET /api/students/requests/{id}` (Conversation details and messages)
        - `POST /api/students/requests/{id}/messages` (Follow-up message; reopens request in queue)
        - `PATCH /api/students/requests/{id}/status` (Cancel; Accept FAQ; Reject FAQ)
      - **Endpoints — Teacher:**
        - `GET /api/teachers/sessions/{sessionId}/queue` (Queue breakdown)
+       - `GET /api/teachers/sessions/{sessionId}/queue/status` (Lightweight status poll)
        - `POST /api/teachers/sessions/{sessionId}/queue/take-next` (Atomic reservation)
        - `GET /api/teachers/requests/{id}` (Conversation details)
        - `POST /api/teachers/requests/{id}/messages` (Digital answer; completes request)
@@ -187,9 +176,12 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
   4. **KnowledgeBase Module (`knowledgebase` schema):**
      - **Aggregate:** `FaqAnswer` tracks generalized questions, their answers, and the set of source help request IDs, ensuring answers are recorded only once per generalization.
      - **Handlers:** `RegisterGeneralizationMessageHandler` validates and persists FAQ generalizations; `FaqAnsweredMessageHandler` records teacher answers to generalizations.
-     - **Migration:** Backfills `MessageType` for existing help request messages and suppresses redundant notifications for physical help requests previously affected by FAQ state changes.
+     - **Contracts:** Exposes `GetArchivedFaqsQuery`, `GetArchivedFaqCountsQuery` for in-process archive read-model assembly.
+     - **Endpoints — Teacher:** `GET /api/teachers/sessions/{sessionId}/faqs` (List), `POST /api/teachers/sessions/{sessionId}/faqs` (Create).
+     - **Endpoints — Student:** `GET /api/students/sessions/{sessionId}/faqs` (List).
+     - **Migration history (Note):** The related backfills live in the **HelpRequests** module, not KnowledgeBase: `AddHelpRequestMessageType` (backfills `MessageType`), `KeepPhysicalHelpRequestsInQueue` (suppresses stale FAQ notices for physical requests from an earlier behavior), and `HideRejectedFaqMessages`. KnowledgeBase itself has only `InitialKnowledgeBase`.
   5. **Insights Module:**
-     - Scaffolded bounded context for session metrics, telemetry analysis, and reporting.
+     - Session statistics aggregator. `GetSessionStatisticsQuery` (with validator) backs `GET /api/teachers/sessions/{sessionId}/statistics`; it composes `GetCompletedRequestStatisticsQuery` from the HelpRequests module. Broader telemetry/reporting remains planned.
 
 ### 4.4 GnaService (Notification Microservice)
 - **Role:** Asynchronous notification service (port 6001) with dedicated PostgreSQL database (`gna`).
@@ -199,39 +191,35 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
   - `NotificationMessageSubscriber` listens to exchange `notifications` with routing key `gna-notification-requested` (`NotificationCreatedMessage`) and persists notifications for recipient users.
   - `NotificationDispatcher` attempts delivery via active SignalR connections before falling back to push notification channels.
   - Delivery modes are explicit via `NotificationDeliveryType` (`RealtimeOrPush` vs `RealtimeOnly`), controlling whether fallback push channels are engaged.
-  - Notification persistence enforces idempotency using unique constraints and transaction handling to safely handle redelivered messages.
-- **Real-time Session Events:** Session lifecycle transitions (clearing, archiving, deletion) broadcast `SessionChanged` events to all session participants and associated teachers, and `NotificationEventType` (`FaqCreated`, `FaqAnswered`, etc.) drives context-specific titles and navigation targets on the frontend.
-- **Local Outbox Dispatch:** A local `NotificationOutboxDispatcher` worker reads notification outbox records directly within `GnaService`, eliminating internal RabbitMQ round-trips. It marks terminal states and applies idempotency protections to ensure reliable dispatch over active SignalR connections. Notification infrastructure separates broker-bound integration event handling from local outbox-driven delivery.
+  - Persistence is idempotent at the application level: `NotificationRepository` skips inserts whose `Id` already exists (`AnyAsync` check), so RabbitMQ redeliveries are safe. Only `push_subscriptions` has a DB unique constraint (`(UserId, Endpoint)`).
+  - **Local outbox dispatch:** `NotificationCreatedDomainEvent` stages a `NotificationDeliveryRequestedMessage` (`notification.delivery-requested`) into the Gna outbox; a local `NotificationOutboxDispatcher` (500 ms poll) reads it inside `GnaService` — no internal RabbitMQ round-trip — and invokes `NotificationDispatcher`. A completed attempt is terminal, including "no channel available".
+- **Real-time session events:** Session lifecycle transitions (clear/archive/delete/rename) enqueue `SessionChanged` notifications (`NotificationDeliveryType.RealtimeOnly`) for every session participant plus the session's `CreatedByTeacherId`, coalesced by `session-notification:{sessionId}:{userId}`. `NotificationEventType` (`FaqCreated`, `FaqAnswered`, etc.) drives context-specific titles and navigation targets on the frontend.
 - **Persistence:** `PushSubscription` entities track active device subscriptions for fallback push delivery.
 
 ### 4.5 MimirService (Intelligence & Request Processing)
-- **Role:** Asynchronous intelligence and request analysis service (port 6002) with dedicated PostgreSQL database (`mimir`). Integrates with the Google Gemini LLM API via `ILlmClient` and `GeminiLlmClient` in the infrastructure layer to process student queries. Managed via Aspire AppHost.
-- **Aggregates:**
-  - `HelpRequest` (Id, `Message`, `ReceivedAt`, `SessionId`, `Generation`, optional `GeneralizationId`).
-  - `Generalization` groups incoming student queries into candidate FAQs, linking participating help requests.
-- **Generalization Pipeline:**
-  - `IGeneralizationDecider` is the application abstraction that evaluates incoming student queries against waiting help requests and decides whether to pair them.
-  - `PlaceholderGeneralizationDecider` is the initial strategy, combining consecutive student queries within the same session generation.
-  - Successful pairings instantiate a `Generalization` aggregate, link the participating help requests, and persist them. Waiting requests are guarded against concurrent pairing.
-  - `HelpRequestRepository` provides efficient queries for waiting, unlinked requests filtered by `SessionId` and `Generation`.
-  - Generalization creation emits `GeneralizedCreatedMessage` via the transactional outbox so `EirService` can synchronize FAQ state.
-- **Concurrency:** Help request entities in `MimirService` enforce database-level optimistic concurrency using PostgreSQL `xmin` as the row token.
-- **Idempotency & Resilience:** Message handlers verify request existence before processing, avoiding redundant LLM calls on message redeliveries. `LlmUnavailableException` fallback gracefully forwards the original student query if all configured LLM models fail.
-- **Messaging Consumers:**
-  - `HelpRequestMessageSubscriber`: Listens to exchange `requests` with routing key `request.created` (`HelpRequestCreatedMessage` mandating `HelpRequestId`, `SessionId`, `Generation`). Stores the request and emits a `GeneralizedCreatedMessage` to `requests / generalized.created` via its transactional outbox.
-  - `SessionUpdatedMessageSubscriber`: Listens to exchange `sessions` with routing key `session.updated` (`SessionUpdatedIntegrationEvent`) to track session lifecycle transitions (`Cleared`, `Deleted`, `Archived`).
+- **Role:** Async intelligence service (port 6002) with dedicated PostgreSQL database (`mimir`). Managed via Aspire AppHost.
+- **Aggregates:** `HelpRequest` (Id, `Message`, `ReceivedAt`, `SessionId`, `Generation`, optional `GeneralizationId` — the link points from the request *to* the generalization); `Generalization` (Id, `SessionId`, `Generation`, `Question` (Danish FAQ string), `CreatedAt`) — carries no member collection.
+- **Generalization pipeline:** `IGeneralizationDecider` decides `Standalone` / `Pair` / `Join` per incoming `HelpRequestCreatedMessage`. **The only active implementation is `PlaceholderGeneralizationDecider`** — it pairs only when another waiting request in the same session+generation has *identical* trimmed text (case-insensitive) and returns a fixed placeholder FAQ string (`"Dette er et generaliseret spørgsmål."`); real LLM-based decision is pending. A `Pair` instantiates a `Generalization`, links both requests, and emits `GeneralizedCreatedMessage` via the transactional outbox. `HelpRequestRepository` queries waiting, unlinked requests by `SessionId`+`Generation`. `ExistsAsync` guard makes redelivery idempotent.
+- **LLM client (registered, not yet consumed):** `GeminiLlmClient` (typed `HttpClient` → `https://generativelanguage.googleapis.com/`, 60 s timeout, `x-goog-api-key`, `v1beta/models/{model}:generateContent`, resilience handlers removed). Iterates `Gemini:Models` with multi-model fallback (first non-empty wins, else `LlmUnavailableException`); skips `Part.Thought == true`. Config `Gemini`: `ApiKey`, `Models` (`gemini-3.5-flash-lite`, `gemini-3.1-flash-lite`, `gemini-3.5-flash`), `Temperature` 0.2. **Not injected into `HelpRequestMessageHandler`** — `PlaceholderGeneralizationDecider` still drives the flow.
+- **Concurrency:** Optimistic concurrency via PostgreSQL `xmin` row token on `HelpRequest`.
+- **Messaging consumers:** `HelpRequestMessageSubscriber` listens to `requests / request.created` (`HelpRequestCreatedMessage`); `SessionUpdatedMessageSubscriber` listens to `sessions / session.updated` (`SessionUpdatedIntegrationEvent`) to track session lifecycle. Subscriber queue `mimir-request-answered` is declared via `AddRabbitMqQueue`.
+- **Evals:** `MimirService.Evals/generalization-cases.json` holds a Danish-language eval dataset for the decider (categories: `clear-match`, `clear-different`, `borderline`, `multi-candidate`, `typos`, `names`, `injection`, `empty-queue`), measuring decision accuracy and FAQ question quality. Harness is deferred to BF-10; **evals do not run in CI** because they hit the real model.
+- **Dev/test endpoints (Development-only, anonymous):** `POST /api/test/generalizations` publishes a `GeneralizedCreatedMessage` directly; `POST /api/test/generalizations/from-help-requests` runs the generalization handler against supplied help request ids.
 
 ### 4.6 YggdrasilService (Aspire Orchestrator)
-- **Role:** Distributed application host (`YggdrasilService.AppHost`) managing startup dependencies, container networking for PostgreSQL and RabbitMQ, and centralized service defaults (`YggdrasilService.ServiceDefaults`) for telemetry, logging, and health endpoints.
+- **Role:** Distributed application host (`YggdrasilService.AppHost/AppHost.cs`) managing startup dependencies, container networking, and centralized service defaults (`YggdrasilService.ServiceDefaults`) for telemetry, logging, and health endpoints. Aspire 13.6.4 (`Aspire.AppHost.Sdk`).
+- **Containers:** PostgreSQL on host port `5000` (init scripts under `./postgres/init`); RabbitMQ on `5001` with management plugin on `5002` (defaults `guest`/`guest` as secret parameters). All four databases (`eir`, `gna`, `mimir`, `var`) declared as Aspire database resources.
+- **Service wiring:** `VarService` (6003), `EirService.Api` (6000), `GnaService.Api` (6001), `MimirService.Api` (6002, receives `Gemini__ApiKey` as a secret parameter), `HeimdallGateway` (6004 — waits on all three backends).
+- **Frontends:** `glitnir-frontend` (`npm ci` + `start`, port 7000 → target 7002) and a secondary `test-frontend` (`Temp/TestFrontend`, port 7001 → target 7003), both waiting on `heimdallgateway`.
 
 ### 4.7 Shared Libraries (`src/Bifrost/Backend/Shared`)
 - **`Shared.Domain`:** DDD base abstractions (`Entity<TId>`, `AggregateRoot<TId>`, `IAggregateRoot`, `IDomainEvent`, `DomainEvent`).
-- **`Shared.Application`:** Messaging abstractions (`IMessageBus`, `MessageEnvelope<T>`, `MessageRoutes`), Outbox interfaces (`OutgoingMessage` with `Coalesce` support), and Unit of Work abstractions (`IUnitOfWork`, `IUnitOfWork<TContext>`, `UnitOfWorkConcurrencyException`).
+- **`Shared.Application`:** Messaging abstractions (`IMessageBus`, `MessageEnvelope<T>`, `MessageRoutes`), outbox interfaces (`OutgoingMessage`), UoW abstractions (`IUnitOfWork`, `IUnitOfWork<TContext>`, `UnitOfWorkConcurrencyException`), and `DomainEventNotification`.
 - **`Shared.Infrastructure`:**
   - `RabbitMqMessageBus`: RabbitMQ client wrapper with OpenTelemetry distributed activity tracing.
-  - `OutboxDispatcher<TDbContext>`: Background worker polling pending outbox messages and publishing to RabbitMQ with retry backoff and tracing propagation. Polling intervals for `EirService.HelpRequests` and `GnaService` are tuned to 500ms to minimize integration event propagation latency.
+  - `OutboxDispatcher<TDbContext>`: Background worker polling pending outbox messages and publishing to RabbitMQ with retry backoff and tracing propagation. Default polling interval is 5 s; `EirService.HelpRequests` (`AddOutbox<EirRequestDbContext>(500ms)`) and `GnaService`'s `NotificationOutboxDispatcher` are tuned to 500 ms to minimize integration event propagation latency.
   - `UnitOfWork<TOwner, TDbContext>`: EF Core Unit of Work that discovers domain events on tracked aggregates, triggers domain event handlers, and commits aggregate mutations alongside staged `OutboxMessage` records atomically.
-  - `RabbitMqQueueInitializer`: Hosted service (`AddRabbitMqQueue`) that declares durable subscriber queues ahead of active consumers (e.g. `gna-request-updated` in `GnaService`, `mimir-request-answered` in `MimirService`).
+  - `RabbitMqQueueInitializer`: Hosted service (`AddRabbitMqQueue`) that pre-declares durable queues ahead of their consumers ("prepare a durable destination while its message handler is still being developed"). Used for: `mimir-session-updated` (declared by Sessions), `gna-notification-requested` + `gna-request-updated` (Gna), `mimir-request-answered` (Mimir). Active subscribers declare their own queues via `SubscribeAsync`: `mimir-request-created` + `mimir-session-updated` (Mimir), `gna-notification-requested` (Gna), `eir-helprequests-session-updated` (Eir HelpRequests), `eir-faq-answered` (Eir KnowledgeBase).
   - Database migration utilities (`DatabaseMigrationExtensions.MigrateAtStartup()`).
 - **`Shared.Api`:**
   - `StudentCookieHandler` & `StudentIdentityCookie`: ASP.NET Data Protection cookie scheme for student sessions.
@@ -243,12 +231,14 @@ The Angular application (`src/Bifrost/Frontend/glitnir-frontend`) follows a feat
 
 | Exchange | Routing Key | Message Contract | Publisher | Consumers |
 | :--- | :--- | :--- | :--- | :--- |
-| `sessions` | `session.updated` | `SessionUpdatedIntegrationEvent`<br>*(SessionId, Generation, EventType: Cleared\|Deleted\|Archived, PreviousGeneration)* | `EirService.Sessions` (Outbox) | `EirService.HelpRequests`, `MimirService` |
-| `requests` | `request.created` | `HelpRequestCreatedMessage`<br>*(HelpRequestId, Message, SessionId, Generation)* | `EirService.HelpRequests` (Outbox) | `MimirService` |
-| `requests` | `request.updated` | `HelpRequestUpdatedIntegrationEvent`<br>*(RequestId, SessionId, Generation, Status)* | `EirService.HelpRequests` (Outbox) | `GnaService` |
-| `requests` | `request.answered` | `HelpRequestAnsweredMessage`<br>*(RequestId, SessionId, Generation, Message)* | `EirService.HelpRequests` (Outbox) | `MimirService` |
-| `requests` | `generalized.created` | `GeneralizedCreatedMessage`<br>*(HelpRequestId, Message, SessionId, Generation)* | `MimirService` (Outbox) | `EirService.HelpRequests` |
-| `notifications` | `gna-notification-requested` | `NotificationCreatedMessage`<br>*(UserId, Messages, SessionId, Generation)* | External / Domain Triggers | `GnaService` |
+| `sessions` | `session.updated` | `SessionUpdatedIntegrationEvent`<br>*(EventId, SessionId, Generation, EventType: Cleared\|Deleted\|Archived, UpdatedAtUtc, PreviousGeneration?)* | `EirService.Sessions` (Outbox) | `EirService.HelpRequests` (queue `eir-helprequests-session-updated`), `MimirService` (queue `mimir-session-updated`) |
+| `requests` | `request.created` | `HelpRequestCreatedMessage`<br>*(HelpRequestId, SessionId, Generation, Message)* | `EirService.HelpRequests` (Outbox) | `MimirService` (queue `mimir-request-created`) |
+| `requests` | `request.updated` | `HelpRequestUpdatedIntegrationEvent`<br>*(EventId, HelpRequestId, SessionId, Generation, StudentId?, Change, Status, HelpType, AssignedTeacherId?, QueuedAt, OccurredAt)* | `EirService.HelpRequests` (Outbox) | **No active consumer** (queue `gna-request-updated` pre-declared only) |
+| `requests` | `request.answered` | `HelpRequestAnsweredMessage`<br>*(HelpRequestId, SessionId, Generation, Question, Answer)* | `EirService.HelpRequests` (Outbox) | **No active consumer** (queue `mimir-request-answered` pre-declared only) |
+| `requests` | `generalized.created` | `GeneralizedCreatedMessage`<br>*(GeneralizationId, SessionId, Generation, Question, HelpRequestIds[])* | `MimirService` (Outbox) | `EirService.KnowledgeBase` (`RegisterGeneralizationMessageSubscriber`) |
+| `requests` | `faq.answered` | `FaqAnsweredMessage`<br>*(FaqId, SessionId, Generation, Answer, TeacherId, AnsweredAt, Question?)* | `EirService.HelpRequests` (Outbox) | `EirService.KnowledgeBase` (queue `eir-faq-answered`) |
+| `notifications` | `gna-notification-requested` | `NotificationCreatedMessage`<br>*(UserId, Messages, SessionId?, Generation?, HelpRequestId?, Change?, Status?, EventType, DeliveryType)* | Eir (`Sessions`/`HelpRequests`/`KnowledgeBase`) | `GnaService` (queue `gna-notification-requested`) |
+| `notifications` | `notification.delivery-requested` | `NotificationDeliveryRequestedMessage`<br>*(NotificationId, UserId, Message, CreatedAt, SessionId?, HelpRequestId?, Generation?, Change?, Status?, EventType, DeliveryType)* | `GnaService` (internal outbox) | `GnaService` `NotificationOutboxDispatcher` (local, no broker) |
 
 **Coalescing:** Outgoing messages staged within a single `UnitOfWork` commit may be coalesced by key, allowing personal notifications to supersede generic updates while still preserving at-least-once delivery semantics.
 
@@ -263,9 +253,4 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 4. **FastEndpoints Pattern:** HTTP endpoints must follow the REPR pattern and validate inputs using FluentValidation classes rather than inline controller logic.
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
 6. **English in Codebase (developer-facing):** All code identifiers, comments, log messages, exception messages, and documentation must be in English (applies to backend C#, frontend TypeScript, and shell scripts). **User-facing UI text and test data are exempt** and may be Danish, consistent with the rest of the application.
-7. **Frontend Architecture & Testing:**
-   - Feature isolation: no cross-feature imports of internal code.
-   - No legacy Angular patterns (`NgModule`, constructor injection, `*ngIf`, Karma).
-   - Unit tests required for all services and business logic; skip tests for pure shell components.
-   - Cookie-based auth only — no tokens in `localStorage` or `sessionStorage`.
-   - English codebase rule applies to TypeScript as well.
+7. **Frontend:** Verify against §3.3 (feature isolation via `index.ts` barrels, `@angular/forms/signals`, `bifrost-` selectors, no legacy Angular patterns, Vitest-only, cookie-auth with no `localStorage`/`sessionStorage` tokens). English codebase rule applies to TypeScript as well; user-facing UI text and test data may be Danish.

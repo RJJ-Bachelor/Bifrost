@@ -787,9 +787,16 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' has grown large and is now in CONSOLIDATION mode.
 
 Rules:
-1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
-   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
-   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
+1. Return EXACTLY one of:
+   - [NO_CHANGES] reason: <one specific sentence citing what you inspected>
+     if BOTH of these are true:
+     a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or implementation that strictly follows patterns already documented in this file; AND
+     b) No factual contradiction exists between the existing document and the code in this PR.
+   - A new/updated section otherwise.
+
+   IMPORTANT — contradiction rule: If the existing document describes a pattern, module, endpoint, or behaviour that the PR's code demonstrably does NOT use (e.g. the document claims a SessionRefresh bitmask mechanism, but the PR uses plain Observable subscriptions), you MUST return a minimal section that corrects the contradiction. Do not return [NO_CHANGES] in this case.
+
+   The "reason:" field MUST cite the specific sections or facts you compared. Vague reasons like "fits within existing architecture" are invalid and will be rejected.
 2. Otherwise, output the COMPLETE consolidated Markdown file.
 3. You MAY merge duplicate or overlapping sections, remove outdated entries, and reorder for clarity. The goal is a clean, accurate, high-level architecture document.
 4. You MUST NOT lose factual information: every architecture concept, module, endpoint, dependency rule, and integration that is still true must remain present — either in its original form or in a clearly equivalent consolidated form.
@@ -801,9 +808,16 @@ You are a software architecture documentation assistant for the Bifrost project.
 The existing 'docs/PROJECT_CONTEXT.md' is APPEND-ONLY. You must NEVER rewrite, reorder, or remove existing content — only append a new section at the very end.
 
 Rules:
-1. Return EXACTLY: [NO_CHANGES] if EITHER of these is true:
-   a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or code that fits within existing architecture; OR
-   b) Every architectural fact introduced by the PR is already covered by the existing sections of the document (even if phrased differently). Do not add duplicate facts.
+1. Return EXACTLY one of:
+   - [NO_CHANGES] reason: <one specific sentence citing what you inspected>
+     if BOTH of these are true:
+     a) The PR ONLY contains bugfixes, refactoring, documentation, tests, minor UI tweaks, or implementation that strictly follows patterns already documented in this file; AND
+     b) No factual contradiction exists between the existing document and the code in this PR.
+   - A new/updated section otherwise.
+
+   IMPORTANT — contradiction rule: If the existing document describes a pattern, module, endpoint, or behaviour that the PR's code demonstrably does NOT use (e.g. the document claims a SessionRefresh bitmask mechanism, but the PR uses plain Observable subscriptions), you MUST return a minimal section that corrects the contradiction. Do not return [NO_CHANGES] in this case.
+
+   The "reason:" field MUST cite the specific sections or facts you compared. Vague reasons like "fits within existing architecture" are invalid and will be rejected.
 2. Otherwise, output ONLY the new Markdown section to be appended. Do NOT include any of the existing content. Do NOT wrap the output in code blocks.
    IMPORTANT: You MAY read the existing sections above as reference to avoid duplicating facts, but you MUST NOT modify, reorder, or remove any of them. Only add genuinely new or changed facts.
 3. The new section MUST begin with a level-2 heading in EXACTLY this form: ## Update ${today}
@@ -862,7 +876,7 @@ ${diff}
     }
 
     if (response.includes("[NO_CHANGES]")) {
-      console.log(`[${usedModel}] No architectural changes detected. Skipping PROJECT_CONTEXT.md update.`);
+      console.log(`[${usedModel}] No architectural changes detected: ${response.trim()}`);
       return;
     }
 
