@@ -124,6 +124,83 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(1)]
+    [InlineData(182)]
+    public async Task StudentCookieIsRenewedWithSameIdentityAndLifetime(int remainingDays)
+    {
+        var userId = Guid.NewGuid().ToString("N");
+        var protector = StudentProtector();
+        var cookie = protector.Protect(userId, DateTimeOffset.UtcNow.AddDays(remainingDays));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "https://gateway/api/students/mimir/me");
+        request.Headers.Add("Cookie", $"another-cookie=kept; {StudentCookieHandler.CookieName}={cookie}; quoted-cookie=\"quoted-value\"");
+        var before = DateTimeOffset.UtcNow;
+
+        using var response = await client.SendAsync(request);
+
+        var after = DateTimeOffset.UtcNow;
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var identity = (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal(userId, identity.UserId);
+        Assert.Equal("kept", identity.OtherCookie);
+        Assert.NotEqual(cookie, identity.Cookie);
+        var renewedCookie = Assert.Single(response.Headers.GetValues("Set-Cookie"));
+        Assert.Equal(StudentCookieHandler.CookieName + "=" + identity.Cookie, renewedCookie.Split(';')[0]);
+        Assert.Contains("path=/api/students", renewedCookie);
+        Assert.Contains("httponly", renewedCookie);
+        Assert.Contains("secure", renewedCookie);
+        Assert.Contains("samesite=lax", renewedCookie);
+        Assert.Contains("max-age=31536000", renewedCookie);
+        Assert.Equal(userId, protector.Unprotect(identity.Cookie!, out var expiresAt));
+        Assert.InRange(expiresAt, before + StudentIdentityCookie.Lifetime, after + StudentIdentityCookie.Lifetime);
+    }
+
+    [Theory]
+    [InlineData(183)]
+    [InlineData(200)]
+    public async Task StudentCookieIsNotRenewedBeforeHalfItsLifetimeHasElapsed(int remainingDays)
+    {
+        var userId = Guid.NewGuid().ToString("N");
+        var cookie = StudentProtector().Protect(userId, DateTimeOffset.UtcNow.AddDays(remainingDays));
+        client.DefaultRequestHeaders.Add("Cookie", StudentCookieHandler.CookieName + "=" + cookie);
+
+        using var response = await client.GetAsync("/api/students/mimir/me");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var identity = (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!;
+        Assert.Equal(userId, identity.UserId);
+        Assert.Equal(cookie, identity.Cookie);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+    }
+
+    [Fact]
+    public async Task RenewedStudentCookieIsAcceptedAcrossServicesWithoutImmediateRenewal()
+    {
+        var userId = Guid.NewGuid().ToString("N");
+        var cookie = StudentProtector().Protect(userId, DateTimeOffset.UtcNow.AddDays(1));
+        client.DefaultRequestHeaders.Add("Cookie", StudentCookieHandler.CookieName + "=" + cookie);
+        using var renewed = await client.GetAsync("/api/students/mimir/me");
+        Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
+        var renewedCookie = StudentCookie(renewed);
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", renewedCookie);
+
+        using var next = await client.GetAsync("/api/students/me");
+        Assert.Equal(HttpStatusCode.OK, next.StatusCode);
+        Assert.Equal(userId, (await next.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
+        Assert.False(next.Headers.Contains("Set-Cookie"));
+
+        foreach (var service in services.Values)
+        {
+            using var direct = service.GetTestClient();
+            direct.DefaultRequestHeaders.Add("Cookie", renewedCookie);
+            using var response = await direct.GetAsync("/api/students/me");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(userId, (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
+            Assert.False(response.Headers.Contains("Set-Cookie"));
+        }
+    }
+
+    [Theory]
     [InlineData("eir")]
     [InlineData("mimir")]
     public async Task ServiceRejectsMissingCookieAndSpoofedIdentityHeaders(string service)
@@ -427,6 +504,11 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
 
     private static string StudentCookie(HttpResponseMessage response) => Assert.Single(response.Headers.GetValues("Set-Cookie"),
         value => value.StartsWith(StudentCookieHandler.CookieName + "=") && value.Contains("max-age=31536000")).Split(';')[0];
+
+    private ITimeLimitedDataProtector StudentProtector() => gateway.Services
+        .GetRequiredService<IOptionsMonitor<StudentCookieOptions>>()
+        .Get(StudentCookieHandler.SchemeName).DataProtectionProvider!
+        .CreateProtector(StudentIdentityCookie.ProtectionPurpose).ToTimeLimitedDataProtector();
 
     public async Task DisposeAsync()
     {

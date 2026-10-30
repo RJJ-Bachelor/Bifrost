@@ -15,6 +15,7 @@ public static class AuthenticationServiceCollectionExtensions
     public static AuthenticationBuilder AddStudentCookie(this AuthenticationBuilder builder,
         IConfiguration configuration, Action<StudentCookieOptions>? configure = null)
     {
+        builder.Services.TryAddSingleton(TimeProvider.System);
         builder.Services.TryAddSingleton<StudentIdentityCookie>();
         return builder.AddScheme<StudentCookieOptions, StudentCookieHandler>(StudentCookieHandler.SchemeName, options =>
         {
