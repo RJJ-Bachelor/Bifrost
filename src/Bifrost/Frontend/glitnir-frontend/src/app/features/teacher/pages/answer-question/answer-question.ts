@@ -80,7 +80,7 @@ export class AnswerQuestion {
     this.runAction(
       this.helpRequestApi.answerTeacherRequest(this.requestId(), text),
       'Kunne ikke sende svaret. Prøv igen.',
-      () => this.request.reload(),
+      () => this.backToSession(),
     );
   }
 
@@ -92,7 +92,7 @@ export class AnswerQuestion {
         submission.question,
       ),
       'Kunne ikke sende FAQ-svaret. Prøv igen.',
-      () => this.request.reload(),
+      () => this.backToSession(),
     );
   }
 
