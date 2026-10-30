@@ -1,5 +1,5 @@
 <div class="chat">
-  <div class="chat__messages">
+  <div class="chat__messages" #messagesContainer>
     @for (message of visibleMessages(); track message.id) {
       <div
         class="chat__bubble"
