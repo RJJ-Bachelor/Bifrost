@@ -254,3 +254,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 5. **Concurrency & Generations:** Changes affecting session lifecycle must handle `CurrentGeneration` concurrency tokens correctly.
 6. **English in Codebase (developer-facing):** All code identifiers, comments, log messages, exception messages, and documentation must be in English (applies to backend C#, frontend TypeScript, and shell scripts). **User-facing UI text and test data are exempt** and may be Danish, consistent with the rest of the application.
 7. **Frontend:** Verify against §3.3 (feature isolation via `index.ts` barrels, `@angular/forms/signals`, `bifrost-` selectors, no legacy Angular patterns, Vitest-only, cookie-auth with no `localStorage`/`sessionStorage` tokens). English codebase rule applies to TypeScript as well; user-facing UI text and test data may be Danish.
+
+---
+
+## Update 2026-10-30
+
+- `MimirService` replaces the previous placeholder with an active `GeneralizationDecider` implementation leveraging `ILlmClient` to categorize student help requests into `standalone`, `pair`, or `join` decisions.
+- `GeminiLlmClient` enforces structured LLM output by supplying an explicit JSON response schema within the generation configuration.
+- The generalization decider maps model responses using short prompt identifiers and validates candidate type compatibility before applying merges or generating FAQ questions.
+- A dedicated `MimirService.Evals` console project provides a Danish-language evaluation dataset and harness for measuring decider accuracy against live LLM endpoints outside of CI.
+- Malformed model responses, unexpected JSON formats, or service unavailability trigger a safe fallback to `Standalone` behavior to prevent pipeline failures.
