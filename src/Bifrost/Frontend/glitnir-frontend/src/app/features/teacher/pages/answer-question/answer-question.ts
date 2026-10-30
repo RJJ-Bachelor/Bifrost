@@ -1,5 +1,6 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { Router } from '@angular/router';
+import { Observable } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { Card } from '../../../../shared/components/card/card';
 import { HelpRequestApi } from '../../../help-request';
@@ -76,83 +77,61 @@ export class AnswerQuestion {
   protected readonly actionError = signal<string | null>(null);
 
   protected sendAnswer(text: string): void {
-    if (this.busy()) return;
-    this.busy.set(true);
-    this.actionError.set(null);
-    this.helpRequestApi.answerTeacherRequest(this.requestId(), text).subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.request.reload();
-      },
-      error: () => {
-        this.busy.set(false);
-        this.actionError.set('Kunne ikke sende svaret. Prøv igen.');
-      },
-    });
+    this.runAction(
+      this.helpRequestApi.answerTeacherRequest(this.requestId(), text),
+      'Kunne ikke sende svaret. Prøv igen.',
+      () => this.request.reload(),
+    );
   }
 
   protected submitFaqAnswer(submission: FaqAnswerSubmission): void {
-    if (this.busy()) return;
-    this.busy.set(true);
-    this.actionError.set(null);
-    this.helpRequestApi
-      .answerTeacherRequest(this.requestId(), submission.text, submission.question)
-      .subscribe({
-        next: () => {
-          this.busy.set(false);
-          this.request.reload();
-        },
-        error: () => {
-          this.busy.set(false);
-          this.actionError.set('Kunne ikke sende FAQ-svaret. Prøv igen.');
-        },
-      });
+    this.runAction(
+      this.helpRequestApi.answerTeacherRequest(
+        this.requestId(),
+        submission.text,
+        submission.question,
+      ),
+      'Kunne ikke sende FAQ-svaret. Prøv igen.',
+      () => this.request.reload(),
+    );
   }
 
   protected start(): void {
-    if (this.busy()) return;
-    this.busy.set(true);
-    this.actionError.set(null);
-    this.helpRequestApi.changeTeacherStatus(this.requestId(), 'start').subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.request.reload();
-      },
-      error: () => {
-        this.busy.set(false);
-        this.actionError.set('Kunne ikke starte hjælpen. Prøv igen.');
-      },
-    });
+    this.runAction(
+      this.helpRequestApi.changeTeacherStatus(this.requestId(), 'start'),
+      'Kunne ikke starte hjælpen. Prøv igen.',
+      () => this.request.reload(),
+    );
   }
 
   protected complete(): void {
-    if (this.busy()) return;
-    this.busy.set(true);
-    this.actionError.set(null);
-    this.helpRequestApi.changeTeacherStatus(this.requestId(), 'complete').subscribe({
-      next: () => {
-        this.busy.set(false);
-        this.backToSession();
-      },
-      error: () => {
-        this.busy.set(false);
-        this.actionError.set('Kunne ikke afslutte hjælpen. Prøv igen.');
-      },
-    });
+    this.runAction(
+      this.helpRequestApi.changeTeacherStatus(this.requestId(), 'complete'),
+      'Kunne ikke afslutte hjælpen. Prøv igen.',
+      () => this.backToSession(),
+    );
   }
 
   protected cancel(): void {
+    this.runAction(
+      this.helpRequestApi.changeTeacherStatus(this.requestId(), 'cancel'),
+      'Spørgsmålet kunne ikke lægges tilbage i køen. Prøv igen.',
+      () => this.backToSession(),
+    );
+  }
+
+  private runAction(action$: Observable<unknown>, errorMessage: string, onSuccess: () => void): void {
     if (this.busy()) return;
     this.busy.set(true);
     this.actionError.set(null);
-    this.helpRequestApi.changeTeacherStatus(this.requestId(), 'cancel').subscribe({
+    action$.subscribe({
       next: () => {
         this.busy.set(false);
-        this.backToSession();
+        onSuccess();
       },
       error: () => {
         this.busy.set(false);
-        this.actionError.set('Spørgsmålet kunne ikke lægges tilbage i køen. Prøv igen.');
+        this.actionError.set(errorMessage);
       },
     });
   }
