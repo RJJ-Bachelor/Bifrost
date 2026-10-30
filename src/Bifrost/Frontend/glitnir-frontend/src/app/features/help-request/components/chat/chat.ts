@@ -1,4 +1,13 @@
-import { Component, computed, input, output, signal } from '@angular/core';
+import {
+  afterRenderEffect,
+  Component,
+  computed,
+  ElementRef,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { AuthorRole, HelpRequestMessage } from '../../help-request.model';
 
 @Component({
@@ -13,6 +22,7 @@ export class Chat {
   readonly sending = input.required<boolean>();
   readonly error = input<string | null>(null);
   readonly closeLabel = input<string>('Luk');
+  readonly closeDisabled = input(false);
   readonly sendLabel = input<string>('Send');
   readonly composerHint = input<string | null>(null);
   readonly placeholder = input<string>('Skriv en besked...');
@@ -21,6 +31,16 @@ export class Chat {
   readonly closed = output<void>();
 
   protected readonly draft = signal('');
+
+  private readonly messagesContainer = viewChild<ElementRef<HTMLElement>>('messagesContainer');
+
+  constructor() {
+    afterRenderEffect(() => {
+      this.visibleMessages();
+      const el = this.messagesContainer()?.nativeElement;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
 
   protected readonly visibleMessages = computed(() =>
     this.messages()

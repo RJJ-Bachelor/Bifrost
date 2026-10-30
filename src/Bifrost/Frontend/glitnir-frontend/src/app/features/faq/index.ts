@@ -8,3 +8,4 @@ export {
   type FaqSavedEvent,
 } from './components/faq-form-dialog/faq-form-dialog';
 export { FaqDeleteDialog } from './components/faq-delete-dialog/faq-delete-dialog';
+export { FaqCard, type FaqAnswerSubmission } from './components/faq-card/faq-card';

@@ -1,5 +1,5 @@
 <div class="chat">
-  <div class="chat__messages">
+  <div class="chat__messages" #messagesContainer>
     @for (message of visibleMessages(); track message.id) {
       <div
         class="chat__bubble"
@@ -14,14 +14,14 @@
 
   @if (canSend()) {
     <form class="chat__composer" (submit)="onSubmit($event)">
-      <input
-        type="text"
+      <textarea
+        rows="2"
         class="input-field chat__input"
         [placeholder]="placeholder()"
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         [disabled]="sending()"
-      />
+      ></textarea>
       @if (composerHint()) {
         <p class="chat__hint">{{ composerHint() }}</p>
       }
@@ -33,7 +33,12 @@
   }
 
   <div class="form-actions">
-    <button type="button" class="btn btn--secondary" (click)="onClose()">
+    <button
+      type="button"
+      class="btn btn--secondary"
+      [disabled]="closeDisabled()"
+      (click)="onClose()"
+    >
       {{ closeLabel() }}
     </button>
     @if (canSend()) {

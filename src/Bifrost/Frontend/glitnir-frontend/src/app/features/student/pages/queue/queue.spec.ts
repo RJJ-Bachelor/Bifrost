@@ -41,12 +41,29 @@ function makeRequest(overrides: Partial<HelpRequest> = {}): HelpRequest {
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'physical',
     requestNumber: 1,
     queuedAt: '2026-01-01T10:00:00Z',
     assignedTeacherName: null,
+    ...overrides,
+  };
+}
+
+function makeDetail(overrides: Partial<HelpRequestDetail> = {}): HelpRequestDetail {
+  return {
+    id: 'request-1',
+    displayNumber: 'BF-001',
+    isFaq: false,
+    status: 'pending',
+    helpType: 'physical',
+    requestNumber: 1,
+    queuedAt: '2026-01-01T10:00:00Z',
+    assignedTeacherName: null,
+    messages: [],
+    question: 'Hvordan starter jeg Docker?',
     ...overrides,
   };
 }
@@ -181,14 +198,14 @@ describe('Queue', () => {
       const { access } = setup({
         queue: makeQueue({ ownRequestId: 'request-1' }),
         requests: [makeRequest({ status: 'awaitingConfirmation' })],
-        detail: {
-          ...makeRequest({ status: 'awaitingConfirmation' }),
+        detail: makeDetail({
+          status: 'awaitingConfirmation',
           messages: [
             makeMessage({ id: 'm-1', messageType: 'faqQuestion', text: 'old', sequenceNumber: 1 }),
             makeMessage({ id: 'm-2', messageType: 'faqQuestion', text: 'new', sequenceNumber: 3 }),
             makeMessage({ id: 'm-3', messageType: 'faqQuestion', text: 'mid', sequenceNumber: 2 }),
           ],
-        },
+        }),
       });
       expect(access.faqQuestion()).toBe('new');
     });
@@ -197,13 +214,13 @@ describe('Queue', () => {
       const { access } = setup({
         queue: makeQueue({ ownRequestId: 'request-1' }),
         requests: [makeRequest({ status: 'awaitingConfirmation' })],
-        detail: {
-          ...makeRequest({ status: 'awaitingConfirmation' }),
+        detail: makeDetail({
+          status: 'awaitingConfirmation',
           messages: [
             makeMessage({ id: 'm-1', messageType: 'faqAnswer', text: 'first', sequenceNumber: 1 }),
             makeMessage({ id: 'm-2', messageType: 'faqAnswer', text: 'second', sequenceNumber: 2 }),
           ],
-        },
+        }),
       });
       expect(access.faqAnswer()).toBe('second');
     });
@@ -212,10 +229,10 @@ describe('Queue', () => {
       const { access } = setup({
         queue: makeQueue({ ownRequestId: 'request-1' }),
         requests: [makeRequest({ status: 'awaitingConfirmation' })],
-        detail: {
-          ...makeRequest({ status: 'awaitingConfirmation' }),
+        detail: makeDetail({
+          status: 'awaitingConfirmation',
           messages: [makeMessage({ messageType: 'studentQuestion' })],
-        },
+        }),
       });
       expect(access.faqQuestion()).toBeNull();
       expect(access.faqAnswer()).toBeNull();

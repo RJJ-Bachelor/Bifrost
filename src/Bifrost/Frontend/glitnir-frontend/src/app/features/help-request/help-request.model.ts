@@ -1,5 +1,7 @@
 export type HelpType = 'physical' | 'digital';
 
+export type TeacherStatusAction = 'start' | 'complete' | 'cancel';
+
 export type HelpRequestStatus =
   | 'pending'
   | 'active'
@@ -18,6 +20,7 @@ export interface CreateHelpRequestInput {
 export interface HelpRequest {
   id: string;
   displayNumber: string;
+  isFaq: boolean;
   status: HelpRequestStatus;
   message: string;
   helpType: HelpType;
@@ -44,8 +47,9 @@ export interface HelpRequestMessage {
   sequenceNumber: number;
 }
 
-export interface HelpRequestDetail extends HelpRequest {
+export interface HelpRequestDetail extends Omit<HelpRequest, 'message'> {
   messages: HelpRequestMessage[];
+  question: string;
 }
 
 export interface SessionQueue {

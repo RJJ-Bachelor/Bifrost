@@ -1,6 +1,8 @@
 import { Component, input, output } from '@angular/core';
+import { FaqCard } from '../../../../../faq';
 
 @Component({
+  imports: [FaqCard],
   selector: 'bifrost-queue-awaiting-confirmation',
   templateUrl: './queue-awaiting-confirmation.html',
   styleUrl: './queue-awaiting-confirmation.scss',

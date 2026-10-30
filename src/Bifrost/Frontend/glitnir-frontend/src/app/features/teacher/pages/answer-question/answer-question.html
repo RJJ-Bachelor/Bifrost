@@ -1,2 +1,83 @@
 <bifrost-topbar>
+  <span topbar-center class="topbar-pill">
+    <span class="topbar-pill__text">{{ sessionTitle() }}</span>
+  </span>
 </bifrost-topbar>
+
+<div class="page-container answer-page">
+  <div class="answer-card-wrapper">
+    @if (viewState() === 'loading') {
+      <bifrost-card title="Indlæser...">
+        <p class="state-message">Indlæser spørgsmål...</p>
+      </bifrost-card>
+    } @else if (viewState() === 'closed') {
+      <bifrost-card title="Afsluttet">
+        <p class="state-message">Spørgsmålet er afsluttet.</p>
+        <div class="form-actions">
+          <button class="btn btn--primary" (click)="backToSession()">Tilbage til session</button>
+        </div>
+      </bifrost-card>
+    } @else if (viewState() === 'unsupported') {
+      <bifrost-card title="FAQ-flow">
+        <p class="state-message">FAQ-flowet er ikke bygget endnu. Gå tilbage til sessionen.</p>
+        <div class="form-actions">
+          <button class="btn btn--secondary" (click)="backToSession()">Tilbage til session</button>
+        </div>
+      </bifrost-card>
+    } @else if (viewState() === 'digital-chat' && request.value(); as detail) {
+      <bifrost-card [title]="cardTitle()">
+        <bifrost-answer-digital-chat
+          [messages]="detail.messages"
+          [busy]="busy()"
+          [error]="actionError()"
+          (sent)="sendAnswer($event)"
+          (cancelRequested)="cancel()"
+        />
+      </bifrost-card>
+    } @else if (viewState() === 'faq-answer' && request.value(); as detail) {
+      <bifrost-card [title]="cardTitle()">
+        <span card-header class="badge answer-type-badge">
+          <span class="answer-type-badge__icon answer-type-badge__icon--faq icon-mask" aria-hidden="true"></span>
+          FAQ-spørgsmål
+        </span>
+        <bifrost-faq-card
+          [question]="detail.question"
+          [editable]="true"
+          [busy]="busy()"
+          [error]="actionError()"
+          (answered)="submitFaqAnswer($event)"
+        />
+      </bifrost-card>
+    } @else if (viewState() === 'physical-prepare' && request.value(); as detail) {
+      <bifrost-card [title]="cardTitle()">
+        <span card-header class="badge answer-type-badge">
+          <span class="answer-type-badge__icon icon-mask" aria-hidden="true"></span>
+          Fysisk spørgsmål
+        </span>
+        <bifrost-answer-physical-prepare
+          [displayNumber]="detail.displayNumber"
+          [question]="detail.question"
+          [queuedAt]="detail.queuedAt"
+          [busy]="busy()"
+          [error]="actionError()"
+          (start)="start()"
+          (cancelRequested)="cancel()"
+        />
+      </bifrost-card>
+    } @else if (viewState() === 'physical-active' && request.value(); as detail) {
+      <bifrost-card [title]="cardTitle()">
+        <span card-header class="badge answer-type-badge">
+          <span class="answer-type-badge__icon icon-mask" aria-hidden="true"></span>
+          Fysisk spørgsmål
+        </span>
+        <bifrost-answer-physical-active
+          [displayNumber]="detail.displayNumber"
+          [question]="detail.question"
+          [busy]="busy()"
+          [error]="actionError()"
+          (complete)="complete()"
+        />
+      </bifrost-card>
+    }
+  </div>
+</div>

@@ -1,0 +1,54 @@
+<div class="faq-card">
+  <div class="faq-card__question-row">
+    @if (editingQuestion()) {
+      <input
+        #questionInput
+        type="text"
+        class="faq-card__question-input"
+        [value]="editedQuestion()"
+        (input)="onQuestionInput($event)"
+        (keydown)="onQuestionKeydown($event)"
+        (blur)="saveQuestion()"
+      />
+    } @else if (editable()) {
+      <button
+        type="button"
+        class="faq-card__question-btn"
+        (click)="startEditingQuestion()"
+      >
+        <span class="faq-card__question">{{ editedQuestion() }}</span>
+        <span class="icon-mask faq-card__edit-icon" aria-hidden="true"></span>
+      </button>
+    } @else {
+      <p class="faq-card__question">{{ question() }}</p>
+    }
+  </div>
+
+  @if (editable()) {
+    <textarea
+      class="faq-card__answer-input"
+      rows="3"
+      placeholder="Skriv et svar..."
+      [value]="answerDraft()"
+      (input)="onAnswerInput($event)"
+    ></textarea>
+  } @else if (answer()) {
+    <div class="faq-card__answer">{{ answer() }}</div>
+  }
+</div>
+
+@if (editable()) {
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions">
+    <button
+      class="btn btn--primary"
+      type="button"
+      [disabled]="busy() || answerDraft().trim().length === 0"
+      (click)="submitAnswer()"
+    >
+      {{ busy() ? 'Sender...' : 'Send og afslut' }}
+    </button>
+  </div>
+}

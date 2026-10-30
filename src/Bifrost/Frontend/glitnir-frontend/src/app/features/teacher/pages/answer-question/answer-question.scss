@@ -1,0 +1,29 @@
+:host {
+  display: block;
+}
+
+.answer-page {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-8);
+}
+
+.answer-card-wrapper {
+  max-width: 36rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.answer-type-badge {
+  gap: var(--space-1);
+}
+
+.answer-type-badge__icon {
+  --icon-size: 1rem;
+  mask-image: url('/raised-hand-icon.svg');
+  -webkit-mask-image: url('/raised-hand-icon.svg');
+}
+
+.answer-type-badge__icon--faq {
+  mask-image: url('/chat-icon.svg');
+  -webkit-mask-image: url('/chat-icon.svg');
+}

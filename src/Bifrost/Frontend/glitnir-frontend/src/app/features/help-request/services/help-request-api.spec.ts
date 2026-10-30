@@ -6,12 +6,13 @@ import {
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import { HelpRequest, HelpRequestStatus } from '../help-request.model';
+import { HelpRequest, HelpRequestStatus, TeacherStatusAction } from '../help-request.model';
 import { HelpRequestApi } from './help-request-api';
 
 interface RawRequest {
   id: string;
   displayNumber: string;
+  isFaq: boolean;
   status: string;
   message: string;
   helpType: string;
@@ -24,6 +25,7 @@ function rawRequest(overrides: Partial<RawRequest> = {}): RawRequest {
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'Pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'Physical',
@@ -34,9 +36,10 @@ function rawRequest(overrides: Partial<RawRequest> = {}): RawRequest {
   };
 }
 
-function rawDetail(overrides: Partial<RawRequest & { messages: unknown[] }> = {}) {
+function rawDetail(overrides: Partial<Omit<RawRequest, 'message'> & { messages: unknown[] }> = {}) {
+  const { message: _omitted, ...base } = rawRequest();
   return {
-    ...rawRequest(),
+    ...base,
     messages: [
       {
         id: 'message-1',
@@ -66,6 +69,7 @@ describe('HelpRequestApi', () => {
   const request: HelpRequest = {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'physical',
@@ -351,6 +355,127 @@ describe('HelpRequestApi', () => {
       req.flush(null, { status: 204, statusText: 'No Content' });
 
       expect(await promise).toBeNull();
+    });
+  });
+
+  describe('getTeacherRequest', () => {
+    it('fetches the detail and maps messages', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherRequest(() => 'request-1'),
+      );
+      TestBed.tick();
+
+      const req = http.expectOne('/api/teachers/requests/request-1');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.withCredentials).toBe(true);
+      req.flush(rawDetail());
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      const detail = resource.value();
+      expect(detail?.id).toBe('request-1');
+      expect(detail?.messages).toHaveLength(2);
+      expect(detail?.messages[0].authorRole).toBe('student');
+      expect(detail?.messages[1].authorRole).toBe('teacher');
+    });
+
+    it('does not call the endpoint when the id is null', () => {
+      TestBed.runInInjectionContext(() => service.getTeacherRequest(() => null));
+      TestBed.tick();
+
+      http.expectNone('/api/teachers/requests/null');
+    });
+
+    it('derives question from the student message when backend omits message field', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherRequest(() => 'request-1'),
+      );
+      TestBed.tick();
+
+      http.expectOne('/api/teachers/requests/request-1').flush(rawDetail());
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()?.question).toBe('Hvordan starter jeg Docker?');
+    });
+  });
+
+  describe('FAQ detail', () => {
+    it('derives question from faqQuestion when there is no studentQuestion', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherRequest(() => 'faq-1'),
+      );
+      TestBed.tick();
+
+      const faqDetail = rawDetail({
+        id: 'faq-1',
+        displayNumber: 'FAQ-001',
+        isFaq: true,
+        messages: [
+          {
+            id: 'message-1',
+            authorRole: 'System',
+            messageType: 'FaqQuestion',
+            text: 'Hvordan starter jeg en Docker container?',
+            createdAt: '2026-01-01T10:00:00Z',
+            sequenceNumber: 1,
+          },
+        ],
+      });
+      http.expectOne('/api/teachers/requests/faq-1').flush(faqDetail);
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()?.isFaq).toBe(true);
+      expect(resource.value()?.question).toBe('Hvordan starter jeg en Docker container?');
+    });
+  });
+
+  describe('answerTeacherRequest', () => {
+    it('posts text and optional question and maps the returned detail', async () => {
+      const promise = firstValueFrom(
+        service.answerTeacherRequest('request-1', 'A shared answer', 'Revised question'),
+      );
+
+      const req = http.expectOne('/api/teachers/requests/request-1/messages');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ text: 'A shared answer', question: 'Revised question' });
+      expect(req.request.withCredentials).toBe(true);
+      req.flush(rawDetail());
+
+      const detail = await promise;
+      expect(detail.id).toBe('request-1');
+      expect(detail.messages[1].text).toBe('Start Docker Desktop.');
+    });
+
+    it('sends question as undefined when not provided', async () => {
+      const promise = firstValueFrom(
+        service.answerTeacherRequest('request-1', 'A private answer'),
+      );
+
+      const req = http.expectOne('/api/teachers/requests/request-1/messages');
+      expect(req.request.body).toEqual({ text: 'A private answer', question: undefined });
+      req.flush(rawDetail());
+
+      await promise;
+    });
+  });
+
+  describe('changeTeacherStatus', () => {
+    it.each<[TeacherStatusAction, string]>([
+      ['start', 'Start'],
+      ['complete', 'Complete'],
+      ['cancel', 'Cancel'],
+    ])('maps %s to backend action %s', async (action, expected) => {
+      const promise = firstValueFrom(service.changeTeacherStatus('request-1', action));
+
+      const req = http.expectOne('/api/teachers/requests/request-1/status');
+      expect(req.request.method).toBe('PATCH');
+      expect(req.request.body).toEqual({ action: expected });
+      expect(req.request.withCredentials).toBe(true);
+      req.flush(rawDetail());
+
+      await promise;
     });
   });
 });

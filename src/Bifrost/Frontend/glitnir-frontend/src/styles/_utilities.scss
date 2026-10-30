@@ -48,6 +48,21 @@
   font-size: var(--font-size-sm);
 }
 
+.question-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.question-text {
+  margin: 0;
+  font-size: var(--font-size-body);
+  color: var(--color-primary-dark);
+  font-style: italic;
+  word-break: break-word;
+  white-space: pre-line;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

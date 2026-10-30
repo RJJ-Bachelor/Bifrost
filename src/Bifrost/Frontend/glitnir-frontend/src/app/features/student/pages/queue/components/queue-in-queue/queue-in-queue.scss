@@ -61,21 +61,10 @@
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-grey-200);
   border-bottom: 1px solid var(--color-grey-200);
-}
 
-.queue-question-preview__label {
-  font-size: var(--font-size-sm);
-  color: var(--color-muted);
-  font-weight: 600;
-}
-
-.queue-question-preview__text {
-  margin: 0;
-  font-size: var(--font-size-body);
-  color: var(--color-primary-dark);
-  font-style: italic;
-  max-width: 24rem;
-  word-break: break-word;
+  .question-text {
+    max-width: 24rem;
+  }
 }
 
 .queue-footer {

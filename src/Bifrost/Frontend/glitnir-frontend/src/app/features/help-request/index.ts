@@ -11,6 +11,7 @@ export type {
   SessionQueue,
   TeacherHelpRequest,
   TeacherQueue,
+  TeacherStatusAction,
 } from './help-request.model';
 export { Chat } from './components/chat/chat';
 export { HelpTypeToggle } from './components/help-type-toggle/help-type-toggle';
