@@ -5,14 +5,15 @@ namespace HeimdallGateway.Authentication;
 
 public sealed class StudentIdentityMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, StudentIdentityCookie studentCookie)
+    public async Task InvokeAsync(HttpContext context, StudentIdentityCookie studentCookie, TimeProvider clock)
     {
         if (context.Request.Path.StartsWithSegments("/api/students"))
         {
             context.Request.Cookies.TryGetValue(StudentCookieHandler.CookieName, out var cookie);
-            if (!studentCookie.TryUnprotect(cookie, out _))
+            var hasValidIdentity = studentCookie.TryUnprotect(cookie, out var userId, out var expiresAt);
+            if (!hasValidIdentity || expiresAt - clock.GetUtcNow() <= StudentIdentityCookie.Lifetime / 2)
             {
-                var protectedIdentity = studentCookie.Protect(Guid.NewGuid().ToString("N"));
+                var protectedIdentity = studentCookie.Protect(hasValidIdentity ? userId! : Guid.NewGuid().ToString("N"));
                 context.Response.Cookies.Append(StudentCookieHandler.CookieName, protectedIdentity, new CookieOptions
                 {
                     Path = "/api/students",
@@ -23,7 +24,7 @@ public sealed class StudentIdentityMiddleware(RequestDelegate next)
                     MaxAge = StudentIdentityCookie.Lifetime
                 });
 
-                // The first proxied request must already carry a newly issued identity.
+                // Forward the newly issued or renewed cookie on this request too.
                 CookieHeaderValue.TryParseList(context.Request.Headers.Cookie.OfType<string>().ToArray(), out var requestCookies);
                 var otherCookies = (requestCookies ?? [])
                     .Where(cookieHeader => cookieHeader.Name != StudentCookieHandler.CookieName)

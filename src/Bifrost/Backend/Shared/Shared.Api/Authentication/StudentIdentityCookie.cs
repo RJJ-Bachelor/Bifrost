@@ -14,16 +14,20 @@ public sealed class StudentIdentityCookie(IOptionsMonitor<StudentCookieOptions> 
 
     public string Protect(string userId) => protector.Protect(userId, Lifetime);
 
-    public bool TryUnprotect(string? cookie, out string? userId)
+    public bool TryUnprotect(string? cookie, out string? userId) => TryUnprotect(cookie, out userId, out _);
+
+    public bool TryUnprotect(string? cookie, out string? userId, out DateTimeOffset expiresAt)
     {
         userId = null;
+        expiresAt = default;
         if (string.IsNullOrWhiteSpace(cookie)) return false;
 
         try
         {
-            var candidate = protector.Unprotect(cookie);
+            var candidate = protector.Unprotect(cookie, out var expiration);
             if (!Guid.TryParseExact(candidate, "N", out _)) return false;
             userId = candidate;
+            expiresAt = expiration;
             return true;
         }
         catch (Exception exception) when (exception is CryptographicException or FormatException)
