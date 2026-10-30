@@ -19,6 +19,7 @@ import {
 interface HelpRequestBaseDto {
   id: string;
   displayNumber: string;
+  isFaq: boolean;
   status: string;
   helpType: string;
   requestNumber: number;
@@ -145,6 +146,7 @@ function mapSummary(dto: HelpRequestSummaryDto): HelpRequest {
   return {
     id: dto.id,
     displayNumber: dto.displayNumber,
+    isFaq: dto.isFaq,
     status: normalizeStatus(dto.status),
     message: dto.message,
     helpType: normalizeHelpType(dto.helpType),
@@ -156,21 +158,21 @@ function mapSummary(dto: HelpRequestSummaryDto): HelpRequest {
 
 function mapDetail(dto: HelpRequestDetailDto): HelpRequestDetail {
   const messages = dto.messages.map(mapMessage);
-  const question =
-    messages
-      .filter((m) => m.messageType === 'studentQuestion')
-      .sort((a, b) => a.sequenceNumber - b.sequenceNumber)[0]?.text ?? '';
+  const questionMessage =
+    messages.find((m) => m.messageType === 'studentQuestion') ??
+    messages.find((m) => m.messageType === 'faqQuestion');
 
   return {
     id: dto.id,
     displayNumber: dto.displayNumber,
+    isFaq: dto.isFaq,
     status: normalizeStatus(dto.status),
     helpType: normalizeHelpType(dto.helpType),
     requestNumber: dto.requestNumber,
     queuedAt: dto.queuedAt,
     assignedTeacherName: dto.assignedTeacherName ?? null,
     messages,
-    question,
+    question: questionMessage?.text ?? '',
   };
 }
 

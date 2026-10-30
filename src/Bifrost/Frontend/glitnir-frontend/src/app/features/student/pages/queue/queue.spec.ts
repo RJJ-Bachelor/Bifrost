@@ -41,6 +41,7 @@ function makeRequest(overrides: Partial<HelpRequest> = {}): HelpRequest {
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'physical',
@@ -55,6 +56,7 @@ function makeDetail(overrides: Partial<HelpRequestDetail> = {}): HelpRequestDeta
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'pending',
     helpType: 'physical',
     requestNumber: 1,

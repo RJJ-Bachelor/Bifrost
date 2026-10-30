@@ -12,6 +12,7 @@ import { HelpRequestApi } from './help-request-api';
 interface RawRequest {
   id: string;
   displayNumber: string;
+  isFaq: boolean;
   status: string;
   message: string;
   helpType: string;
@@ -24,6 +25,7 @@ function rawRequest(overrides: Partial<RawRequest> = {}): RawRequest {
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'Pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'Physical',
@@ -67,6 +69,7 @@ describe('HelpRequestApi', () => {
   const request: HelpRequest = {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status: 'pending',
     message: 'Hvordan starter jeg Docker?',
     helpType: 'physical',
@@ -394,6 +397,37 @@ describe('HelpRequestApi', () => {
       await TestBed.inject(ApplicationRef).whenStable();
 
       expect(resource.value()?.question).toBe('Hvordan starter jeg Docker?');
+    });
+  });
+
+  describe('FAQ detail', () => {
+    it('derives question from faqQuestion when there is no studentQuestion', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getTeacherRequest(() => 'faq-1'),
+      );
+      TestBed.tick();
+
+      const faqDetail = rawDetail({
+        id: 'faq-1',
+        displayNumber: 'FAQ-001',
+        isFaq: true,
+        messages: [
+          {
+            id: 'message-1',
+            authorRole: 'System',
+            messageType: 'FaqQuestion',
+            text: 'Hvordan starter jeg en Docker container?',
+            createdAt: '2026-01-01T10:00:00Z',
+            sequenceNumber: 1,
+          },
+        ],
+      });
+      http.expectOne('/api/teachers/requests/faq-1').flush(faqDetail);
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()?.isFaq).toBe(true);
+      expect(resource.value()?.question).toBe('Hvordan starter jeg en Docker container?');
     });
   });
 

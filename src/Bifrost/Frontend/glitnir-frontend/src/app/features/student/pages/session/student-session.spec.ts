@@ -23,6 +23,7 @@ function makeRequest(index: number): HelpRequest {
   return {
     id: `request-${index}`,
     displayNumber: `BF-${String(index).padStart(3, '0')}`,
+    isFaq: false,
     status: 'pending',
     message: `Question ${index}`,
     helpType: 'physical',
@@ -36,6 +37,7 @@ function makeRequestWith(status: HelpRequestStatus, helpType: HelpType): HelpReq
   return {
     id: 'request-1',
     displayNumber: 'BF-001',
+    isFaq: false,
     status,
     message: 'Question',
     helpType,
