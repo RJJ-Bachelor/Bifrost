@@ -14,14 +14,14 @@
 
   @if (canSend()) {
     <form class="chat__composer" (submit)="onSubmit($event)">
-      <input
-        type="text"
+      <textarea
+        rows="2"
         class="input-field chat__input"
         [placeholder]="placeholder()"
         [value]="draft()"
         (input)="draft.set($any($event.target).value)"
         [disabled]="sending()"
-      />
+      ></textarea>
       @if (composerHint()) {
         <p class="chat__hint">{{ composerHint() }}</p>
       }

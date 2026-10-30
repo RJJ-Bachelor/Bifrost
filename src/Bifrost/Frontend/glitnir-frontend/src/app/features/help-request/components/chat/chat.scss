@@ -59,14 +59,11 @@
 .chat__input {
   width: 100%;
   box-sizing: border-box;
+  resize: vertical;
 }
 
 .chat__hint {
   margin: 0;
   font-size: 0.8125rem;
   color: var(--color-muted);
-}
-
-.chat__input {
-  flex: 1;
 }
