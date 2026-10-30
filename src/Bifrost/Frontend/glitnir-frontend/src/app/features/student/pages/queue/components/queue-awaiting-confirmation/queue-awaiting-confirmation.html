@@ -1,12 +1,10 @@
 <div class="queue-card-body">
-  <div class="queue-faq">
-    @if (faqQuestion(); as question) {
-      <p class="queue-faq__question">{{ question }}</p>
-    }
-    @if (faqAnswer(); as answer) {
-      <div class="queue-faq__answer">{{ answer }}</div>
-    }
-  </div>
+  @if (faqQuestion(); as question) {
+    <bifrost-faq-card
+      [question]="question"
+      [answer]="faqAnswer() ?? ''"
+    />
+  }
   <div class="queue-question-preview">
     <span class="queue-question-preview__label">Dit spørgsmål</span>
     <p class="queue-question-preview__text">”{{ question() }}”</p>
