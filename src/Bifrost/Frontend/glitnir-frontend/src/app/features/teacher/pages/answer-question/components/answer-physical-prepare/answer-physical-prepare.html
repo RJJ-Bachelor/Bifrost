@@ -1,0 +1,18 @@
+<div class="physical-prepare__question">
+  <span class="question-label">{{ displayNumber() }}'s spørgsmål:</span>
+  <p class="question-text">”{{ question() }}”</p>
+  <span class="physical-prepare__time">{{ askedAtLabel() }}</span>
+</div>
+
+@if (error()) {
+  <p class="form-error">{{ error() }}</p>
+}
+
+<div class="form-actions">
+  <button class="btn btn--secondary" [disabled]="busy()" (click)="cancelRequested.emit()">
+    Læg tilbage i køen
+  </button>
+  <button class="btn btn--primary" [disabled]="busy()" (click)="start.emit()">
+    {{ busy() ? 'Starter...' : 'Klar til at hjælpe' }}
+  </button>
+</div>
