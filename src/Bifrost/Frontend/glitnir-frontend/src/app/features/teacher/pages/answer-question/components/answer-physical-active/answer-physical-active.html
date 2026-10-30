@@ -1,0 +1,23 @@
+<div class="physical-active">
+  <div class="physical-active__question">
+    <span class="question-label">{{ displayNumber() }}'s spørgsmål:</span>
+    <p class="question-text">”{{ question() }}”</p>
+  </div>
+
+  <div class="physical-active__turn">
+    <span class="physical-active__label">Vedkommende har nummeret:</span>
+    <span class="physical-active__number">{{ displayNumber() }}</span>
+    <span class="physical-active__label">og sidder med hånden op</span>
+
+  </div>
+</div>
+
+@if (error()) {
+  <p class="form-error">{{ error() }}</p>
+}
+
+<div class="form-actions">
+  <button class="btn btn--primary" [disabled]="busy()" (click)="complete.emit()">
+    {{ busy() ? 'Afslutter...' : 'Afslut hjælp' }}
+  </button>
+</div>
