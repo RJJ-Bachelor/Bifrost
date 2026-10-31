@@ -90,8 +90,6 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         {
             services.RemoveAll<IMessageBus>();
             services.AddSingleton<IMessageBus>(bus);
-            services.RemoveAll<ILlmClient>();
-            services.AddSingleton<ILlmClient, StubLlmClient>();
         }
         return services.BuildServiceProvider();
     }
@@ -99,12 +97,6 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
     private static OutgoingMessage Reply(Guid id, Guid sessionId, int generation) =>
         new(id, new GeneralizedCreatedMessage(id, sessionId, generation, "Generalized question", [TestIds.From("source-a"), TestIds.From("source-b")]),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
-
-    private sealed class StubLlmClient : ILlmClient
-    {
-        public Task<string> GenerateAsync(string systemInstruction, string prompt, CancellationToken cancellationToken) =>
-            Task.FromResult("Generalized answer");
-    }
 
     [PostgresFact]
     public async Task EirStartupMigrationsCreateEachHistoryTableBeforeReadingAndCanRunAgain()
@@ -682,5 +674,11 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
             }
             return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
+    }
+
+    private sealed class FakeLlmClient : ILlmClient
+    {
+        public Task<string> GenerateAsync(string systemInstruction, string prompt, JsonElement responseSchema, CancellationToken cancellationToken) =>
+            Task.FromResult("""{"decision":"standalone","candidateId":null,"faqQuestion":null}""");
     }
 }

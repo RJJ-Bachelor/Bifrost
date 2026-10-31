@@ -41,7 +41,16 @@ public static class DependencyInjection
         services.AddHostedService<HelpRequestMessageSubscriber>();
         services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
         services.AddHostedService<SessionUpdatedMessageSubscriber>();
+        services.AddGeminiLlmClient(configuration);
 
+        return services;
+    }
+
+    // Separate from AddMimirInfrastructure so the eval harness can use Gemini without a database or broker.
+    public static IServiceCollection AddGeminiLlmClient(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
         services.AddOptions<GeminiOptions>()
             .Bind(configuration.GetSection(GeminiOptions.SectionName))
             .Validate(o => !string.IsNullOrWhiteSpace(o.ApiKey), "Gemini:ApiKey is not configured.")

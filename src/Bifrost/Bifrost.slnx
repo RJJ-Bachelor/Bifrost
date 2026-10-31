@@ -42,6 +42,7 @@
     <Project Path="Backend/MimirService/MimirService.Api/MimirService.Api.csproj" />
     <Project Path="Backend/MimirService/MimirService.Application/MimirService.Application.csproj" Id="c78544e8-0645-4869-84e8-264250fa7130" />
     <Project Path="Backend/MimirService/MimirService.Domain/MimirService.Domain.csproj" Id="e1e00ea8-21a6-4ac5-a02b-cdd1563314b8" />
+    <Project Path="Backend/MimirService/MimirService.Evals/MimirService.Evals.csproj" />
     <Project Path="Backend/MimirService/MimirService.Infrastructure/MimirService.Infrastructure.csproj" Id="5cdf2735-5571-4925-91e1-a777a98169a1" />
     <Project Path="Backend/MimirService/MimirService.Test/MimirService.Test.csproj" Id="f9a792eb-9a45-4880-87bf-20e13a986825" />
   </Folder>
