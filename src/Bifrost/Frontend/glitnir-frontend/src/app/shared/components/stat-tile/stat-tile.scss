@@ -5,6 +5,28 @@
   text-align: center;
 }
 
+:host(:has(.stat-tile__title)) {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.stat-tile__title {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+  padding-bottom: var(--space-1);
+}
+
+.stat-tile__items {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  width: 100%;
+}
+
 .stat-tile__item {
   display: flex;
   flex-direction: column;
