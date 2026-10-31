@@ -1,0 +1,88 @@
+/* AI-generated: viewport lock. The flex column + min-height:0 chain below is what allows
+   .dashboard__faq to shrink to exactly the visible FAQ cards without scrolling. */
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.dashboard {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  box-sizing: border-box;
+}
+
+/* AI-generated: min-height:0 on the flex chain is required for the FAQ card to shrink below its content height. */
+.dashboard__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.dashboard__queue {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.dashboard__queue--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dashboard__code-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-primary);
+  color: white;
+  border-radius: var(--radius-pill);
+}
+
+.dashboard__code-label {
+  font-size: var(--font-size-lg);
+  font-weight: 500;
+}
+
+.dashboard__code-value {
+  font-family: 'Courier New', monospace;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* AI-generated: flex:0 1 auto makes the FAQ card wrap to the number of cards that fit. */
+.dashboard__faq {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* AI-generated: overflow:hidden guards against the one-frame flash before recomputeFaqFit finishes measuring. */
+.dashboard__faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.dashboard__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.dashboard__stat-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}

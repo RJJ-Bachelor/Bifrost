@@ -1,2 +1,64 @@
 <bifrost-topbar>
+  <span topbar-center class="topbar-pill">
+    <span class="topbar-pill__text">{{ session.value()?.title ?? '' }}</span>
+  </span>
+  <span topbar-right class="dashboard__code-pill">
+    <span class="dashboard__code-label">Kode:</span>
+    <span class="dashboard__code-value">{{ session.value()?.code ?? '' }}</span>
+  </span>
 </bifrost-topbar>
+
+<!-- AI-generated: #mainRef, #queueRef and #faqList are measurement targets for the viewport-fit system. -->
+<div class="dashboard">
+  <div #mainRef class="dashboard__main">
+    <div #queueRef class="dashboard__queue" [class.dashboard__queue--single]="frontWaitMinutes() === null">
+      <bifrost-stat-tile
+        class="surface-box"
+        [items]="[{ value: queue.value().waitingCount, label: 'I kø' }]"
+      />
+      @if (frontWaitMinutes() !== null) {
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{ value: frontWaitMinutes() + ' min', label: 'Forreste ventetid' }]"
+        />
+      }
+    </div>
+
+    <bifrost-card title="FAQ" class="dashboard__faq">
+      @if (faqs.value().length === 0) {
+        <p class="state-message">Ingen FAQ-spørgsmål endnu.</p>
+      } @else {
+        <div #faqList class="dashboard__faq-list">
+          <!-- AI-generated: slice(0, faqVisibleCount()) hides FAQ cards that would overflow the viewport. -->
+          @for (item of faqs.value().slice(0, faqVisibleCount()); track item.id) {
+            <bifrost-faq-card [question]="item.question" [answer]="item.answer" />
+          }
+        </div>
+      }
+    </bifrost-card>
+  </div>
+
+  <aside class="dashboard__sidebar">
+    <bifrost-card title="Dagens statistik">
+      <div class="dashboard__stat-stack">
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{ value: averageWaitLabel(), label: 'Gns. ventetid' }]"
+        />
+        <bifrost-stat-tile
+          class="surface-box"
+          [items]="[{ value: statistics.value().helpedStudentCount, label: 'Studerende hjulpet' }]"
+        />
+        <bifrost-stat-tile
+          class="surface-box"
+          title="Spørgsmål besvaret"
+          [items]="[
+            { value: statistics.value().physicalCount, label: 'Fysisk' },
+            { value: statistics.value().digitalCount, label: 'Digitalt' },
+            { value: statistics.value().physicalCount + statistics.value().digitalCount, label: 'I alt' }
+          ]"
+        />
+      </div>
+    </bifrost-card>
+  </aside>
+</div>
