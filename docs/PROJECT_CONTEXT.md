@@ -264,3 +264,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - The generalization decider maps model responses using short prompt identifiers and validates candidate type compatibility before applying merges or generating FAQ questions.
 - A dedicated `MimirService.Evals` console project provides a Danish-language evaluation dataset and harness for measuring decider accuracy against live LLM endpoints outside of CI.
 - Malformed model responses, unexpected JSON formats, or service unavailability trigger a safe fallback to `Standalone` behavior to prevent pipeline failures.
+
+---
+
+## Update 2026-11-01
+
+- `MimirService` features configuration-driven selection of its generalization decider via the `Generalization:Decider` configuration key.
+- The decider configuration supports either `Fake` (using `PlaceholderGeneralizationDecider`) or `Gemini` (`GeneralizationDecider`).
+- `Fake` acts as the default generalization decider to enable local execution without requiring live LLM API access.
+- Aspire orchestration (`YggdrasilService`) injects the `generalization-decider` parameter as an environment variable into `MimirService`.
+- A dedicated `https-gemini` launch profile in the Aspire AppHost sets the decider parameter to `Gemini` for active intelligence evaluations.
