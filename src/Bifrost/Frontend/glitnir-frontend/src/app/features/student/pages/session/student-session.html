@@ -67,9 +67,9 @@
     </bifrost-card>
     <bifrost-card title="FAQ-Arkivet">
       <bifrost-faq-archive-list
-        [items]="generations()"
+        [items]="generations.value()"
         [maxItems]="archiveVisibleCount()"
-        (generationSelected)="onGenerationSelected($event)"
+        (generationSelected)="onArchiveSelected($event)"
       />
     </bifrost-card>
   </div>
@@ -98,12 +98,3 @@
   }
 </bifrost-dialog>
 
-<bifrost-dialog
-  [open]="selectedGeneration() !== null"
-  [title]="selectedGeneration()?.title ?? ''"
-  (closed)="closeGenerationDialog()"
->
-  <p class="state-message">
-    FAQ for denne lektion kommer her.
-  </p>
-</bifrost-dialog>

@@ -5,6 +5,7 @@ import {
 } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { firstValueFrom } from 'rxjs';
 import { FaqApi } from './faq-api';
 
 describe('FaqApi', () => {
@@ -68,6 +69,61 @@ describe('FaqApi', () => {
       expect(resource.value()).toEqual([
         { id: 'faq-1', question: 'Ubesvaret spørgsmål?', answer: '' },
       ]);
+    });
+  });
+
+  describe('createFaq', () => {
+    it('posts the question and answer to the teacher endpoint', async () => {
+      const promise = firstValueFrom(
+        service.createFaq('session-1', 'Hvad er Docker?', 'Et container-værktøj.'),
+      );
+
+      const req = http.expectOne('/api/teachers/sessions/session-1/faqs');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.withCredentials).toBe(true);
+      expect(req.request.body).toEqual({
+        question: 'Hvad er Docker?',
+        answer: 'Et container-værktøj.',
+      });
+      req.flush({
+        id: 'faq-1',
+        sessionId: 'session-1',
+        generation: 1,
+        question: 'Hvad er Docker?',
+        answer: 'Et container-værktøj.',
+        sourceCount: 1,
+        createdAt: '2026-11-01T10:00:00Z',
+        answeredAt: '2026-11-01T10:00:00Z',
+      });
+
+      expect(await promise).toEqual({
+        id: 'faq-1',
+        question: 'Hvad er Docker?',
+        answer: 'Et container-værktøj.',
+      });
+    });
+
+    it('maps a null answer to an empty string', async () => {
+      const promise = firstValueFrom(
+        service.createFaq('session-1', 'Ubesvaret?', ''),
+      );
+
+      http.expectOne('/api/teachers/sessions/session-1/faqs').flush({
+        id: 'faq-2',
+        sessionId: 'session-1',
+        generation: 1,
+        question: 'Ubesvaret?',
+        answer: null,
+        sourceCount: 1,
+        createdAt: '2026-11-01T10:00:00Z',
+        answeredAt: null,
+      });
+
+      expect(await promise).toEqual({
+        id: 'faq-2',
+        question: 'Ubesvaret?',
+        answer: '',
+      });
     });
   });
 });

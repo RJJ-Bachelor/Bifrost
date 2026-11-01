@@ -54,7 +54,6 @@ export class StudentSession {
   protected readonly submitting = signal(false);
   protected readonly submitError = signal<string | null>(null);
   protected readonly selectedRequest = signal<HelpRequest | null>(null);
-  protected readonly selectedGeneration = signal<SessionGeneration | null>(null);
 
   private readonly selectedRequestId = computed(() => this.selectedRequest()?.id ?? null);
   protected readonly selectedRequestDetail = this.helpRequestApi.getStudentRequest(() => this.selectedRequestId());
@@ -83,7 +82,7 @@ export class StudentSession {
 
         if (notification.change === 'Archived') {
           this.session.reload();
-          // TODO: reload generations when getStudentGenerations returns a real httpResource.
+          this.generations.reload();
         }
       });
   }
@@ -133,12 +132,8 @@ export class StudentSession {
     });
   }
 
-  protected onGenerationSelected(generation: SessionGeneration): void {
-    this.selectedGeneration.set(generation);
-  }
-
-  protected closeGenerationDialog(): void {
-    this.selectedGeneration.set(null);
+  protected onArchiveSelected(archive: SessionGeneration): void {
+    this.router.navigate(['archives', archive.id], { relativeTo: this.route });
   }
 
   protected onQuestionSubmitted(message: string): void {

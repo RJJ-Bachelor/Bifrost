@@ -1,4 +1,3 @@
-import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject, of } from 'rxjs';
@@ -56,6 +55,7 @@ interface SetupResult {
     queue: ReturnType<typeof vi.fn>;
     requests: ReturnType<typeof vi.fn>;
     faq: ReturnType<typeof vi.fn>;
+    generations: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -77,11 +77,12 @@ describe('StudentSession', () => {
     );
     const queueResource = fakeResource({ ownRequestId: null });
     const faqResource = fakeResource<unknown[]>([]);
+    const generationsResource = fakeResource<unknown[]>([]);
 
     const sessionApi = {
       getStudentSession: () => sessionResource,
       getSessionStatus: () => statusResource,
-      getStudentGenerations: () => signal([]),
+      getStudentGenerations: () => generationsResource,
     };
 
     const helpRequestApi = {
@@ -122,6 +123,7 @@ describe('StudentSession', () => {
         queue: queueResource.reload as ReturnType<typeof vi.fn>,
         requests: requestsResource.reload as ReturnType<typeof vi.fn>,
         faq: faqResource.reload as ReturnType<typeof vi.fn>,
+        generations: generationsResource.reload as ReturnType<typeof vi.fn>,
       },
     };
   }
@@ -229,6 +231,17 @@ describe('StudentSession', () => {
       );
 
       expect(reloads.session).toHaveBeenCalled();
+    });
+
+    it('reloads the session and archives when the change is Archived', () => {
+      const { notifications, reloads } = setup(0);
+
+      notifications.next(
+        makeNotification({ eventType: NotificationEventType.SessionChanged, change: 'Archived' }),
+      );
+
+      expect(reloads.session).toHaveBeenCalled();
+      expect(reloads.generations).toHaveBeenCalled();
     });
 
     it('ignores events from other sessions', () => {

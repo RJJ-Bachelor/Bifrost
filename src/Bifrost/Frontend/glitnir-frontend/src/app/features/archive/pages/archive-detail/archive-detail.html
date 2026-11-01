@@ -1,0 +1,54 @@
+<bifrost-topbar>
+  <span topbar-center class="topbar-pill">
+    <span class="topbar-pill__text">{{ title() }}</span>
+  </span>
+  <button topbar-right class="topbar-btn" (click)="back()">
+    Tilbage
+  </button>
+</bifrost-topbar>
+
+<div class="page-container">
+  @if (archive.isLoading()) {
+    <p class="state-message">Indlæser arkiv...</p>
+  } @else if (archive.error()) {
+    <p class="state-message">Kunne ikke hente arkivet.</p>
+  } @else if (archive.value(); as detail) {
+    <bifrost-card title="FAQ">
+      @if (detail.faqs.length === 0) {
+        <p class="state-message">Ingen FAQ i denne generation.</p>
+      } @else {
+        <bifrost-faq-list [items]="faqItems()" />
+      }
+    </bifrost-card>
+
+    @if (!isTeacher()) {
+      <bifrost-card title="Dine spørgsmål">
+        @if (questionRows().length === 0) {
+          <p class="state-message">Du stillede ingen spørgsmål i denne generation.</p>
+        } @else {
+          <bifrost-question-list
+            [items]="questionRows()"
+            (questionSelected)="openConversation($event)"
+          />
+        }
+      </bifrost-card>
+    }
+  }
+</div>
+
+<bifrost-dialog
+  [open]="selectedConversation() !== null"
+  [title]="selectedConversation()?.displayNumber ?? 'Samtale'"
+  (closed)="closeConversation()"
+>
+  @if (selectedConversation(); as conversation) {
+    <bifrost-chat
+      [messages]="toMessages(conversation)"
+      [viewerRole]="viewerRole()"
+      [canSend]="false"
+      [sending]="false"
+      closeLabel="Luk"
+      (closed)="closeConversation()"
+    />
+  }
+</bifrost-dialog>

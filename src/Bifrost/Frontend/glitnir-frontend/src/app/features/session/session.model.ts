@@ -5,6 +5,8 @@ export interface Session {
   lastClearedAtUtc: string | null;
   code?: string;
   teacherCode?: string;
+  waitingCount?: number;
+  unreservedWaitingCount?: number;
 }
 
 export interface SessionStatus {

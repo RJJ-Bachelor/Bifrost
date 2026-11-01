@@ -75,7 +75,7 @@ describe('SessionApi', () => {
   });
 
   describe('archiveSession', () => {
-    it('posts expectedGeneration and omits title until backend supports it', async () => {
+    it('posts expectedGeneration and title', async () => {
       const result: ArchiveResult = {
         id: 'archive-1',
         sessionId: 'session-1',
@@ -87,7 +87,7 @@ describe('SessionApi', () => {
 
       const request = http.expectOne('/api/teachers/sessions/session-1/archive');
       expect(request.request.method).toBe('POST');
-      expect(request.request.body).toEqual({ expectedGeneration: 1 });
+      expect(request.request.body).toEqual({ expectedGeneration: 1, title: 'Lek 1' });
       expect(request.request.withCredentials).toBe(true);
       request.flush(result);
 
@@ -202,8 +202,34 @@ describe('SessionApi', () => {
     });
   });
 
+  describe('getStudentGenerations', () => {
+    it('fetches student archives and keeps the archived title', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getStudentGenerations(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      http.expectOne('/api/students/sessions/session-1/archives').flush([
+        {
+          id: 'gen-8',
+          sessionId: 'session-1',
+          title: 'SQL vs Mongo',
+          generation: 8,
+          startedAtUtc: '2026-10-01T10:00:00Z',
+          archivedAtUtc: '2026-10-08T10:00:00Z',
+          privateConversationCount: 0,
+          generalizedQuestionCount: 0,
+        },
+      ]);
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()[0].title).toBe('SQL vs Mongo');
+    });
+  });
+
   describe('getTeacherArchives', () => {
-    it('fetches archives and replaces title with the generation label', async () => {
+    it('fetches archives and keeps the archived title', async () => {
       const resource = TestBed.runInInjectionContext(() =>
         service.getTeacherArchives(() => 'session-1'),
       );
@@ -213,7 +239,7 @@ describe('SessionApi', () => {
         {
           id: 'gen-8',
           sessionId: 'session-1',
-          title: 'SWBAD-26',
+          title: 'SQL vs Mongo',
           generation: 8,
           startedAtUtc: '2026-10-01T10:00:00Z',
           archivedAtUtc: '2026-10-08T10:00:00Z',
@@ -224,7 +250,7 @@ describe('SessionApi', () => {
 
       await TestBed.inject(ApplicationRef).whenStable();
 
-      expect(resource.value()[0].title).toBe('Generation 8');
+      expect(resource.value()[0].title).toBe('SQL vs Mongo');
     });
   });
 });

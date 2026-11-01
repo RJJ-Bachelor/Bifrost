@@ -5,18 +5,14 @@ import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Card } from '../../../../shared/components/card/card';
-import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import {
   FaqApi,
   FaqArchiveList,
-  FaqDeleteDialog,
   FaqFormDialog,
   FaqList,
   type FaqDialogState,
-  type FaqItem,
-  type FaqSavedEvent,
 } from '../../../faq';
 import { HelpRequestApi } from '../../../help-request';
 import { SessionApi, type SessionGeneration } from '../../../session';
@@ -25,7 +21,7 @@ import { SessionDeleteDialog } from './components/session-delete-dialog/session-
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, Dialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -79,13 +75,11 @@ export class TeacherSession {
     return minutes === null ? '-' : `${Math.round(minutes)} min`;
   });
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
-  protected readonly selectedArchive = signal<SessionGeneration | null>(null);
   protected readonly settingsOpen = signal(false);
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly archiveDialogOpen = signal(false);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
-  protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
   protected readonly faqStatusOpen = signal(false);
   protected readonly faqStatusMessage = signal('');
 
@@ -173,31 +167,13 @@ export class TeacherSession {
     this.faqDialogState.set({ mode: 'create' });
   }
 
-  protected openEditFaq(item: FaqItem): void {
-    this.faqDialogState.set({ mode: 'edit', item });
-  }
-
   protected closeFaqDialog(): void {
     this.faqDialogState.set({ mode: 'closed' });
   }
 
-  protected onFaqSaved(event: FaqSavedEvent): void {
-    this.showFaqStatus(event.mode === 'edit' ? 'FAQ opdateret.' : 'FAQ oprettet.');
+  protected onFaqSaved(): void {
+    this.showFaqStatus('FAQ oprettet.');
     this.faqDialogState.set({ mode: 'closed' });
-    this.faqs.reload();
-  }
-
-  protected requestDeleteFaq(item: FaqItem): void {
-    this.faqDeleteTarget.set(item);
-  }
-
-  protected cancelDeleteFaq(): void {
-    this.faqDeleteTarget.set(null);
-  }
-
-  protected onFaqDeleted(): void {
-    this.faqDeleteTarget.set(null);
-    this.showFaqStatus('FAQ slettet.');
     this.faqs.reload();
   }
 
@@ -206,11 +182,7 @@ export class TeacherSession {
   }
 
   protected onArchiveSelected(archive: SessionGeneration): void {
-    this.selectedArchive.set(archive);
-  }
-
-  protected closeArchiveDialog(): void {
-    this.selectedArchive.set(null);
+    this.router.navigate(['archives', archive.id], { relativeTo: this.route });
   }
 
   protected openSettings(): void {

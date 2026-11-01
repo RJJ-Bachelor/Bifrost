@@ -58,12 +58,7 @@
     } @else if (faqs.error()) {
       <p class="state-message">Kunne ikke hente FAQ.</p>
     } @else {
-      <bifrost-faq-list
-        [items]="faqs.value()"
-        [editable]="true"
-        (faqEditRequested)="openEditFaq($event)"
-        (faqDeleteRequested)="requestDeleteFaq($event)"
-      />
+      <bifrost-faq-list [items]="faqs.value()" />
     }
     <div class="faq-actions">
       <button class="btn btn--outline" (click)="openCreateFaq()">
@@ -130,25 +125,9 @@
 <bifrost-faq-form-dialog
   [state]="faqDialogState()"
   [sessionId]="id()"
-  (saved)="onFaqSaved($event)"
+  (saved)="onFaqSaved()"
   (cancelled)="closeFaqDialog()"
 />
-
-<bifrost-faq-delete-dialog
-  [item]="faqDeleteTarget()"
-  (deleted)="onFaqDeleted()"
-  (cancelled)="cancelDeleteFaq()"
-/>
-
-<bifrost-dialog
-  [open]="selectedArchive() !== null"
-  [title]="'Generation ' + (selectedArchive()?.generation ?? '')"
-  (closed)="closeArchiveDialog()"
->
-  <p class="state-message">
-    FAQ og samtaler for denne generation kommer her.
-  </p>
-</bifrost-dialog>
 
 <bifrost-archive-confirm-dialog
   [open]="archiveDialogOpen()"
