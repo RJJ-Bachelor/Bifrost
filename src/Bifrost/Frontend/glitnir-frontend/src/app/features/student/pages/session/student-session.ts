@@ -83,7 +83,7 @@ export class StudentSession {
 
         if (notification.change === 'Archived') {
           this.session.reload();
-          // TODO: reload generations when getStudentGenerations returns a real httpResource.
+          this.generations.reload();
         }
       });
   }

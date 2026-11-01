@@ -202,6 +202,32 @@ describe('SessionApi', () => {
     });
   });
 
+  describe('getStudentGenerations', () => {
+    it('fetches student archives and keeps the archived title', async () => {
+      const resource = TestBed.runInInjectionContext(() =>
+        service.getStudentGenerations(() => 'session-1'),
+      );
+      TestBed.tick();
+
+      http.expectOne('/api/students/sessions/session-1/archives').flush([
+        {
+          id: 'gen-8',
+          sessionId: 'session-1',
+          title: 'SQL vs Mongo',
+          generation: 8,
+          startedAtUtc: '2026-10-01T10:00:00Z',
+          archivedAtUtc: '2026-10-08T10:00:00Z',
+          privateConversationCount: 0,
+          generalizedQuestionCount: 0,
+        },
+      ]);
+
+      await TestBed.inject(ApplicationRef).whenStable();
+
+      expect(resource.value()[0].title).toBe('SQL vs Mongo');
+    });
+  });
+
   describe('getTeacherArchives', () => {
     it('fetches archives and replaces title with the generation label', async () => {
       const resource = TestBed.runInInjectionContext(() =>

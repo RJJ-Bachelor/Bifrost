@@ -1,5 +1,5 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
-import { Service, Signal, inject, signal } from '@angular/core';
+import { Service, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ArchiveResult, Session, SessionGeneration, SessionStatus, TeacherStatistics } from '../session.model';
 
@@ -45,25 +45,15 @@ export class SessionApi {
     }));
   }
 
-  getStudentGenerations(id: () => string): Signal<SessionGeneration[]> {
-    // TODO(BF-J2/J3): replace with real endpoint when available.
-    // return httpResource<SessionGeneration[]>(() => ({
-    //   url: `/api/students/sessions/${id()}/archives`,
-    //   method: 'GET',
-    //   withCredentials: true,
-    // }), { defaultValue: [] });
-
-    void id;
-    void httpResource;
-
-    const mockArchives: SessionGeneration[] = [
-      { id: '1', sessionId: 'mock', title: 'Generation 8', generation: 8, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
-      { id: '2', sessionId: 'mock', title: 'Generation 7', generation: 7, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
-      { id: '3', sessionId: 'mock', title: 'Generation 6', generation: 6, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
-      { id: '4', sessionId: 'mock', title: 'Generation 5', generation: 5, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
-      { id: '5', sessionId: 'mock', title: 'Generation 4', generation: 4, startedAtUtc: '2026-01-01T00:00:00Z', archivedAtUtc: '2026-01-01T00:00:00Z', privateConversationCount: 0, generalizedQuestionCount: 0 },
-    ];
-    return signal(mockArchives);
+  getStudentGenerations(id: () => string): HttpResourceRef<SessionGeneration[]> {
+    return httpResource<SessionGeneration[]>(
+      () => ({
+        url: `/api/students/sessions/${id()}/archives`,
+        method: 'GET',
+        withCredentials: true,
+      }),
+      { defaultValue: [] },
+    );
   }
 
   getTeacherArchives(id: () => string): HttpResourceRef<SessionGeneration[]> {
