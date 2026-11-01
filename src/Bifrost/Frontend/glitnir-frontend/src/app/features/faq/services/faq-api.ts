@@ -28,15 +28,18 @@ export class FaqApi {
     sessionId: () => string,
     generation: () => number,
   ): HttpResourceRef<FaqItem[]> {
-    // TODO(BF-J2/J3): add generation to URL when backend supports per-generation FAQ.
-    void generation;
-
     return httpResource<FaqItem[]>(
-      () => ({
-        url: `/api/students/sessions/${sessionId()}/faqs`,
-        method: 'GET',
-        withCredentials: true,
-      }),
+      () => {
+        // The FAQ endpoint is per-session, not per-generation. Reading the
+        // generation signal inside the request factory re-fetches the FAQ
+        // automatically when the session advances to a new generation.
+        void generation();
+        return {
+          url: `/api/students/sessions/${sessionId()}/faqs`,
+          method: 'GET',
+          withCredentials: true,
+        };
+      },
       {
         defaultValue: [],
         parse: (raw) =>
