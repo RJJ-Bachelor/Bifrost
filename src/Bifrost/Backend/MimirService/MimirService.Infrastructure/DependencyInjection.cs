@@ -35,7 +35,7 @@ public static class DependencyInjection
         services.AddRabbitMqQueue("mimir-request-answered", MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered);
         services.AddOutbox<MimirRequestDbContext>();
         services.AddScoped<IHelpRequestMessageHandler, HelpRequestMessageHandler>();
-        services.AddScoped<IGeneralizationDecider, PlaceholderGeneralizationDecider>();
+        services.AddGeneralizationDecider(configuration);
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddScoped<IGeneralizedMessagePublisher, OutboxGeneralizedMessagePublisher>();
         services.AddHostedService<HelpRequestMessageSubscriber>();
@@ -44,6 +44,20 @@ public static class DependencyInjection
         services.AddGeminiLlmClient(configuration);
 
         return services;
+    }
+
+    // Fake is the default so Mimir runs without an LLM
+    private static void AddGeneralizationDecider(this IServiceCollection services, IConfiguration configuration)
+    {
+        var decider = configuration["Generalization:Decider"] ?? "Fake";
+
+        if (decider.Equals("Fake", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IGeneralizationDecider, PlaceholderGeneralizationDecider>();
+        else if (decider.Equals("Gemini", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IGeneralizationDecider, GeneralizationDecider>();
+        else
+            throw new InvalidOperationException(
+                $"Generalization:Decider must be 'Fake' or 'Gemini', but was '{decider}'.");
     }
 
     // Separate from AddMimirInfrastructure so the eval harness can use Gemini without a database or broker.
