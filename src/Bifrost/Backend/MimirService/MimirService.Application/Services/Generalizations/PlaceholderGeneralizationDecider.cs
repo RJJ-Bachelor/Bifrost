@@ -1,7 +1,6 @@
 namespace MimirService.Application.Services.Generalizations;
 
-// Placeholder until the Gemini decider replaces it: pairs a new question with a waiting one that has the same text,
-// ignoring case and surrounding whitespace, so different questions still go through the ordinary queue.
+// Fake decider without an LLM (the default): pairs only questions with the same text.
 public sealed class PlaceholderGeneralizationDecider : IGeneralizationDecider
 {
     public const string Question = "Dette er et generaliseret spørgsmål.";
