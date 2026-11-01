@@ -24,6 +24,9 @@ var varDatabase = postgres.AddDatabase("var");
 // Gemini
 var geminiApiKey = builder.AddParameter("gemini-api-key", secret: true);
 
+// Generalization: Fake (default in appsettings.json) or Gemini with the https-gemini launch profile
+var generalizationDecider = builder.AddParameter("generalization-decider");
+
 // IdentityServer
 var varService = builder.AddProject<Projects.VarService>("varservice", launchProfileName: "http")
     .WithReference(varDatabase)
@@ -56,6 +59,7 @@ var mimirService = builder.AddProject<Projects.MimirService_Api>("mimirservice-a
     .WithReference(mimirDatabase)
     .WithHttpEndpoint(port: 6002)
     .WithEnvironment("Gemini__ApiKey", geminiApiKey)
+    .WithEnvironment("Generalization__Decider", generalizationDecider)
     .WaitFor(postgres)
     .WaitFor(rabbitmq)
     .WaitFor(postgres);
