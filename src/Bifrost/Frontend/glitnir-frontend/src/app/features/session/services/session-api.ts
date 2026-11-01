@@ -63,15 +63,7 @@ export class SessionApi {
         method: 'GET',
         withCredentials: true,
       }),
-      {
-        defaultValue: [],
-        // Backend Title is the session title (same for all generations). Show generation instead.
-        parse: (raw) =>
-          (raw as SessionGeneration[]).map((item) => ({
-            ...item,
-            title: `Generation ${item.generation}`,
-          })),
-      },
+      { defaultValue: [] },
     );
   }
 

@@ -229,7 +229,7 @@ describe('SessionApi', () => {
   });
 
   describe('getTeacherArchives', () => {
-    it('fetches archives and replaces title with the generation label', async () => {
+    it('fetches archives and keeps the archived title', async () => {
       const resource = TestBed.runInInjectionContext(() =>
         service.getTeacherArchives(() => 'session-1'),
       );
@@ -239,7 +239,7 @@ describe('SessionApi', () => {
         {
           id: 'gen-8',
           sessionId: 'session-1',
-          title: 'SWBAD-26',
+          title: 'SQL vs Mongo',
           generation: 8,
           startedAtUtc: '2026-10-01T10:00:00Z',
           archivedAtUtc: '2026-10-08T10:00:00Z',
@@ -250,7 +250,7 @@ describe('SessionApi', () => {
 
       await TestBed.inject(ApplicationRef).whenStable();
 
-      expect(resource.value()[0].title).toBe('Generation 8');
+      expect(resource.value()[0].title).toBe('SQL vs Mongo');
     });
   });
 });
