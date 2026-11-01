@@ -1,12 +1,23 @@
 import { HttpClient, httpResource, HttpResourceRef } from '@angular/common/http';
 import { Service, inject } from '@angular/core';
-import { Observable, delay, of } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { FaqItem } from '../faq-item.model';
 
 interface FaqDto {
   id: string;
   question: string;
   answer: string | null;
+}
+
+interface CreateFaqDto {
+  id: string;
+  sessionId: string;
+  generation: number;
+  question: string;
+  answer: string | null;
+  sourceCount: number;
+  createdAt: string;
+  answeredAt: string | null;
 }
 
 @Service()
@@ -59,18 +70,19 @@ export class FaqApi {
     );
   }
 
-  // TODO(BF-45): replace mocks with real endpoints when FAQ CRUD exists in backend.
   createFaq(sessionId: string, question: string, answer: string): Observable<FaqItem> {
-    void sessionId;
-    return of({ id: crypto.randomUUID(), question, answer }).pipe(delay(200));
-  }
-
-  updateFaq(faqId: string, question: string, answer: string): Observable<FaqItem> {
-    return of({ id: faqId, question, answer }).pipe(delay(200));
-  }
-
-  deleteFaq(faqId: string): Observable<void> {
-    void faqId;
-    return of(undefined).pipe(delay(200));
+    return this.http
+      .post<CreateFaqDto>(
+        `/api/teachers/sessions/${sessionId}/faqs`,
+        { question, answer },
+        { withCredentials: true },
+      )
+      .pipe(
+        map((dto) => ({
+          id: dto.id,
+          question: dto.question,
+          answer: dto.answer ?? '',
+        })),
+      );
   }
 }

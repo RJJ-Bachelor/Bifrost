@@ -10,12 +10,9 @@ import { StatusDialog } from '../../../../shared/components/status-dialog/status
 import {
   FaqApi,
   FaqArchiveList,
-  FaqDeleteDialog,
   FaqFormDialog,
   FaqList,
   type FaqDialogState,
-  type FaqItem,
-  type FaqSavedEvent,
 } from '../../../faq';
 import { HelpRequestApi } from '../../../help-request';
 import { SessionApi, type SessionGeneration } from '../../../session';
@@ -24,7 +21,7 @@ import { SessionDeleteDialog } from './components/session-delete-dialog/session-
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -83,7 +80,6 @@ export class TeacherSession {
   protected readonly archiveDialogOpen = signal(false);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
-  protected readonly faqDeleteTarget = signal<FaqItem | null>(null);
   protected readonly faqStatusOpen = signal(false);
   protected readonly faqStatusMessage = signal('');
 
@@ -171,31 +167,13 @@ export class TeacherSession {
     this.faqDialogState.set({ mode: 'create' });
   }
 
-  protected openEditFaq(item: FaqItem): void {
-    this.faqDialogState.set({ mode: 'edit', item });
-  }
-
   protected closeFaqDialog(): void {
     this.faqDialogState.set({ mode: 'closed' });
   }
 
-  protected onFaqSaved(event: FaqSavedEvent): void {
-    this.showFaqStatus(event.mode === 'edit' ? 'FAQ opdateret.' : 'FAQ oprettet.');
+  protected onFaqSaved(): void {
+    this.showFaqStatus('FAQ oprettet.');
     this.faqDialogState.set({ mode: 'closed' });
-    this.faqs.reload();
-  }
-
-  protected requestDeleteFaq(item: FaqItem): void {
-    this.faqDeleteTarget.set(item);
-  }
-
-  protected cancelDeleteFaq(): void {
-    this.faqDeleteTarget.set(null);
-  }
-
-  protected onFaqDeleted(): void {
-    this.faqDeleteTarget.set(null);
-    this.showFaqStatus('FAQ slettet.');
     this.faqs.reload();
   }
 
