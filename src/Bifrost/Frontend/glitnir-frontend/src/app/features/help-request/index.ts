@@ -1,4 +1,10 @@
-export { HelpRequestApi } from './services/help-request-api';
+export {
+  HelpRequestApi,
+  normalizeAuthorRole,
+  normalizeHelpType,
+  normalizeMessageType,
+  normalizeStatus,
+} from './services/help-request-api';
 export type {
   AuthorRole,
   CreateHelpRequestInput,

@@ -95,7 +95,7 @@ interface TeacherQueueDto {
   activeRequests: TeacherQueueEntryDto[];
 }
 
-function normalizeStatus(raw: string): HelpRequestStatus {
+export function normalizeStatus(raw: string): HelpRequestStatus {
   const mapped = STATUS_MAP[raw];
   if (mapped === undefined) {
     console.warn(`Unknown status "${raw}" from backend, falling back to "pending"`);
@@ -104,7 +104,7 @@ function normalizeStatus(raw: string): HelpRequestStatus {
   return mapped;
 }
 
-function normalizeHelpType(raw: string): HelpType {
+export function normalizeHelpType(raw: string): HelpType {
   const mapped = HELP_TYPE_MAP[raw];
   if (mapped === undefined) {
     console.warn(`Unknown helpType "${raw}" from backend, falling back to "physical"`);
@@ -113,7 +113,7 @@ function normalizeHelpType(raw: string): HelpType {
   return mapped;
 }
 
-function normalizeAuthorRole(raw: string): AuthorRole {
+export function normalizeAuthorRole(raw: string): AuthorRole {
   const mapped = AUTHOR_ROLE_MAP[raw];
   if (mapped === undefined) {
     console.warn(`Unknown authorRole "${raw}" from backend, falling back to "system"`);
@@ -122,7 +122,7 @@ function normalizeAuthorRole(raw: string): AuthorRole {
   return mapped;
 }
 
-function normalizeMessageType(raw: string): HelpRequestMessageType {
+export function normalizeMessageType(raw: string): HelpRequestMessageType {
   const mapped = MESSAGE_TYPE_MAP[raw];
   if (mapped === undefined) {
     console.warn(`Unknown messageType "${raw}" from backend, falling back to "teacherAnswer"`);
