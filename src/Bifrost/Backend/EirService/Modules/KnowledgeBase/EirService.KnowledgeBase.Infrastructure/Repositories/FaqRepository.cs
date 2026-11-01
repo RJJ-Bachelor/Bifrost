@@ -21,5 +21,5 @@ public sealed class FaqRepository(EirKnowledgeBaseDbContext dbContext) : IFaqRep
 
     public async Task<IReadOnlyList<FaqAnswer>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
         await dbContext.Faqs.AsNoTracking().Where(faq => faq.SessionId == sessionId && faq.Generation == generation)
-            .OrderBy(faq => faq.CreatedAt).ThenBy(faq => faq.Id).ToArrayAsync(cancellationToken);
+            .OrderByDescending(faq => faq.CreatedAt).ThenByDescending(faq => faq.Id).ToArrayAsync(cancellationToken);
 }

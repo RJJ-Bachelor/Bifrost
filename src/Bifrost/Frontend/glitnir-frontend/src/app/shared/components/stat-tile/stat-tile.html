@@ -1,9 +1,14 @@
-@for (item of items(); track $index) {
-  @if (!$first) {
-    <span class="stat-tile__divider"></span>
-  }
-  <div class="stat-tile__item">
-    <span class="stat-tile__value">{{ item.value }}</span>
-    <span class="stat-tile__label">{{ item.label }}</span>
-  </div>
+@if (title()) {
+  <span class="stat-tile__title">{{ title() }}</span>
 }
+<div class="stat-tile__items">
+  @for (item of items(); track $index) {
+    @if (!$first) {
+      <span class="stat-tile__divider"></span>
+    }
+    <div class="stat-tile__item">
+      <span class="stat-tile__value">{{ item.value }}</span>
+      <span class="stat-tile__label">{{ item.label }}</span>
+    </div>
+  }
+</div>

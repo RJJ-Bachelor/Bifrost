@@ -11,5 +11,6 @@ export interface StatTileItem {
   templateUrl: './stat-tile.html',
 })
 export class StatTile {
+  readonly title = input<string | null>(null);
   readonly items = input.required<StatTileItem[]>();
 }
