@@ -120,12 +120,10 @@ export class SessionApi {
     });
   }
 
-  archiveSession(id: string, expectedGeneration: number, _title: string): Observable<ArchiveResult> {
-    // TODO(BF-J2/J3): send title when backend ArchiveSessionRequest supports ArchivedTitle.
-    void _title;
+  archiveSession(id: string, expectedGeneration: number, title: string): Observable<ArchiveResult> {
     return this.http.post<ArchiveResult>(
       `/api/teachers/sessions/${id}/archive`,
-      { expectedGeneration },
+      { expectedGeneration, title },
       { withCredentials: true },
     );
   }

@@ -75,7 +75,7 @@ describe('SessionApi', () => {
   });
 
   describe('archiveSession', () => {
-    it('posts expectedGeneration and omits title until backend supports it', async () => {
+    it('posts expectedGeneration and title', async () => {
       const result: ArchiveResult = {
         id: 'archive-1',
         sessionId: 'session-1',
@@ -87,7 +87,7 @@ describe('SessionApi', () => {
 
       const request = http.expectOne('/api/teachers/sessions/session-1/archive');
       expect(request.request.method).toBe('POST');
-      expect(request.request.body).toEqual({ expectedGeneration: 1 });
+      expect(request.request.body).toEqual({ expectedGeneration: 1, title: 'Lek 1' });
       expect(request.request.withCredentials).toBe(true);
       request.flush(result);
 
