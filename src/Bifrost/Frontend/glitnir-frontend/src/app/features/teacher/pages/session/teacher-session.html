@@ -140,16 +140,6 @@
   (cancelled)="cancelDeleteFaq()"
 />
 
-<bifrost-dialog
-  [open]="selectedArchive() !== null"
-  [title]="'Generation ' + (selectedArchive()?.generation ?? '')"
-  (closed)="closeArchiveDialog()"
->
-  <p class="state-message">
-    FAQ og samtaler for denne generation kommer her.
-  </p>
-</bifrost-dialog>
-
 <bifrost-archive-confirm-dialog
   [open]="archiveDialogOpen()"
   [sessionId]="id()"

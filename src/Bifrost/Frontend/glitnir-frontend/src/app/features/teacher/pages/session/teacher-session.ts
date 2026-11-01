@@ -5,7 +5,6 @@ import { map, of, switchMap, timer } from 'rxjs';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Card } from '../../../../shared/components/card/card';
-import { Dialog } from '../../../../shared/components/dialog/dialog';
 import { StatTile } from '../../../../shared/components/stat-tile/stat-tile';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import {
@@ -25,7 +24,7 @@ import { SessionDeleteDialog } from './components/session-delete-dialog/session-
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, Dialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqDeleteDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -79,7 +78,6 @@ export class TeacherSession {
     return minutes === null ? '-' : `${Math.round(minutes)} min`;
   });
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
-  protected readonly selectedArchive = signal<SessionGeneration | null>(null);
   protected readonly settingsOpen = signal(false);
   protected readonly deleteConfirmOpen = signal(false);
   protected readonly archiveDialogOpen = signal(false);
@@ -206,11 +204,7 @@ export class TeacherSession {
   }
 
   protected onArchiveSelected(archive: SessionGeneration): void {
-    this.selectedArchive.set(archive);
-  }
-
-  protected closeArchiveDialog(): void {
-    this.selectedArchive.set(null);
+    this.router.navigate(['archives', archive.id], { relativeTo: this.route });
   }
 
   protected openSettings(): void {

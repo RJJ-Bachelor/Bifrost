@@ -25,4 +25,10 @@ export const teacherRoutes: Routes = [
         (m) => m.AnswerQuestion,
       ),
   },
+  {
+    path: 'sessions/:id/archives/:archiveId',
+    data: { viewerRole: 'teacher' },
+    loadComponent: () =>
+      import('../archive').then((m) => m.ArchiveDetail),
+  },
 ];

@@ -18,4 +18,10 @@ export const studentRoutes: Routes = [
     loadComponent: () =>
       import('./pages/queue/queue').then((m) => m.Queue),
   },
+  {
+    path: 'sessions/:id/archives/:archiveId',
+    data: { viewerRole: 'student' },
+    loadComponent: () =>
+      import('../archive').then((m) => m.ArchiveDetail),
+  },
 ];
