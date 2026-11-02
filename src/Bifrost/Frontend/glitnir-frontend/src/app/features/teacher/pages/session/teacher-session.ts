@@ -193,6 +193,11 @@ export class TeacherSession {
     this.settingsOpen.set(false);
   }
 
+  protected onSessionRenamed(): void {
+    this.settingsOpen.set(false);
+    this.session.reload();
+  }
+
   protected onDeleteRequested(): void {
     this.settingsOpen.set(false);
     this.deleteConfirmOpen.set(true);

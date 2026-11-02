@@ -133,4 +133,12 @@ export class SessionApi {
       { withCredentials: true },
     );
   }
+
+  renameSession(id: string, title: string): Observable<Session> {
+    return this.http.patch<Session>(
+      `/api/teachers/sessions/${id}`,
+      { title },
+      { withCredentials: true },
+    );
+  }
 }
