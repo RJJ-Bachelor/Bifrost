@@ -74,6 +74,21 @@ describe('SessionApi', () => {
     });
   });
 
+  describe('renameSession', () => {
+    it('patches the title to the teacher session endpoint', async () => {
+      const updated: Session = { ...session, title: 'SWBAD-27' };
+      const promise = firstValueFrom(service.renameSession('session-1', 'SWBAD-27'));
+
+      const request = http.expectOne('/api/teachers/sessions/session-1');
+      expect(request.request.method).toBe('PATCH');
+      expect(request.request.body).toEqual({ title: 'SWBAD-27' });
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(updated);
+
+      expect(await promise).toEqual(updated);
+    });
+  });
+
   describe('archiveSession', () => {
     it('posts expectedGeneration and title', async () => {
       const result: ArchiveResult = {

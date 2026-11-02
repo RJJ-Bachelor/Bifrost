@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { type Session } from '../../../../../session';
+import { Observable, of, throwError } from 'rxjs';
+import { SessionApi, type Session } from '../../../../../session';
 import { SessionSettingsDialog } from './session-settings-dialog';
 
 interface SessionSettingsDialogInternals {
@@ -36,6 +37,20 @@ describe('SessionSettingsDialog', () => {
     HTMLDialogElement.prototype.close = vi.fn();
   });
 
+  const sessionApiMock = {
+    renameSession: vi.fn<(id: string, title: string) => Observable<Session>>(),
+  };
+
+  beforeEach(() => {
+    sessionApiMock.renameSession.mockReset();
+    sessionApiMock.renameSession.mockImplementation((id, title) =>
+      of(makeSession({ id, title })),
+    );
+    TestBed.configureTestingModule({
+      providers: [{ provide: SessionApi, useValue: sessionApiMock }],
+    });
+  });
+
   function setup(
     open: boolean,
     session: Session | null = makeSession(),
@@ -43,8 +58,6 @@ describe('SessionSettingsDialog', () => {
     fixture: ComponentFixture<SessionSettingsDialog>;
     component: SessionSettingsDialogInternals;
   } {
-    TestBed.configureTestingModule({});
-
     const fixture = TestBed.createComponent(SessionSettingsDialog);
     fixture.componentRef.setInput('open', open);
     fixture.componentRef.setInput('session', session ?? undefined);
@@ -150,15 +163,41 @@ describe('SessionSettingsDialog', () => {
       component.onSubmitRename(new Event('submit'));
 
       expect(component.renaming()).toBe(false);
+      expect(sessionApiMock.renameSession).not.toHaveBeenCalled();
     });
 
-    it('sets renaming while the request is in flight', () => {
-      const { component } = setup(true);
+    it('calls renameSession with the session id and trimmed title', () => {
+      const { component } = setup(true, makeSession({ id: 'session-1' }));
+      component.renameModel.set('  F27SWBAD  ');
+
+      component.onSubmitRename(new Event('submit'));
+
+      expect(sessionApiMock.renameSession).toHaveBeenCalledWith('session-1', 'F27SWBAD');
+    });
+
+    it('emits renamed with the updated session on success', () => {
+      const { fixture, component } = setup(true, makeSession({ id: 'session-1' }));
+      component.renameModel.set('F27SWBAD');
+
+      const renamedSpy = vi.fn();
+      fixture.componentInstance.renamed.subscribe(renamedSpy);
+
+      component.onSubmitRename(new Event('submit'));
+
+      expect(renamedSpy).toHaveBeenCalledWith(expect.objectContaining({ title: 'F27SWBAD' }));
+      expect(component.renaming()).toBe(false);
+      expect(component.renameError()).toBeNull();
+    });
+
+    it('sets renameError and clears renaming when the request fails', () => {
+      sessionApiMock.renameSession.mockReturnValue(throwError(() => new Error('boom')));
+      const { component } = setup(true, makeSession({ id: 'session-1' }));
       component.renameModel.set('F27SWBAD');
 
       component.onSubmitRename(new Event('submit'));
 
-      expect(component.renaming()).toBe(true);
+      expect(component.renaming()).toBe(false);
+      expect(component.renameError()).toBe('Kunne ikke omdøbe sessionen. Prøv igen.');
     });
   });
 
