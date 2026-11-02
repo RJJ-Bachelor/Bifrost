@@ -1,6 +1,6 @@
-import { Component, computed, input, linkedSignal, output, signal, untracked } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, output, signal, untracked } from '@angular/core';
 import { Dialog } from '../../../../../../shared/components/dialog/dialog';
-import { type Session } from '../../../../../session';
+import { SessionApi, type Session } from '../../../../../session';
 
 @Component({
   selector: 'bifrost-session-settings-dialog',
@@ -9,11 +9,14 @@ import { type Session } from '../../../../../session';
   styleUrl: './session-settings-dialog.scss',
 })
 export class SessionSettingsDialog {
+  private readonly sessionApi = inject(SessionApi);
+
   readonly open = input.required<boolean>();
   readonly session = input<Session | undefined>(undefined);
 
   readonly closed = output<void>();
   readonly deleteRequested = output<void>();
+  readonly renamed = output<Session>();
 
   protected readonly studentCode = computed(() => this.session()?.code ?? '—');
   protected readonly teacherCode = computed(() => this.session()?.teacherCode ?? '—');
@@ -42,15 +45,22 @@ export class SessionSettingsDialog {
   protected onSubmitRename(event: Event): void {
     event.preventDefault();
     const title = this.renameModel().trim();
-    if (title.length === 0 || this.renaming()) return;
-    // Intentional no-op until BF-47 (backend rename endpoint) is available.
-    // The UI mirrors the "saving" state so the flow can be exercised end-to-end,
-    // but no persistence happens. This will not ship to users before BF-47 lands.
+    const session = this.session();
+    if (title.length === 0 || session === undefined || this.renaming()) return;
+
     this.renaming.set(true);
     this.renameError.set(null);
-    setTimeout(() => {
-      this.renaming.set(false);
-    }, 200);
+
+    this.sessionApi.renameSession(session.id, title).subscribe({
+      next: (updated) => {
+        this.renaming.set(false);
+        this.renamed.emit(updated);
+      },
+      error: () => {
+        this.renaming.set(false);
+        this.renameError.set('Kunne ikke omdøbe sessionen. Prøv igen.');
+      },
+    });
   }
 
   protected onRequestDelete(): void {
