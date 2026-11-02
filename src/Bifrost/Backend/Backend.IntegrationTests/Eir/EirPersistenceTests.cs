@@ -312,8 +312,9 @@ public sealed class EirPersistenceTests
 
         var generation = await faqs.GetForSessionAsync(sessionId, 1, default);
 
-        Assert.Equal(new[] { pending.Id, answered.Id }, generation.Select(faq => faq.Id));
-        Assert.Equal(pending.HelpRequestIds, generation[0].HelpRequestIds);
+        Assert.Equal(new[] { answered.Id, pending.Id }, generation.Select(faq => faq.Id));
+        var persistedPending = Assert.Single(generation, faq => faq.Id == pending.Id);
+        Assert.Equal(pending.HelpRequestIds, persistedPending.HelpRequestIds);
         Assert.Empty(db.ChangeTracker.Entries());
         Assert.Equal("Answer", (await faqs.GetAsync(answered.Id, default))!.Answer);
         Assert.Null(await faqs.GetAsync(Guid.NewGuid(), default));
