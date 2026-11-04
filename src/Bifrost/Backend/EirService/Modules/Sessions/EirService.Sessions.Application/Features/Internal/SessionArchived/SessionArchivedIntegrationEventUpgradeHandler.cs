@@ -1,3 +1,5 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
 using EirService.Sessions.Application.Features.Internal.Common;
 using Microsoft.Extensions.DependencyInjection;
 using EirService.Sessions.Domain.DomainEvents;
@@ -20,6 +22,9 @@ public sealed class SessionArchivedIntegrationEventUpgradeHandler(IServiceScopeF
             domainEvent.CurrentGeneration, SessionUpdateType.Archived, domainEvent.ArchivedAtUtc, domainEvent.PreviousGeneration);
         notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
             MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
+        notification.EnqueueInternalCommand(domainEvent.Id,
+            new HandleSessionChangeCommand(domainEvent.Id, domainEvent.SessionId, domainEvent.CurrentGeneration,
+                SessionChangeType.Archived, domainEvent.ArchivedAtUtc, domainEvent.PreviousGeneration), EirModuleRoutes.SessionChanged);
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.CurrentGeneration,
             "Archived", notification.EnqueueIntegrationEvent, cancellationToken);
     }

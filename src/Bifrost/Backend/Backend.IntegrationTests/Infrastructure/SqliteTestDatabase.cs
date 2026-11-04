@@ -18,12 +18,15 @@ internal sealed class SqliteTestDatabase : IAsyncDisposable
         new DbContextOptionsBuilder<T>().UseSqlite(connection)
             .ReplaceService<IModelCustomizer, SqliteDateTimeOffsetModelCustomizer>().Options;
 
-    public void Register<T>(IServiceCollection services) where T : DbContext
+    public void Register<T>(IServiceCollection services, Action<DbContextOptionsBuilder>? configure = null) where T : DbContext
     {
         services.RemoveAll<DbContextOptions<T>>();
         services.RemoveAll<IDbContextOptionsConfiguration<T>>();
-        services.AddDbContext<T>(options => options.UseSqlite(connection)
-            .ReplaceService<IModelCustomizer, SqliteDateTimeOffsetModelCustomizer>());
+        services.AddDbContext<T>(options =>
+        {
+            options.UseSqlite(connection).ReplaceService<IModelCustomizer, SqliteDateTimeOffsetModelCustomizer>();
+            configure?.Invoke(options);
+        });
     }
 
     public ValueTask DisposeAsync() => connection.DisposeAsync();

@@ -1,12 +1,12 @@
-using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
+using EirService.KnowledgeBase.Application.Features.Internal.RecordFaqAnswer;
 using EirService.KnowledgeBase.Application.Repositories;
 using EirService.KnowledgeBase.Domain.Entities;
-using Shared.Application.Messaging.Contracts;
 using Shared.Application.Persistence;
 
 namespace EirService.Test;
 
-public sealed class FaqAnsweredMessageHandlerUnitTests
+public sealed class RecordFaqAnswerCommandHandlerUnitTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
@@ -14,9 +14,9 @@ public sealed class FaqAnsweredMessageHandlerUnitTests
     public async Task MissingFaqDoesNotCommitAnOrphanAnswer()
     {
         var repository = new RecordingFaqRepository();
-        var message = new FaqAnsweredMessage(Guid.NewGuid(), Guid.NewGuid(), 1, "Answer", "teacher", Now);
+        var message = new RecordFaqAnswerCommand(Guid.NewGuid(), Guid.NewGuid(), 1, "Answer", "teacher", Now);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new FaqAnsweredMessageHandler(repository, repository).HandleAsync(message, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new RecordFaqAnswerCommandHandler(repository, repository).ExecuteAsync(message, default));
 
         Assert.Equal(0, repository.Commits);
     }
@@ -28,10 +28,10 @@ public sealed class FaqAnsweredMessageHandlerUnitTests
     {
         var faq = CreateFaq();
         var repository = new RecordingFaqRepository(faq);
-        var message = new FaqAnsweredMessage(faq.Id, wrongSession ? Guid.NewGuid() : faq.SessionId,
+        var message = new RecordFaqAnswerCommand(faq.Id, wrongSession ? Guid.NewGuid() : faq.SessionId,
             wrongSession ? faq.Generation : faq.Generation + 1, "Answer", "teacher", Now);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new FaqAnsweredMessageHandler(repository, repository).HandleAsync(message, default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new RecordFaqAnswerCommandHandler(repository, repository).ExecuteAsync(message, default));
 
         Assert.Null(faq.Answer);
         Assert.Empty(faq.GetDomainEvents());
@@ -43,11 +43,11 @@ public sealed class FaqAnsweredMessageHandlerUnitTests
     {
         var faq = CreateFaq();
         var repository = new RecordingFaqRepository(faq);
-        var handler = new FaqAnsweredMessageHandler(repository, repository);
-        var message = new FaqAnsweredMessage(faq.Id, faq.SessionId, faq.Generation, " Answer ", "teacher", Now, " Revised question ");
+        var handler = new RecordFaqAnswerCommandHandler(repository, repository);
+        var message = new RecordFaqAnswerCommand(faq.Id, faq.SessionId, faq.Generation, " Answer ", "teacher", Now, " Revised question ");
 
-        await handler.HandleAsync(message, default);
-        await handler.HandleAsync(message with { AnsweredAt = Now.AddMinutes(1) }, default);
+        await handler.ExecuteAsync(message, default);
+        await handler.ExecuteAsync(message with { AnsweredAt = Now.AddMinutes(1) }, default);
 
         Assert.Equal("Revised question", faq.Question);
         Assert.Equal("Answer", faq.Answer);
@@ -64,8 +64,8 @@ public sealed class FaqAnsweredMessageHandlerUnitTests
         faq.RecordAnswer("First answer", "teacher", Now);
         var repository = new RecordingFaqRepository(faq);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => new FaqAnsweredMessageHandler(repository, repository)
-            .HandleAsync(new(faq.Id, faq.SessionId, faq.Generation, "Conflicting answer", "teacher", Now.AddMinutes(1)), default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new RecordFaqAnswerCommandHandler(repository, repository)
+            .ExecuteAsync(new(faq.Id, faq.SessionId, faq.Generation, "Conflicting answer", "teacher", Now.AddMinutes(1)), default));
 
         Assert.Equal("First answer", faq.Answer);
         Assert.Equal(Now, faq.AnsweredAt);

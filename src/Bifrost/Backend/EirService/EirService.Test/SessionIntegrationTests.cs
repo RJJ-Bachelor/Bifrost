@@ -1,3 +1,5 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
 using Shared.Domain.Notifications;
 using EirService.HelpRequests.Application;
 using EirService.Insights.Application;
@@ -637,13 +639,81 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
                 {payload}, 'sessions', 'session.cleared', {clock.Now});
             """);
         await db.Database.MigrateAsync();
-        var pending = await db.Outbox.AsNoTracking().SingleAsync();
+        var pending = await db.Outbox.AsNoTracking().SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated);
         var update = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(pending.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(eventId, pending.MessageId);
         Assert.Equal(typeof(SessionUpdatedIntegrationEvent).FullName, pending.MessageType);
         Assert.Equal(MessageRoutes.SessionUpdated, pending.RoutingKey);
         Assert.Equal(new SessionUpdatedIntegrationEvent(eventId, sessionId, 3, SessionUpdateType.Cleared, clock.Now, 2), update);
         Assert.Null(pending.PublishedAtUtc);
+        var internalMessage = await db.Outbox.AsNoTracking().SingleAsync(message => message.RoutingKey == EirModuleRoutes.SessionChanged);
+        Assert.Equal(eventId, internalMessage.MessageId);
+        Assert.Equal(InternalMessageRoutes.Exchange, internalMessage.ExchangeName);
+        Assert.Equal(new HandleSessionChangeCommand(eventId, sessionId, 3, SessionChangeType.Cleared, clock.Now, 2),
+            JsonSerializer.Deserialize<HandleSessionChangeCommand>(internalMessage.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        Assert.Null(internalMessage.PublishedAtUtc);
+    }
+
+    [PostgresFact]
+    public async Task SessionLifecycleMigrationReplaysPublishedAndPendingWorkOnceWithoutChangingExternalMessages()
+    {
+        const string previousMigration = "20261023055828_AddSessionArchives";
+        await using var scope = app.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+        var migrator = db.GetService<IMigrator>();
+        await migrator.MigrateAsync(previousMigration);
+        var sessionId = Guid.NewGuid();
+        var events = Enum.GetValues<SessionUpdateType>().Select(type =>
+            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, clock.Now, 3)).ToArray();
+        var originals = events.Select(update => OutboxMessage.Create(
+            new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), clock.Now)).ToArray();
+        originals.Single(message => message.MessageId == events.Single(update => update.EventType == SessionUpdateType.Archived).EventId)
+            .MarkPublished(clock.Now.AddSeconds(1));
+        var existing = new HandleSessionChangeCommand(events[0].EventId, sessionId, 4,
+            (SessionChangeType)(int)events[0].EventType, clock.Now, 3);
+        var existingInternal = OutboxMessage.Create(new(existing.EventId, existing,
+            InternalMessageRoutes.Exchange, EirModuleRoutes.SessionChanged), clock.Now);
+        existingInternal.MarkPublished(clock.Now.AddSeconds(2));
+        db.Outbox.AddRange(originals);
+        db.Outbox.Add(existingInternal);
+        await db.SaveChangesAsync();
+        const string traceParent = "00-11111111111111111111111111111111-2222222222222222-01";
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE sessions.outbox SET "TraceParent" = {traceParent}, "TraceState" = 'vendor=value'
+            WHERE "ExchangeName" = {MessageRoutes.Sessions};
+            """);
+
+        await migrator.MigrateAsync();
+        // Reapply the data migration to exercise its NOT EXISTS guard independently of migration history.
+        await migrator.MigrateAsync(previousMigration);
+        await migrator.MigrateAsync();
+        db.ChangeTracker.Clear();
+        var rows = await db.Outbox.AsNoTracking().ToArrayAsync();
+        Assert.Equal(6, rows.Length);
+        foreach (var original in originals)
+        {
+            var persisted = Assert.Single(rows, row => row.Id == original.Id);
+            Assert.Equal((original.MessageId, original.MessageType, original.Payload, original.PublishedAtUtc),
+                (persisted.MessageId, persisted.MessageType, persisted.Payload, persisted.PublishedAtUtc));
+            var commandRow = Assert.Single(rows, row => row.MessageId == original.MessageId &&
+                row.ExchangeName == InternalMessageRoutes.Exchange && row.RoutingKey == EirModuleRoutes.SessionChanged);
+            Assert.Equal(typeof(HandleSessionChangeCommand).FullName, commandRow.MessageType);
+            Assert.Equal(original.Payload, commandRow.Payload);
+            if (commandRow.Id == existingInternal.Id)
+                Assert.Equal(existingInternal.PublishedAtUtc, commandRow.PublishedAtUtc);
+            else
+            {
+                Assert.Null(commandRow.PublishedAtUtc);
+                Assert.Null(commandRow.LastAttemptAtUtc);
+                Assert.Equal(traceParent, commandRow.TraceParent);
+                Assert.Equal("vendor=value", commandRow.TraceState);
+            }
+            var command = JsonSerializer.Deserialize<HandleSessionChangeCommand>(commandRow.Payload,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            Assert.Equal(original.MessageId, command.EventId);
+            Assert.Equal(sessionId, command.SessionId);
+            Assert.Equal(3, command.PreviousGeneration);
+        }
     }
 
     [PostgresFact]

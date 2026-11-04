@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using EirService.HelpRequests.Application.Features.Internal.SessionUpdated;
 using EirService.Sessions.Application.Features.Teacher.ArchiveSession;
 using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
@@ -40,17 +39,10 @@ public sealed partial class SessionIntegrationTests
         await using var connection = await factory.CreateConnectionAsync();
         await using var channel = await connection.CreateChannelAsync();
         const string mimirQueue = "mimir-session-updated";
-        var eirQueue = "archive-startup-test-" + Guid.NewGuid().ToString("N");
         await channel.QueueDeleteAsync(mimirQueue);
         try
         {
-            // Another bound queue makes mandatory publication succeed even with Mimir offline.
-            await using var eir = await bus.SubscribeAsync<SessionUpdatedIntegrationEvent>(eirQueue,
-                MessageRoutes.Sessions, MessageRoutes.SessionUpdated, async (message, ct) =>
-                {
-                    await using var scope = app.Services.CreateAsyncScope();
-                    await scope.ServiceProvider.GetRequiredService<ISessionUpdatedMessageHandler>().HandleAsync(message, ct);
-                });
+            // Only the durable Mimir queue is bound; Eir receives the lifecycle change internally.
             var hosted = producer.GetServices<IHostedService>().ToArray();
             var initializer = Array.FindIndex(hosted, service => service.GetType().Name == "RabbitMqQueueInitializer");
             var dispatcherIndex = Array.FindIndex(hosted, service => service.GetType().Name.StartsWith("OutboxDispatcher"));
@@ -77,7 +69,6 @@ public sealed partial class SessionIntegrationTests
         }
         finally
         {
-            await channel.QueueDeleteAsync(eirQueue);
             await channel.QueueDeleteAsync(mimirQueue);
             await channel.ExchangeDeleteAsync(MessageRoutes.Sessions);
         }

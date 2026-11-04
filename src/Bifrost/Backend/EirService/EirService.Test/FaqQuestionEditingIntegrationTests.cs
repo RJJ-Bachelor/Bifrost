@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
+using EirService.Contracts.Messaging;
 using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
@@ -9,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
+using Shared.Application.Messaging.Outbox;
 
 namespace EirService.Test;
 
@@ -43,8 +46,9 @@ public sealed partial class SessionIntegrationTests
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var outgoing = Assert.Single(await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-                .Where(message => message.RoutingKey == MessageRoutes.FaqAnswered).ToArrayAsync());
-            var payload = JsonSerializer.Deserialize<FaqAnsweredMessage>(outgoing.Payload,
+                .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync());
+            Assert.Equal(InternalMessageRoutes.Exchange, outgoing.ExchangeName);
+            var payload = JsonSerializer.Deserialize<RecordFaqAnswerCommand>(outgoing.Payload,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
             Assert.Equal("Revised shared question", payload.Question);
             Assert.Equal(session.Id, payload.SessionId);

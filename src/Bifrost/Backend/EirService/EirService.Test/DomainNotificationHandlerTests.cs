@@ -1,3 +1,5 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
 using EirService.Contracts.HelpRequests.GetFaqAnswerRecipients;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
@@ -72,7 +74,7 @@ public sealed class DomainNotificationHandlerTests
         var notifications = outgoing.Where(message => message.Payload is NotificationCreatedMessage).ToArray();
         var expectedRecipients = sessionExists ? new[] { "colleague", "owner", "student" } : new[] { "colleague", "student" };
         Assert.Equal(expectedRecipients, notifications.Select(message => ((NotificationCreatedMessage)message.Payload).UserId).Order());
-        Assert.Equal(outgoing.Count, outgoing.Select(message => message.Id).Distinct().Count());
+        Assert.Equal(outgoing.Count, outgoing.Select(message => (message.ExchangeName, message.RoutingKey, message.Id)).Distinct().Count());
         Assert.All(notifications, outgoingMessage =>
         {
             var message = Assert.IsType<NotificationCreatedMessage>(outgoingMessage.Payload);
@@ -93,6 +95,13 @@ public sealed class DomainNotificationHandlerTests
             Assert.Equal(Enum.Parse<SessionUpdateType>(change), payload.EventType);
             Assert.Equal(change == "Deleted" ? null : (int?)1, payload.PreviousGeneration);
             Assert.Equal(MessageRoutes.SessionUpdated, integration.RoutingKey);
+            var internalMessage = Assert.Single(outgoing, message => message.Payload is HandleSessionChangeCommand);
+            Assert.Equal(integration.Id, internalMessage.Id);
+            Assert.Equal(InternalMessageRoutes.Exchange, internalMessage.ExchangeName);
+            Assert.Equal(EirModuleRoutes.SessionChanged, internalMessage.RoutingKey);
+            Assert.Equal(new HandleSessionChangeCommand(payload.EventId, payload.SessionId, payload.Generation,
+                Enum.Parse<SessionChangeType>(change), payload.UpdatedAtUtc, payload.PreviousGeneration), internalMessage.Payload);
+            Assert.Equal(outgoing.Count, OutgoingMessage.Coalesce(outgoing).Count());
         }
     }
 

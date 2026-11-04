@@ -1,3 +1,6 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
+using Shared.Application.Messaging.Outbox;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -110,6 +113,15 @@ public sealed partial class SessionIntegrationTests
             .Where(message => message.RoutingKey == MessageRoutes.SessionUpdated).ToArrayAsync())
             .Select(message => JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(message.Payload, options)!)
             .Where(message => message.SessionId == sessionId && message.EventType.ToString() == change).ToArray();
-        Assert.Equal(generation, Assert.Single(integrationEvents).Generation);
+        var integrationEvent = Assert.Single(integrationEvents);
+        Assert.Equal(generation, integrationEvent.Generation);
+        var internalCommands = (await db.Outbox.AsNoTracking()
+            .Where(message => message.ExchangeName == InternalMessageRoutes.Exchange &&
+                message.RoutingKey == EirModuleRoutes.SessionChanged).ToArrayAsync())
+            .Select(message => JsonSerializer.Deserialize<HandleSessionChangeCommand>(message.Payload, options)!)
+            .Where(command => command.EventId == integrationEvent.EventId).ToArray();
+        Assert.Equal(new HandleSessionChangeCommand(integrationEvent.EventId, sessionId, generation,
+            Enum.Parse<SessionChangeType>(change), integrationEvent.UpdatedAtUtc, integrationEvent.PreviousGeneration),
+            Assert.Single(internalCommands));
     }
 }

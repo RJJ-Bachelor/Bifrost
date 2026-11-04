@@ -1,3 +1,5 @@
+using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
+using EirService.Contracts.Messaging;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
 using EirService.HelpRequests.Application.Repositories;
@@ -39,11 +41,11 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             var messages = request.Messages.OrderBy(message => message.SequenceNumber).ToArray();
             var answer = messages.Last(message => message.MessageType is HelpRequestMessageType.TeacherAnswer or HelpRequestMessageType.FaqAnswer);
             if (request.IsFaq)
-                notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
-                    new FaqAnsweredMessage(request.Id, request.SessionId, request.Generation,
+                notification.EnqueueInternalCommand(change.Id,
+                    new RecordFaqAnswerCommand(request.Id, request.SessionId, request.Generation,
                         answer.Text.Value, request.AssignedTeacherId!, change.OccurredAt,
                         messages.Single(message => message.MessageType == HelpRequestMessageType.FaqQuestion).Text.Value),
-                    MessageRoutes.Requests, MessageRoutes.FaqAnswered));
+                    EirModuleRoutes.FaqAnswered);
             else notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,
                     messages.Last(message => message.MessageType is HelpRequestMessageType.StudentQuestion or HelpRequestMessageType.FollowUpQuestion).Text.Value,

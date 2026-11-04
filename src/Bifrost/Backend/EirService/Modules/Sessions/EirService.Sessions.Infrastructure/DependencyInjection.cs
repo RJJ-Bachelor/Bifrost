@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddRabbitMqMessageBus(configuration);
         services.AddRabbitMqQueue("mimir-session-updated", MessageRoutes.Sessions, MessageRoutes.SessionUpdated);
         services.AddOutbox<EirSessionDbContext>();
+        services.AddInternalOutbox<EirSessionDbContext>();
         return services;
     }
 }
