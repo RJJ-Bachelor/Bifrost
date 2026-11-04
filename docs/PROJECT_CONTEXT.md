@@ -274,3 +274,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `Fake` acts as the default generalization decider to enable local execution without requiring live LLM API access.
 - Aspire orchestration (`YggdrasilService`) injects the `generalization-decider` parameter as an environment variable into `MimirService`.
 - A dedicated `https-gemini` launch profile in the Aspire AppHost sets the decider parameter to `Gemini` for active intelligence evaluations.
+
+---
+
+## Update 2026-11-04
+
+- `EirService` introduces an in-process modular communication mechanism via `InternalOutboxDispatcher` and the `bifrost.internal` exchange routing to handle intra-service module commands reliably without requiring an external message broker.
+- FAQ answer recording (`RecordFaqAnswerCommand`) migrated from an external RabbitMQ integration event (`faq.answered`) to an internal outbox command dispatched locally within `EirService`.
+- Session lifecycle updates (`SessionCleared`, `SessionArchived`, `SessionDeleted`) now emit both an external RabbitMQ integration event (`session.updated`) for external services like `MimirService` and an internal command (`eir.session.changed`) for intra-module handling within `EirService.HelpRequests`.
+- A dedicated integration test project (`Backend.IntegrationTests`) was added covering SQLite-backed relational behavior, migration contracts, and notification pipelines.
+- Shared persistence infrastructure now provides `AddInternalOutbox` and `AddInternalCommand` extensions for registering and processing local outbox commands independently of the broker.

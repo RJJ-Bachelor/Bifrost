@@ -1,6 +1,8 @@
-using EirService.HelpRequests.Application.Features.Internal.SessionUpdated;
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
+using EirService.HelpRequests.Application.Features.Internal.HandleSessionChange;
+using FastEndpoints;
 using EirService.HelpRequests.Application.Repositories;
-using EirService.HelpRequests.Infrastructure.Messaging;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.HelpRequests.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -30,11 +32,12 @@ public static class DependencyInjection
             options.UseNpgsql(connectionString, postgres => postgres.MigrationsHistoryTable("__HelpRequestsMigrationsHistory")));
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirRequestDbContext>(TimeSpan.FromMilliseconds(500));
+        services.AddInternalOutbox<EirRequestDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddScoped<IHelpRequestRepository, HelpRequestRepository>();
         services.AddScoped<IArchivedConversationRepository, ArchivedConversationRepository>();
         services.AddScoped<IUnitOfWork<IHelpRequestRepository>, HelpRequestUnitOfWork>();
-        services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
-        services.AddHostedService<SessionUpdatedMessageSubscriber>();
+        services.AddScoped<ICommandHandler<HandleSessionChangeCommand>, HandleSessionChangeCommandHandler>();
+        services.AddInternalCommand<HandleSessionChangeCommand>(EirModuleRoutes.SessionChanged);
 
         return services;
     }

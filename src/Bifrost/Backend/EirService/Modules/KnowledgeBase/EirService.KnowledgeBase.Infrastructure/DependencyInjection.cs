@@ -1,3 +1,5 @@
+using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
+using EirService.Contracts.Messaging;
 using EirService.KnowledgeBase.Application.Repositories;
 using EirService.KnowledgeBase.Infrastructure.Messaging;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
@@ -26,7 +28,7 @@ public static class DependencyInjection
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirKnowledgeBaseDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddHostedService<RegisterGeneralizationMessageSubscriber>();
-        services.AddHostedService<FaqAnsweredMessageSubscriber>();
+        services.AddInternalCommand<RecordFaqAnswerCommand>(EirModuleRoutes.FaqAnswered);
         return services;
     }
 }

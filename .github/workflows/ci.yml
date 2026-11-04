@@ -21,39 +21,25 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: |
-            8.0.x
-            9.0.x
+          dotnet-version: 10.0.x
 
       - name: Discover and Test .NET Solutions/Projects
         run: |
-          # Find all .sln files recursively (excluding hidden directories)
-          mapfile -t SOLUTIONS < <(find . -name "*.sln" -not -path "*/.*/*")
+          # Test projects build their backend references without building frontend esproj files.
+          mapfile -t PROJECTS < <(find src/Bifrost -type f \( -name '*.Test.csproj' -o -name '*.Tests.csproj' -o -name '*.IntegrationTests.csproj' \) | sort)
+          test "${#PROJECTS[@]}" -gt 0
+          for project in "${PROJECTS[@]}"; do
+            dotnet test "$project" --configuration Release --verbosity minimal -m:1 -nr:false \
+              --collect:"XPlat Code Coverage" --settings scripts/Test/coverage.runsettings \
+              --results-directory "Test/coverage/TestResults/$(basename "$project" .csproj)" --logger trx
+          done
 
-          if [ ${#SOLUTIONS[@]} -gt 0 ]; then
-            echo "Found ${#SOLUTIONS[@]} .NET solution(s):"
-            for sln in "${SOLUTIONS[@]}"; do
-              echo "==> Processing solution: $sln"
-              dotnet restore "$sln"
-              dotnet format "$sln" --verify-no-changes || echo "Warning: Code format verification failed, but continuing build."
-              dotnet build "$sln" --configuration Release --no-restore
-              dotnet test "$sln" --configuration Release --no-build --verbosity normal
-            done
-          else
-            # Fallback: Check for individual .csproj files if no .sln exists yet
-            mapfile -t PROJECTS < <(find . -name "*.csproj" -not -path "*/.*/*")
-            if [ ${#PROJECTS[@]} -gt 0 ]; then
-              echo "No .sln found. Processing ${#PROJECTS[@]} individual .csproj project(s):"
-              for proj in "${PROJECTS[@]}"; do
-                echo "==> Processing project: $proj"
-                dotnet restore "$proj"
-                dotnet build "$proj" --configuration Release --no-restore
-                dotnet test "$proj" --configuration Release --no-build --verbosity normal || true
-              done
-            else
-              echo "No .NET solutions or projects found in repository. Skipping."
-            fi
-          fi
+      - name: Upload backend test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: Test/coverage/TestResults
 
   # ==========================================
   # 2. Frontend CI (Angular / React / Node)

@@ -1,3 +1,5 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
 using EirService.Sessions.Application.Features.Internal.Common;
 using Microsoft.Extensions.DependencyInjection;
 using EirService.Sessions.Domain.DomainEvents;
@@ -20,6 +22,9 @@ public sealed class SessionDeletedIntegrationEventUpgradeHandler(IServiceScopeFa
             domainEvent.Generation, SessionUpdateType.Deleted, domainEvent.DeletedAtUtc);
         notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
             MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
+        notification.EnqueueInternalCommand(domainEvent.Id,
+            new HandleSessionChangeCommand(domainEvent.Id, domainEvent.SessionId, domainEvent.Generation,
+                SessionChangeType.Deleted, domainEvent.DeletedAtUtc), EirModuleRoutes.SessionChanged);
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.Generation,
             "Deleted", notification.EnqueueIntegrationEvent, cancellationToken);
     }

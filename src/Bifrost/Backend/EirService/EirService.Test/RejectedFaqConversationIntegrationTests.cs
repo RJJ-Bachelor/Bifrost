@@ -6,7 +6,9 @@ using EirService.HelpRequests.Application.Features.Teacher.GetQueue;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Common;
-using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
+using EirService.Contracts.Messaging;
+using Shared.Infrastructure.Persistence.Outbox;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
@@ -211,9 +213,10 @@ public sealed partial class SessionIntegrationTests
     {
         await using var scope = app.Services.CreateAsyncScope();
         var messages = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-            .Where(message => message.RoutingKey == MessageRoutes.FaqAnswered).ToArrayAsync();
-        var payload = Assert.Single(messages.Select(message => JsonSerializer.Deserialize<FaqAnsweredMessage>(
+            .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync();
+        Assert.Single(messages.Select(message => JsonSerializer.Deserialize<RecordFaqAnswerCommand>(
             message.Payload, FaqJsonOptions)!), message => message.FaqId == faqId);
-        await scope.ServiceProvider.GetRequiredService<FaqAnsweredMessageHandler>().HandleAsync(payload, CancellationToken.None);
+        var dispatcher = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<EirRequestDbContext>>(app.Services);
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
     }
 }

@@ -5,7 +5,7 @@ using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Common;
-using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
+using EirService.Contracts.Messaging;
 using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
 using Microsoft.AspNetCore.TestHost;
@@ -13,6 +13,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
+using Shared.Application.Messaging.Outbox;
+using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Domain.Notifications;
 
 namespace EirService.Test;
@@ -242,10 +244,10 @@ public sealed partial class SessionIntegrationTests
     {
         await using var scope = app.Services.CreateAsyncScope();
         var outgoing = Assert.Single(await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-            .Where(message => message.RoutingKey == MessageRoutes.FaqAnswered).ToArrayAsync());
-        var payload = JsonSerializer.Deserialize<FaqAnsweredMessage>(outgoing.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-        var handler = scope.ServiceProvider.GetRequiredService<FaqAnsweredMessageHandler>();
-        await handler.HandleAsync(payload, CancellationToken.None);
-        await handler.HandleAsync(payload, CancellationToken.None);
+            .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync());
+        Assert.Equal(InternalMessageRoutes.Exchange, outgoing.ExchangeName);
+        var dispatcher = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<EirRequestDbContext>>(app.Services);
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
     }
 }

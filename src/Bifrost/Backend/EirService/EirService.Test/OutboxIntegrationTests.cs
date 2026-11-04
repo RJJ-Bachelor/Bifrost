@@ -1,8 +1,10 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
 using System.Diagnostics;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using EirSessionUpdatedMessageHandler = EirService.HelpRequests.Application.Features.Internal.SessionUpdated.SessionUpdatedMessageHandler;
+using EirSessionUpdatedMessageHandler = EirService.HelpRequests.Application.Features.Internal.HandleSessionChange.HandleSessionChangeCommandHandler;
 using System.Text.Json;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
@@ -60,7 +62,7 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         connectionString = new NpgsqlConnectionStringBuilder(adminConnectionString) { Database = databaseName }.ConnectionString;
     }
 
-    private ServiceProvider BuildServices(string service, bool realBroker = false)
+    private ServiceProvider BuildServices(string service, bool realBroker = false, bool includeSessions = false)
     {
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -77,6 +79,7 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         {
             case "eir":
                 services.AddHelpRequestsInfrastructure(configuration);
+                if (includeSessions) services.AddSessionsInfrastructure(configuration);
                 services.ConfigureDbContext<EirRequestDbContext>(options => options.AddInterceptors(interceptor));
                 break;
             case "mimir":
@@ -577,54 +580,39 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         }
     }
 
-    [OutboxBrokerFact]
-    public async Task HelpRequestsSubscriberLogsDeletionAndRemovesArchivedQueueThroughRabbitMq()
+    [PostgresFact]
+    public async Task InternalSessionChangesLogDeletionAndRemoveArchivedQueueWithoutRabbitMq()
     {
-        await using var services = BuildServices("eir", realBroker: true);
+        await using var services = BuildServices("eir", includeSessions: true);
         var sessionId = Guid.NewGuid();
-        var updates = Enum.GetValues<SessionUpdateType>().Select(type =>
-            new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow, 3)).ToArray();
+        var updates = Enum.GetValues<SessionChangeType>().Select(type =>
+            new HandleSessionChangeCommand(Guid.NewGuid(), sessionId, 4, type, DateTimeOffset.UtcNow, 3)).ToArray();
         await using (var scope = services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
             await db.Database.MigrateAtStartupAsync();
             db.Requests.Add(TestHelpRequests.Create(Guid.NewGuid(), "student", "Queued question", sessionId, 3));
-            db.Outbox.AddRange(updates.Select(update => OutboxMessage.Create(
-                new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), DateTimeOffset.UtcNow)));
             await db.SaveChangesAsync();
+            var sender = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            await sender.Database.MigrateAtStartupAsync();
+            sender.Outbox.AddRange(updates.Select(update => OutboxMessage.Create(
+                new(update.EventId, update, InternalMessageRoutes.Exchange, EirModuleRoutes.SessionChanged), DateTimeOffset.UtcNow)));
+            await sender.SaveChangesAsync();
         }
-        var subscriber = services.GetServices<IHostedService>().Single(service => service.GetType().Name == "SessionUpdatedMessageSubscriber");
-        var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        await subscriber.StartAsync(deadline.Token);
-        try
-        {
-            while (helpRequestSessionUpdates.Messages.IsEmpty)
-            {
-                await dispatcher.PublishPendingAsync(deadline.Token);
-                await Task.Delay(100, deadline.Token);
-            }
-            // The Deleted message proves the subscriber is bound. Retry any earlier update published before binding.
-            await dispatcher.PublishPendingAsync(deadline.Token);
-            var logged = Assert.Single(helpRequestSessionUpdates.Messages);
-            Assert.Contains(sessionId.ToString(), logged);
-            Assert.Contains(updates.Single(update => update.EventType == SessionUpdateType.Deleted).EventId.ToString(), logged);
-            Assert.Contains("all session messages across all generations", logged);
-            await using var scope = services.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-            while (await db.Requests.AnyAsync(request => request.SessionId == sessionId, deadline.Token))
-                await Task.Delay(100, deadline.Token);
-            Assert.Equal(3, await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.CountAsync(message => message.PublishedAtUtc != null));
-        }
-        finally
-        {
-            await subscriber.StopAsync(CancellationToken.None);
-            var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
-            await using var connection = await factory.CreateConnectionAsync();
-            await using var channel = await connection.CreateChannelAsync();
-            await channel.QueueDeleteAsync("eir-helprequests-session-updated");
-            await channel.ExchangeDeleteAsync(MessageRoutes.Sessions);
-        }
+        Assert.DoesNotContain(services.GetServices<IHostedService>(),
+            service => service.GetType().Name == "SessionUpdatedMessageSubscriber");
+        var dispatcher = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<EirSessionDbContext>>(services);
+        await dispatcher.DispatchPendingAsync(CancellationToken.None);
+        var logged = Assert.Single(helpRequestSessionUpdates.Messages);
+        Assert.Contains(sessionId.ToString(), logged);
+        Assert.Contains(updates.Single(update => update.EventType == SessionChangeType.Deleted).EventId.ToString(), logged);
+        Assert.Contains("all session messages across all generations", logged);
+        await using var verification = services.CreateAsyncScope();
+        var saved = verification.ServiceProvider.GetRequiredService<EirRequestDbContext>();
+        Assert.False(await saved.Requests.AnyAsync(request => request.SessionId == sessionId));
+        Assert.Equal(3, await verification.ServiceProvider.GetRequiredService<EirSessionDbContext>()
+            .Outbox.CountAsync(message => message.PublishedAtUtc != null));
+        Assert.Empty(bus.Messages);
     }
 
     public async Task DisposeAsync()

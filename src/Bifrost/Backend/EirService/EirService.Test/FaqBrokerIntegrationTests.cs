@@ -4,7 +4,6 @@ using System.Text.Json;
 using RabbitMQ.Client;
 using EirService.Contracts.HelpRequests.ApplyGeneralization;
 using EirService.HelpRequests.Infrastructure.Persistence;
-using EirService.KnowledgeBase.Application.Features.Internal.FaqAnswered;
 using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using FastEndpoints;
 using EirService.KnowledgeBase.Infrastructure.Persistence;
@@ -28,7 +27,7 @@ namespace EirService.Test;
 public sealed partial class SessionIntegrationTests
 {
     [OutboxBrokerFact]
-    public async Task DummyGeneralizationTravelsFromMimirOutboxThroughRabbitAndPersistsTheTeachersAnswer()
+    public async Task GeneralizationUsesRabbitWhileTheTeachersAnswerIsSavedByInternalDispatch()
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
@@ -49,7 +48,6 @@ public sealed partial class SessionIntegrationTests
         try
         {
             var received = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-            var answered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var studentsNotified = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var notices = new ConcurrentDictionary<Guid, NotificationCreatedMessage>();
             var deliveries = 0;
@@ -72,13 +70,6 @@ public sealed partial class SessionIntegrationTests
                     }
                     await DeliverGeneralizationAsync(message.Payload);
                     received.TrySetResult();
-                });
-            await using var answerSubscription = await messageBus.SubscribeAsync<FaqAnsweredMessage>(prefix + "-answered",
-                MessageRoutes.Requests, MessageRoutes.FaqAnswered, async (message, ct) =>
-                {
-                    await using var scope = app.Services.CreateAsyncScope();
-                    await scope.ServiceProvider.GetRequiredService<FaqAnsweredMessageHandler>().HandleAsync(message.Payload, ct);
-                    answered.TrySetResult();
                 });
             await using var updates = await messageBus.SubscribeAsync<JsonElement>(prefix + "-updates", MessageRoutes.Requests,
                 MessageRoutes.HelpRequestUpdated, (_, _) => Task.CompletedTask);
@@ -121,7 +112,7 @@ public sealed partial class SessionIntegrationTests
             var eirSender = new OutboxDispatcher<EirRequestDbContext>(app.Services.GetRequiredService<IServiceScopeFactory>(),
                 messageBus, clock, NullLogger<OutboxDispatcher<EirRequestDbContext>>.Instance);
             await eirSender.PublishPendingAsync(CancellationToken.None);
-            await answered.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            await PersistFaqAnswerFromOutboxAsync();
             var faqSender = new OutboxDispatcher<EirKnowledgeBaseDbContext>(app.Services.GetRequiredService<IServiceScopeFactory>(),
                 messageBus, clock, NullLogger<OutboxDispatcher<EirKnowledgeBaseDbContext>>.Instance);
             await faqSender.PublishPendingAsync(CancellationToken.None);
@@ -150,7 +141,7 @@ public sealed partial class SessionIntegrationTests
             var factory = new ConnectionFactory { Uri = new Uri(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!) };
             await using var connection = await factory.CreateConnectionAsync();
             await using var channel = await connection.CreateChannelAsync();
-            foreach (var suffix in new[] { "-created", "-answered", "-updates", "-originals", "-notifications" })
+            foreach (var suffix in new[] { "-created", "-updates", "-originals", "-notifications" })
                 await channel.QueueDeleteAsync(prefix + suffix);
         }
     }

@@ -1,3 +1,6 @@
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.Contracts.Messaging;
+using FastEndpoints;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -66,6 +69,13 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(2, update.Generation);
         Assert.Equal(message.MessageId, update.EventId);
         Assert.Equal(clock.Now, update.UpdatedAtUtc);
+        var internalMessage = await db.Outbox.SingleAsync(message => message.RoutingKey == EirModuleRoutes.SessionChanged);
+        Assert.Equal(Shared.Application.Messaging.Outbox.InternalMessageRoutes.Exchange, internalMessage.ExchangeName);
+        var command = JsonSerializer.Deserialize<HandleSessionChangeCommand>(internalMessage.Payload,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(new HandleSessionChangeCommand(update.EventId, update.SessionId, update.Generation,
+            SessionChangeType.Archived, update.UpdatedAtUtc, update.PreviousGeneration), command);
+        Assert.Null(internalMessage.PublishedAtUtc);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 
@@ -256,17 +266,17 @@ public sealed partial class SessionIntegrationTests
             $"/api/students/sessions/{session.Id}/archives"))!);
         Assert.Equal(1, studentBeforeSummary.PrivateConversationCount);
         Assert.Equal(1, studentBeforeSummary.GeneralizedQuestionCount);
-        // Logical queue empties before RabbitMQ delivery, and the next generation is independent.
+        // Logical queue empties before internal delivery, and the next generation is independent.
         var queue = await teacher.GetFromJsonAsync<JsonElement>($"/api/teachers/sessions/{session.Id}/queue");
         Assert.Empty(queue.GetProperty("requests").EnumerateArray());
         var newId = await SubmitAsync(student, session.Id, HelpType.Digital);
         using (var scope = app.Services.CreateScope())
         {
-            var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), session.Id, 2,
-                SessionUpdateType.Archived, clock.Now, 1);
-            var handler = scope.ServiceProvider.GetRequiredService<EirService.HelpRequests.Application.Features.Internal.SessionUpdated.ISessionUpdatedMessageHandler>();
-            await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
-            await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
+            var update = new HandleSessionChangeCommand(Guid.NewGuid(), session.Id, 2,
+                SessionChangeType.Archived, clock.Now, 1);
+            var handler = scope.ServiceProvider.GetRequiredService<ICommandHandler<HandleSessionChangeCommand>>();
+            await handler.ExecuteAsync(update, CancellationToken.None);
+            await handler.ExecuteAsync(update, CancellationToken.None);
         }
         var after = (await teacher.GetFromJsonAsync<SessionArchiveResult>(archiveUrl))!;
         Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(after));

@@ -1,22 +1,22 @@
 using EirService.Contracts.HelpRequests.GetArchivedConversations;
-using EirService.HelpRequests.Application.Features.Internal.SessionUpdated;
+using EirService.Contracts.HelpRequests.HandleSessionChange;
+using EirService.HelpRequests.Application.Features.Internal.HandleSessionChange;
 using EirService.HelpRequests.Application.Repositories;
 using Microsoft.Extensions.Logging;
-using Shared.Application.Messaging.Contracts;
 
 namespace EirService.Test;
 
-public sealed class HelpRequestsSessionUpdatedMessageHandlerTests
+public sealed class HelpRequestsHandleSessionChangeCommandHandlerTests
 {
     [Fact]
     public async Task DeletedLogsCleanupForAllSessionMessagesAcrossAllGenerations()
     {
         var logger = new RecordingLogger();
         var repository = new RecordingArchives();
-        var handler = new SessionUpdatedMessageHandler(repository, logger);
-        var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 4,
-            SessionUpdateType.Deleted, DateTimeOffset.UtcNow);
-        await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
+        var handler = new HandleSessionChangeCommandHandler(repository, logger);
+        var update = new HandleSessionChangeCommand(Guid.NewGuid(), Guid.NewGuid(), 4,
+            SessionChangeType.Deleted, DateTimeOffset.UtcNow);
+        await handler.ExecuteAsync(update, CancellationToken.None);
         var logged = Assert.Single(logger.Messages);
         Assert.Contains(update.SessionId.ToString(), logged);
         Assert.Contains(update.EventId.ToString(), logged);
@@ -30,10 +30,10 @@ public sealed class HelpRequestsSessionUpdatedMessageHandlerTests
     {
         var logger = new RecordingLogger();
         var repository = new RecordingArchives();
-        var handler = new SessionUpdatedMessageHandler(repository, logger);
-        var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 4,
-            SessionUpdateType.Cleared, DateTimeOffset.UtcNow, 3);
-        await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
+        var handler = new HandleSessionChangeCommandHandler(repository, logger);
+        var update = new HandleSessionChangeCommand(Guid.NewGuid(), Guid.NewGuid(), 4,
+            SessionChangeType.Cleared, DateTimeOffset.UtcNow, 3);
+        await handler.ExecuteAsync(update, CancellationToken.None);
         Assert.Empty(logger.Messages);
         Assert.Empty(repository.Cleanups);
     }
@@ -42,10 +42,10 @@ public sealed class HelpRequestsSessionUpdatedMessageHandlerTests
     public async Task ArchivedCleansOnlyThePreviousGeneration()
     {
         var repository = new RecordingArchives();
-        var handler = new SessionUpdatedMessageHandler(repository, new RecordingLogger());
-        var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 4,
-            SessionUpdateType.Archived, DateTimeOffset.UtcNow, 3);
-        await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
+        var handler = new HandleSessionChangeCommandHandler(repository, new RecordingLogger());
+        var update = new HandleSessionChangeCommand(Guid.NewGuid(), Guid.NewGuid(), 4,
+            SessionChangeType.Archived, DateTimeOffset.UtcNow, 3);
+        await handler.ExecuteAsync(update, CancellationToken.None);
         Assert.Equal((update.SessionId, 3), Assert.Single(repository.Cleanups));
     }
 
@@ -57,10 +57,10 @@ public sealed class HelpRequestsSessionUpdatedMessageHandlerTests
     public async Task InvalidArchiveCannotDeleteCurrentOrFutureGeneration(int? previousGeneration)
     {
         var repository = new RecordingArchives();
-        var handler = new SessionUpdatedMessageHandler(repository, new RecordingLogger());
-        var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 4,
-            SessionUpdateType.Archived, DateTimeOffset.UtcNow, previousGeneration);
-        await Assert.ThrowsAsync<ArgumentException>(() => handler.HandleAsync(new(update.EventId, update), CancellationToken.None));
+        var handler = new HandleSessionChangeCommandHandler(repository, new RecordingLogger());
+        var update = new HandleSessionChangeCommand(Guid.NewGuid(), Guid.NewGuid(), 4,
+            SessionChangeType.Archived, DateTimeOffset.UtcNow, previousGeneration);
+        await Assert.ThrowsAsync<ArgumentException>(() => handler.ExecuteAsync(update, CancellationToken.None));
         Assert.Empty(repository.Cleanups);
     }
 
@@ -80,7 +80,7 @@ public sealed class HelpRequestsSessionUpdatedMessageHandlerTests
             throw new NotSupportedException();
     }
 
-    private sealed class RecordingLogger : ILogger<SessionUpdatedMessageHandler>
+    private sealed class RecordingLogger : ILogger<HandleSessionChangeCommandHandler>
     {
         public List<string> Messages { get; } = [];
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;

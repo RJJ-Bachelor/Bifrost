@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Outbox;
 using Shared.Infrastructure.Persistence.Messaging;
 
 namespace Shared.Infrastructure.Persistence.Outbox;
@@ -28,7 +29,8 @@ public sealed class OutboxDispatcher<TDbContext>(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
-        var pending = await dbContext.Set<OutboxMessage>().Where(message => message.PublishedAtUtc == null)
+        var pending = await dbContext.Set<OutboxMessage>().Where(message => message.PublishedAtUtc == null &&
+                message.ExchangeName != InternalMessageRoutes.Exchange)
             .OrderBy(message => message.LastAttemptAtUtc ?? message.CreatedAtUtc).ThenBy(message => message.Id).Take(50).ToListAsync(cancellationToken);
         var published = 0;
         foreach (var message in pending)

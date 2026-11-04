@@ -6,6 +6,15 @@ namespace Shared.Infrastructure.Persistence.Outbox;
 
 public static class OutboxServiceCollectionExtensions
 {
+    public static IServiceCollection AddInternalOutbox<TDbContext>(this IServiceCollection services, TimeSpan? pollingInterval = null)
+        where TDbContext : DbContext
+    {
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddHostedService(provider => ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<TDbContext>>(
+            provider, pollingInterval ?? TimeSpan.FromMilliseconds(500)));
+        return services;
+    }
+
     public static IServiceCollection AddOutbox<TDbContext>(this IServiceCollection services, TimeSpan? pollingInterval = null) where TDbContext : DbContext
     {
         services.TryAddSingleton(TimeProvider.System);
