@@ -1,4 +1,4 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, afterNextRender, input, output, signal } from '@angular/core';
 import { form, FormField, validate } from '@angular/forms/signals';
 
 interface MessageFormModel {
@@ -18,6 +18,10 @@ export class MessageForm {
   readonly error = input<string | null>(null);
 
   readonly submitted = output<string>();
+
+  constructor() {
+    afterNextRender(() => this.messageForm.message().focusBoundControl());
+  }
 
   protected readonly model = signal<MessageFormModel>({ message: '' });
   protected readonly messageForm = form(this.model, (path) => {
