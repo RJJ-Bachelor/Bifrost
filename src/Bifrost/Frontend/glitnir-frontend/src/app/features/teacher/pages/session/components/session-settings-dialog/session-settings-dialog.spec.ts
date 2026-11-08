@@ -16,6 +16,7 @@ interface SessionSettingsDialogInternals {
   onRenameInput: (event: Event) => void;
   onSubmitRename: (event: Event) => void;
   onRequestDelete: () => void;
+  onRequestReset: () => void;
 }
 
 function makeSession(overrides: Partial<Session> = {}): Session {
@@ -211,6 +212,19 @@ describe('SessionSettingsDialog', () => {
       component.onRequestDelete();
 
       expect(deleteSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('onRequestReset', () => {
+    it('emits resetRequested', () => {
+      const { fixture, component } = setup(true);
+
+      const resetSpy = vi.fn();
+      fixture.componentInstance.resetRequested.subscribe(resetSpy);
+
+      component.onRequestReset();
+
+      expect(resetSpy).toHaveBeenCalled();
     });
   });
 });
