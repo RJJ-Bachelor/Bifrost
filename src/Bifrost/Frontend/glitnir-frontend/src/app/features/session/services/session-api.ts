@@ -110,6 +110,14 @@ export class SessionApi {
     );
   }
 
+  clearSession(id: string, expectedGeneration: number): Observable<void> {
+    return this.http.post<void>(
+      `/api/teachers/sessions/${id}/clear`,
+      { expectedGeneration },
+      { withCredentials: true },
+    );
+  }
+
   joinSession(code: string): Observable<Session> {
     return this.http.post<Session>(
       '/api/students/sessions/join',
