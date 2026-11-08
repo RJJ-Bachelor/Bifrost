@@ -16,6 +16,7 @@ export class SessionSettingsDialog {
 
   readonly closed = output<void>();
   readonly deleteRequested = output<void>();
+  readonly resetRequested = output<void>();
   readonly renamed = output<Session>();
 
   protected readonly studentCode = computed(() => this.session()?.code ?? '—');
@@ -65,5 +66,9 @@ export class SessionSettingsDialog {
 
   protected onRequestDelete(): void {
     this.deleteRequested.emit();
+  }
+
+  protected onRequestReset(): void {
+    this.resetRequested.emit();
   }
 }

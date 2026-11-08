@@ -113,6 +113,7 @@
   [session]="session.value()"
   (closed)="closeSettings()"
   (deleteRequested)="onDeleteRequested()"
+  (resetRequested)="onResetRequested()"
   (renamed)="onSessionRenamed()"
 />
 
@@ -121,6 +122,14 @@
   [sessionId]="id()"
   (deleted)="onSessionDeleted()"
   (cancelled)="closeDeleteConfirm()"
+/>
+
+<bifrost-session-reset-dialog
+  [open]="resetConfirmOpen()"
+  [sessionId]="id()"
+  [generation]="session.value()?.currentGeneration"
+  (cleared)="onSessionCleared()"
+  (cancelled)="closeResetConfirm()"
 />
 
 <bifrost-faq-form-dialog

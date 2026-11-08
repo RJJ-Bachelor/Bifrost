@@ -18,10 +18,11 @@ import { HelpRequestApi } from '../../../help-request';
 import { SessionApi, type SessionGeneration } from '../../../session';
 import { ArchiveConfirmDialog } from './components/archive-confirm-dialog/archive-confirm-dialog';
 import { SessionDeleteDialog } from './components/session-delete-dialog/session-delete-dialog';
+import { SessionResetDialog } from './components/session-reset-dialog/session-reset-dialog';
 import { SessionSettingsDialog } from './components/session-settings-dialog/session-settings-dialog';
 
 @Component({
-  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, StatusDialog],
+  imports: [Topbar, Card, StatTile, FaqList, FaqFormDialog, FaqArchiveList, ArchiveConfirmDialog, SessionSettingsDialog, SessionDeleteDialog, SessionResetDialog, StatusDialog],
   selector: 'bifrost-teacher-session',
   styleUrl: './teacher-session.scss',
   templateUrl: './teacher-session.html',
@@ -77,6 +78,7 @@ export class TeacherSession {
   protected readonly archives = this.sessionApi.getTeacherArchives(() => this.id());
   protected readonly settingsOpen = signal(false);
   protected readonly deleteConfirmOpen = signal(false);
+  protected readonly resetConfirmOpen = signal(false);
   protected readonly archiveDialogOpen = signal(false);
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
   protected readonly faqDialogState = signal<FaqDialogState>({ mode: 'closed' });
@@ -205,11 +207,31 @@ export class TeacherSession {
 
   protected closeDeleteConfirm(): void {
     this.deleteConfirmOpen.set(false);
+    this.settingsOpen.set(true);
   }
 
   protected onSessionDeleted(): void {
     this.deleteConfirmOpen.set(false);
     this.router.navigateByUrl('/teacher');
+  }
+
+  protected onResetRequested(): void {
+    this.settingsOpen.set(false);
+    this.resetConfirmOpen.set(true);
+  }
+
+  protected closeResetConfirm(): void {
+    this.resetConfirmOpen.set(false);
+    this.settingsOpen.set(true);
+  }
+
+  protected onSessionCleared(): void {
+    this.resetConfirmOpen.set(false);
+    this.session.reload();
+    this.queue.reload();
+    this.faqs.reload();
+    this.statistics.reload();
+    this.archives.reload();
   }
 
   protected openArchiveConfirm(): void {
