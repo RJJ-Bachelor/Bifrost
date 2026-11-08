@@ -125,16 +125,8 @@ public sealed partial class CommandBusTests
             if (message.DeliveryType == NotificationDeliveryType.RealtimeOnly)
             {
                 Assert.Equal(NotificationEventType.SessionChanged, message.EventType);
-                if (message.UserId is "observer" or "idle" || request.IsFaq && message.UserId == "student")
-                {
-                    Assert.Null(message.HelpRequestId);
-                    Assert.Null(message.Status);
-                }
-                else
-                {
-                    Assert.Equal(request.Id, message.HelpRequestId);
-                    Assert.Equal(request.Status.ToString(), message.Status);
-                }
+                Assert.Null(message.HelpRequestId);
+                Assert.Null(message.Status);
             }
         }
         if (action is "Started" or "Answered" or "FaqLinked")

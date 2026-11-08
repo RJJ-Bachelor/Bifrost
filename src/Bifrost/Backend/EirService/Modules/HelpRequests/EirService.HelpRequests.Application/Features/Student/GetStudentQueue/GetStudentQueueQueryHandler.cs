@@ -12,8 +12,12 @@ public sealed class GetStudentQueueQueryHandler(IHelpRequestRepository repositor
     {
         var session = await access.ForSessionAsync(query.SessionId, query.StudentId, AuthorRole.Student, cancellationToken);
         var requests = await repository.GetSessionActivityAsync(session.Id, session.Generation, cancellationToken);
-        var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
-        var own = requests.SingleOrDefault(request => request.StudentId == query.StudentId && request.IsOpen);
+        var ordered = requests.OrderByDescending(request => request.StudentId is null)
+            .ThenByDescending(request => request.ReturnedToQueueAt is not null)
+            .ThenByDescending(request => request.ReturnedToQueueAt)
+            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray();
+        var waiting = ordered.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
+        var own = ordered.SingleOrDefault(request => request.StudentId == query.StudentId && request.IsOpen);
         var index = Array.FindIndex(waiting, request => request.Id == own?.Id);
         int? estimate = index < 0 ? null : QueueWaitEstimate.ForPosition(requests, index);
         return new StudentQueueResult(session.Id, session.Generation, waiting.Length,

@@ -1,0 +1,16 @@
+{
+  "Students": 10,
+  "ActiveStudents": 3,
+  "WarmupStudents": 2,
+  "Lessons": 1,
+  "LessonWeights": [1],
+  "WarmupSeconds": 10,
+  "RampUpSeconds": 10,
+  "SteadySeconds": 60,
+  "RampDownSeconds": 5,
+  "StudentPauseSeconds": 5,
+  "TeacherPauseSeconds": 1,
+  "BrowserClients": 2,
+  "FrontendUrl": "http://localhost:7000",
+  "EnvironmentDescription": "Local Yggdrasil Aspire smoke with two additional Chromium observers. Load generator is Release; API services use existing Aspire development configuration. Document LLM mode and hardware for benchmark comparisons."
+}

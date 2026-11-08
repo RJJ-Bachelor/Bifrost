@@ -16,7 +16,7 @@ public sealed class GetHelpRequestsQueryHandler(IHelpRequestRepository repositor
         if (query.SessionId is { } sessionId &&
             !await new IsSessionParticipantQuery(sessionId, query.UserId).ExecuteAsync(cancellationToken))
             throw new ResourceNotFoundException();
-        var requests = await repository.GetByUserIdAsync(query.UserId, cancellationToken);
+        var requests = await repository.GetByUserIdAsync(query.UserId, query.SessionId, cancellationToken);
         var scoped = requests.Where(request => query.SessionId == null || request.SessionId == query.SessionId).ToArray();
         var ids = scoped.Select(request => request.SessionId).Distinct().ToArray();
         var generations = ids.Length == 0 ? new Dictionary<Guid, int>() :

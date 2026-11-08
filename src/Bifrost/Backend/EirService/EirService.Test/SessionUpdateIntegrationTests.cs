@@ -82,21 +82,27 @@ public sealed partial class SessionIntegrationTests
         var saved = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         Assert.Equal(generationStartedAt, (await saved.Sessions.SingleAsync()).CurrentGenerationStartedAtUtc);
         Assert.Equal(lifecycleEventCount, await saved.Outbox.CountAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated));
-        var notifications = (await saved.Outbox.Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync())
-            .Select(message => (message.MessageId, Payload: JsonSerializer.Deserialize<NotificationCreatedMessage>(message.Payload,
+        var notifications = (await saved.Outbox.Where(message => message.RoutingKey == MessageRoutes.SessionChanged).ToArrayAsync())
+            .Select(message => (Row: message, Payload: JsonSerializer.Deserialize<SessionChangedMessage>(message.Payload,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web))!))
             .Where(message => message.Payload.Change == "Renamed").ToArray();
+        var broadcast = Assert.Single(notifications);
+        Assert.Equal(MessageRoutes.Notifications, broadcast.Row.ExchangeName);
         Assert.Equal(new[] { original.CreatedByTeacherId, "colleague", studentId, otherStudentId }.Order(),
-            notifications.Select(message => message.Payload.UserId).Order());
-        Assert.Equal(4, notifications.Select(message => message.MessageId).Distinct().Count());
-        Assert.All(notifications, message =>
+            broadcast.Payload.UserIds.Order());
+        Assert.Equal(4, broadcast.Payload.UserIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(original.Id, broadcast.Payload.SessionId);
+        Assert.Equal(3, broadcast.Payload.Generation);
+        Assert.Empty(await saved.Outbox.Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync());
+        using var payload = JsonDocument.Parse(broadcast.Row.Payload);
+        Assert.Equal(new[] { "change", "generation", "sessionId", "userIds" },
+            payload.RootElement.EnumerateObject().Select(property => property.Name).Order());
+        Assert.All(SessionNotificationTestProjection.Expand(broadcast.Row.MessageId, broadcast.Payload), message =>
         {
-            Assert.Equal(original.Id, message.Payload.SessionId);
-            Assert.Equal(3, message.Payload.Generation);
-            Assert.Equal(NotificationEventType.SessionChanged, message.Payload.EventType);
-            Assert.Equal(NotificationDeliveryType.RealtimeOnly, message.Payload.DeliveryType);
-            Assert.Null(message.Payload.HelpRequestId);
-            Assert.Null(message.Payload.Status);
+            Assert.Equal(NotificationEventType.SessionChanged, message.Message.EventType);
+            Assert.Equal(NotificationDeliveryType.RealtimeOnly, message.Message.DeliveryType);
+            Assert.Null(message.Message.HelpRequestId);
+            Assert.Null(message.Message.Status);
         });
     }
 

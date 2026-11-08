@@ -18,7 +18,11 @@ namespace VarService
                 // Older development databases were created with EnsureCreated and have
                 // the initial Identity schema, but no EF migration history. Adopt that
                 // schema without recreating tables or deleting existing users.
-                context.Database.ExecuteSqlRaw("""
+                // A fresh development server has no database yet; Migrate creates it.
+                // Schema adoption only applies when an existing database is reachable.
+                if (context.Database.CanConnect())
+                {
+                    context.Database.ExecuteSqlRaw("""
                     DO $$
                     BEGIN
                         IF to_regclass('"AspNetUsers"') IS NOT NULL
@@ -37,6 +41,7 @@ namespace VarService
                         END IF;
                     END $$;
                     """);
+                }
                 context.Database.Migrate();
             }
         }
@@ -62,6 +67,13 @@ namespace VarService
                 if (app.Environment.IsDevelopment())
                 {
                     EnsureUser(userMgr, "learner", "learner@example.com", "Learner", role: "Student");
+                    for (var number = 1; number <= 30; number++)
+                    {
+                        EnsureUser(userMgr,
+                            userName: $"performance-teacher-{number}",
+                            email: $"performance-teacher-{number}@example.invalid",
+                            displayName: $"Performance Teacher {number}");
+                    }
                 }
             }
         }

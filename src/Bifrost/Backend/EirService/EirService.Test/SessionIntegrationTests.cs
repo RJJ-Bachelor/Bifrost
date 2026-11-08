@@ -1128,7 +1128,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
         Assert.Equal(1, await db.Requests.CountAsync(request => request.SessionId == session.Id));
-        Assert.Equal(4, await db.Outbox.CountAsync()); // Two integration events and one notification per recipient.
+        Assert.Equal(4, await db.Outbox.CountAsync()); // Two integration events, one broadcast and the teacher's personal notice.
         Assert.Equal(2, (await ReadNotificationsAsync(null)).Length);
     }
 
@@ -1326,12 +1326,14 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
     {
         await using var scope = app.Services.CreateAsyncScope();
         var messages = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.AsNoTracking()
-            .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync();
+            .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated || message.RoutingKey == MessageRoutes.SessionChanged).ToArrayAsync();
         var faqMessages = await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>()
             .Set<OutboxMessage>().AsNoTracking()
             .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync();
-        return messages.Concat(faqMessages).Select(message => (Id: message.MessageId, Message: JsonSerializer.Deserialize<NotificationCreatedMessage>(
-            message.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!))
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        return messages.Concat(faqMessages).SelectMany(message => message.RoutingKey == MessageRoutes.SessionChanged
+            ? SessionNotificationTestProjection.Expand(message.MessageId, JsonSerializer.Deserialize<SessionChangedMessage>(message.Payload, options)!)
+            : [(Id: message.MessageId, Message: JsonSerializer.Deserialize<NotificationCreatedMessage>(message.Payload, options)!)])
             .Where(item => deliveryType is null || item.Message.DeliveryType == deliveryType).ToArray();
     }
 

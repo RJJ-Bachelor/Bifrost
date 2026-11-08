@@ -79,14 +79,12 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         }
         else if (request.StudentId is not null)
             recipients = recipients.Append(request.StudentId);
-        foreach (var userId in recipients.Distinct(StringComparer.Ordinal))
-            Notify(userId, NotificationEventType.SessionChanged, "Sessionen er opdateret.", NotificationDeliveryType.RealtimeOnly);
+        var personalRecipients = new HashSet<string>(StringComparer.Ordinal);
 
         if (change.Change is "Created" or "StudentMessageAdded")
         {
             var repository = scope.ServiceProvider.GetRequiredService<IHelpRequestRepository>();
-            var queued = await repository.GetForSessionAsync(request.SessionId, request.Generation, cancellationToken);
-            if (!queued.Any(other => other.Id != request.Id && other.Status == HelpRequestStatus.Pending))
+            if (!await repository.HasOtherPendingAsync(request.SessionId, request.Generation, request.Id, cancellationToken))
                 foreach (var teacherId in session.TeacherIds)
                     Notify(teacherId, change.Change == "Created"
                         ? NotificationEventType.HelpRequestCreated : NotificationEventType.StudentMessageAdded,
@@ -104,22 +102,27 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         if (change.Change == "Answered")
             Notify(request.StudentId, NotificationEventType.HelpRequestAnswered, "Der er kommet svar på din hjælpeanmodning.");
 
-        void Notify(string? userId, NotificationEventType eventType, string message,
-            NotificationDeliveryType deliveryType = NotificationDeliveryType.RealtimeOrPush)
+        // One public invalidation replaces hundreds of per-user database/outbox rows.
+        // Personal recipients already reload from their private notification.
+        var audience = recipients.Distinct(StringComparer.Ordinal).Except(personalRecipients, StringComparer.Ordinal).ToArray();
+        if (audience.Length > 0)
+            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
+                new SessionChangedMessage(audience, request.SessionId, request.Generation,
+                    change.Change == "Cancelled" && request.FaqAnswerId is not null ? "FaqCancelled" : change.Change),
+                MessageRoutes.Notifications, MessageRoutes.SessionChanged));
+
+        void Notify(string? userId, NotificationEventType eventType, string message)
         {
             if (userId is null) return;
-            var silent = deliveryType == NotificationDeliveryType.RealtimeOnly;
-            var reason = silent && change.Change == "Cancelled" && request.FaqAnswerId is not null
-                ? "FaqCancelled" : change.Change;
-            // A personal notification replaces the generic update for this recipient in the same commit.
+            personalRecipients.Add(userId);
             // Only the owner and session teachers may receive private request details.
             var canReadRequest = userId == request.StudentId || session.TeacherIds.Contains(userId, StringComparer.Ordinal);
             notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
                 new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
-                    canReadRequest ? request.Id : null, reason,
-                    canReadRequest ? request.Status.ToString() : null, eventType, deliveryType),
+                    canReadRequest ? request.Id : null, change.Change,
+                    canReadRequest ? request.Status.ToString() : null, eventType),
                 MessageRoutes.Notifications, MessageRoutes.NotificationCreated,
-                CoalescingKey: $"session-notification:{request.SessionId}:{userId}", Priority: silent ? 0 : 1));
+                CoalescingKey: $"session-notification:{request.SessionId}:{userId}", Priority: 1));
         }
     }
 }

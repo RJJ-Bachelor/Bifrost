@@ -1,0 +1,17 @@
+{
+  "Students": 1285,
+  "ActiveStudents": 1285,
+  "WarmupStudents": 10,
+  "Lessons": 10,
+  "LessonWeights": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  "MaxRequestsPerActiveStudent": 1,
+  "WarmupSeconds": 60,
+  "RampUpSeconds": 300,
+  "SteadySeconds": 600,
+  "RampDownSeconds": 60,
+  "StudentPauseSeconds": 15,
+  "TeacherPauseSeconds": 2,
+  "RequestStartSpreadSeconds": 300,
+  "NotificationTimeoutSeconds": 10,
+  "RequestTimeoutSeconds": 30
+}

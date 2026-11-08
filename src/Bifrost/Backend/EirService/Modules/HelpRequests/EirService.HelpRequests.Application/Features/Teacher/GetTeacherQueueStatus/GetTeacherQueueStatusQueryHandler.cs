@@ -13,7 +13,11 @@ public sealed class GetTeacherQueueStatusQueryHandler(
     {
         var session = await access.ForSessionAsync(query.SessionId, query.TeacherId, AuthorRole.Teacher, cancellationToken);
         var requests = await repository.GetSessionActivityAsync(session.Id, session.Generation, cancellationToken);
-        var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending).ToArray();
+        var waiting = requests.Where(request => request.Status == HelpRequestStatus.Pending)
+            .OrderByDescending(request => request.StudentId is null)
+            .ThenByDescending(request => request.ReturnedToQueueAt is not null)
+            .ThenByDescending(request => request.ReturnedToQueueAt)
+            .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray();
         double? frontWait = waiting.Length == 0 ? null :
             Math.Max(0, (timeProvider.GetUtcNow() - waiting[0].QueuedAt).TotalMinutes);
         var myReservedRequestId = requests.Where(request => request.AssignedTeacherId == query.TeacherId &&
