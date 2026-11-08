@@ -248,6 +248,7 @@ export class TeacherSession {
     this.queue.reload();
     this.faqs.reload();
     this.archives.reload();
+    this.statistics.reload();
   }
 
   private showFaqStatus(message: string): void {
