@@ -1,0 +1,27 @@
+<bifrost-dialog
+  [open]="open()"
+  title="Ryd sessionsdata"
+  size="md"
+  (closed)="onCancel()"
+>
+  <p class="state-message">
+    Dette rydder sessionens aktive data: kø, FAQ og statistik.
+    <br>Sessionen og dens koder bevares.
+  </p>
+  @if (error()) {
+    <p class="form-error">{{ error() }}</p>
+  }
+  <div class="form-actions">
+    <button type="button" class="btn btn--secondary" (click)="onCancel()">
+      Annuller
+    </button>
+    <button
+      type="button"
+      class="btn btn--danger"
+      [disabled]="clearing()"
+      (click)="onConfirm()"
+    >
+      {{ clearing() ? 'Rydder...' : 'Ryd sessionsdata' }}
+    </button>
+  </div>
+</bifrost-dialog>
