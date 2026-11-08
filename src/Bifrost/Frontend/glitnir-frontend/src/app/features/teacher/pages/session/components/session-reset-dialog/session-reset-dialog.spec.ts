@@ -23,7 +23,7 @@ describe('SessionResetDialog', () => {
 
   function setup(
     open: boolean,
-    generation: number | undefined = 1,
+    generation: number = 1,
   ): {
     fixture: ComponentFixture<SessionResetDialog>;
     component: SessionResetDialogInternals;
@@ -88,7 +88,9 @@ describe('SessionResetDialog', () => {
 
   describe('onConfirm', () => {
     it('does nothing when generation is undefined', () => {
-      const { component } = setup(true, undefined);
+      const { fixture, component } = setup(true);
+      fixture.componentRef.setInput('generation', undefined);
+      fixture.detectChanges();
 
       component.onConfirm();
 
