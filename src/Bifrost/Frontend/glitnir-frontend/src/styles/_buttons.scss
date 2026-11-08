@@ -60,6 +60,16 @@
   }
 }
 
+.btn--outline-danger {
+  background-color: transparent;
+  color: var(--color-red);
+  border: 1px solid var(--color-red);
+
+  &:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-red) 12%, transparent);
+  }
+}
+
 .form-actions {
   display: flex;
   justify-content: center;
