@@ -13,12 +13,29 @@ namespace EirService.HelpRequests.Infrastructure.Persistence;
 public sealed class HelpRequestUnitOfWork(EirRequestDbContext dbContext, TimeProvider timeProvider)
     : IUnitOfWork<IHelpRequestRepository>
 {
+    // Waiting queue writers must not rent the entire shared pool. Their domain handlers
+    // need connections in other module contexts before the transaction can commit.
+    private static readonly SemaphoreSlim WriteSlots = new(8, 8);
+
+    internal static async Task<IDisposable> EnterWriteAsync(CancellationToken cancellationToken)
+    {
+        await WriteSlots.WaitAsync(cancellationToken);
+        return new WriteSlot();
+    }
+
+    private sealed class WriteSlot : IDisposable
+    {
+        public void Dispose() => WriteSlots.Release();
+    }
+
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var queuesToLock = dbContext.ChangeTracker.Entries<HelpRequest>()
             .Where(entry => entry.State == EntityState.Added || entry.Entity.GetDomainEvents().Count > 0)
             .Select(entry => (entry.Entity.SessionId, entry.Entity.Generation)).Distinct()
             .OrderBy(queue => queue.SessionId).ThenBy(queue => queue.Generation).ToArray();
+        using var writeSlot = queuesToLock.Length > 0 && dbContext.Database.CurrentTransaction is null
+            ? await EnterWriteAsync(cancellationToken) : null;
         await using var transaction = queuesToLock.Length > 0 && dbContext.Database.CurrentTransaction is null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         // Serialize request mutations with generation changes and queue entries.

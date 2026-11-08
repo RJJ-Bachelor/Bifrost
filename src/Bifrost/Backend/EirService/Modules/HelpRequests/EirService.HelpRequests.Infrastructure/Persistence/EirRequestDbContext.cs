@@ -46,6 +46,7 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
             entity.HasMany(request => request.Messages).WithOne().HasForeignKey(message => message.HelpRequestId).OnDelete(DeleteBehavior.Cascade);
             entity.Navigation(request => request.Messages).HasField("messages").UsePropertyAccessMode(PropertyAccessMode.Field);
             entity.HasIndex(request => request.StudentId);
+            entity.HasIndex(request => new { request.StudentId, request.SessionId, request.QueuedAt, request.Id });
             entity.HasIndex(request => new { request.SessionId, request.Generation, request.ReturnedToQueueAt, request.QueuedAt, request.Id })
                 .IsDescending(false, false, true, false, false)
                 .HasFilter("\"Status\" = 'Pending'");

@@ -63,8 +63,8 @@ public sealed class RabbitMqBusContractTests
         Assert.True(created.Options!.PublisherConfirmationsEnabled);
         Assert.True(created.Options.PublisherConfirmationTrackingEnabled);
         Assert.Equal(cancellation.Token, created.Token);
-        Assert.Equal(new[] { "ExchangeDeclareAsync", "BasicPublishAsync", "DisposeAsync" }, channel.Calls);
-        Assert.True(channel.Disposed);
+        Assert.Equal(new[] { "ExchangeDeclareAsync", "BasicPublishAsync" }, channel.Calls);
+        Assert.False(channel.Disposed);
         Assert.False(transport.Connection.Disposed);
     }
 
@@ -175,23 +175,269 @@ public sealed class RabbitMqBusContractTests
     }
 
     [Fact]
-    public async Task PublicationsUseSeparateChannelsAndDisposeTheSharedConnectionWithTheBus()
+    public async Task PublicationsReuseAConfirmedChannelAndDeclareEachExchangeOnceUntilDisposal()
     {
         var transport = new TransportDouble();
         var first = transport.AddChannel();
-        var second = transport.AddChannel();
         await using (transport)
         {
             await transport.Bus.PublishAsync(Guid.NewGuid(), "first", "notifications", "created");
             await transport.Bus.PublishAsync(Guid.NewGuid(), "second", "notifications", "created");
+            await transport.Bus.PublishAsync(Guid.NewGuid(), "third", "requests", "updated");
 
-            Assert.Equal(2, transport.Connection.CreatedChannels.Count);
-            Assert.True(first.Disposed);
-            Assert.True(second.Disposed);
+            Assert.Single(transport.Connection.CreatedChannels);
+            Assert.Equal(3, first.Publications.Count);
+            Assert.Equal(2, first.Calls.Count(call => call == "ExchangeDeclareAsync"));
+            Assert.All(first.Publications, publication => Assert.True(publication.Mandatory));
+            Assert.False(first.Disposed);
             Assert.False(transport.Connection.Disposed);
         }
 
+        Assert.True(first.Disposed);
         Assert.True(transport.Connection.Disposed);
+    }
+
+    [Fact]
+    public async Task ConcurrentPublicationsWaitForThePreviousConfirmation()
+    {
+        await using var transport = new TransportDouble();
+        var channel = transport.AddChannel();
+        channel.PublishStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        channel.ReleasePublication = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = transport.Bus.PublishAsync(Guid.NewGuid(), "first", "notifications", "created");
+        await channel.PublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var second = transport.Bus.PublishAsync(Guid.NewGuid(), "second", "notifications", "created");
+
+        Assert.False(first.IsCompleted);
+        Assert.False(second.IsCompleted);
+        Assert.Single(channel.Publications);
+        channel.ReleasePublication.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Single(transport.Connection.CreatedChannels);
+        Assert.Equal(2, channel.Publications.Count);
+        Assert.Equal(1, channel.MaximumConcurrentPublications);
+    }
+
+    [Fact]
+    public async Task CancellingAPublisherWaitingForTheChannelDoesNotInterruptAnInFlightConfirmation()
+    {
+        await using var transport = new TransportDouble();
+        var channel = transport.AddChannel();
+        channel.PublishStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        channel.ReleasePublication = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = transport.Bus.PublishAsync(Guid.NewGuid(), "first", "notifications", "created");
+        await channel.PublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        using var cancellation = new CancellationTokenSource();
+        var second = transport.Bus.PublishAsync(Guid.NewGuid(), "second", "notifications", "created", cancellation.Token);
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => second);
+        Assert.False(channel.Disposed);
+        channel.ReleasePublication.SetResult();
+        await first;
+        Assert.Single(channel.Publications);
+    }
+
+    [Fact]
+    public async Task CancellingAnInFlightConfirmationReleasesTheChannelForAnExplicitRetry()
+    {
+        await using var transport = new TransportDouble();
+        var canceled = transport.AddChannel();
+        var replacement = transport.AddChannel();
+        canceled.PublishStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        canceled.ReleasePublication = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var id = Guid.NewGuid();
+        using var cancellation = new CancellationTokenSource();
+        var publication = transport.Bus.PublishAsync(id, "answer", "notifications", "created", cancellation.Token);
+        await canceled.PublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => publication);
+        await transport.Bus.PublishAsync(id, "answer", "notifications", "created");
+
+        Assert.True(canceled.Disposed);
+        Assert.False(replacement.Disposed);
+        Assert.Equal(id.ToString(), Assert.Single(canceled.Publications).Properties.MessageId);
+        Assert.Equal(id.ToString(), Assert.Single(replacement.Publications).Properties.MessageId);
+        Assert.Equal(2, transport.Connection.CreatedChannels.Count);
+    }
+
+    [Fact]
+    public async Task FailedConfirmationReplacesTheChannelAndKeepsTheMessageIdForAnExplicitRetry()
+    {
+        await using var transport = new TransportDouble();
+        var failed = transport.AddChannel();
+        failed.FailureOperation = "BasicPublishAsync";
+        failed.Failure = new IOException("Confirmation failed");
+        var replacement = transport.AddChannel();
+        var id = Guid.NewGuid();
+
+        await Assert.ThrowsAsync<IOException>(() => transport.Bus.PublishAsync(id, "answer", "notifications", "created"));
+        await transport.Bus.PublishAsync(id, "answer", "notifications", "created");
+
+        Assert.True(failed.Disposed);
+        Assert.False(replacement.Disposed);
+        Assert.Equal(id.ToString(), Assert.Single(replacement.Publications).Properties.MessageId);
+        Assert.Equal(2, transport.Connection.CreatedChannels.Count);
+        Assert.Equal(1, replacement.Calls.Count(call => call == "ExchangeDeclareAsync"));
+        Assert.All(transport.Connection.CreatedChannels, creation =>
+        {
+            Assert.True(creation.Options!.PublisherConfirmationsEnabled);
+            Assert.True(creation.Options.PublisherConfirmationTrackingEnabled);
+        });
+    }
+
+    [Fact]
+    public async Task AClosedPublisherChannelIsReplacedAndItsExchangesAreDeclaredAgain()
+    {
+        await using var transport = new TransportDouble();
+        var first = transport.AddChannel();
+        var replacement = transport.AddChannel();
+        await transport.Bus.PublishAsync(Guid.NewGuid(), "first", "notifications", "created");
+        first.Open = false;
+
+        await transport.Bus.PublishAsync(Guid.NewGuid(), "second", "notifications", "created");
+
+        Assert.True(first.Disposed);
+        Assert.Single(replacement.Publications);
+        Assert.Equal(1, replacement.Calls.Count(call => call == "ExchangeDeclareAsync"));
+    }
+
+    [Fact]
+    public async Task ShutdownWaitsForAnInFlightConfirmationAndRejectsFurtherPublications()
+    {
+        var transport = new TransportDouble();
+        var channel = transport.AddChannel();
+        channel.PublishStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        channel.ReleasePublication = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var publication = transport.Bus.PublishAsync(Guid.NewGuid(), "answer", "notifications", "created");
+        await channel.PublishStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var disposal = transport.DisposeAsync().AsTask();
+        Assert.False(disposal.IsCompleted);
+        channel.ReleasePublication.SetResult();
+        await publication;
+        await disposal;
+
+        Assert.True(channel.Disposed);
+        Assert.True(transport.Connection.Disposed);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            transport.Bus.PublishAsync(Guid.NewGuid(), "next", "notifications", "created"));
+        await transport.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task ConsumerConcurrencyAndPrefetchAreScopedToTheConfiguredQueue()
+    {
+        await using var transport = new TransportDouble(new Dictionary<string, string?>
+        {
+            ["Messaging:Consumers:gna-notification-requested:Concurrency"] = "8",
+            ["Messaging:Consumers:gna-notification-requested:Prefetch"] = "32"
+        });
+        var notifications = transport.AddChannel();
+        var ordered = transport.AddChannel();
+
+        await using var parallel = await transport.Bus.SubscribeAsync<string>("gna-notification-requested", "notifications", "created", (_, _) => Task.CompletedTask);
+        await using var sequential = await transport.Bus.SubscribeAsync<string>("ordered-requests", "requests", "updated", (_, _) => Task.CompletedTask);
+
+        Assert.Equal((ushort)8, transport.Connection.CreatedChannels[0].Options!.ConsumerDispatchConcurrency);
+        Assert.False(transport.Connection.CreatedChannels[0].Options!.PublisherConfirmationsEnabled);
+        Assert.False(transport.Connection.CreatedChannels[0].Options!.PublisherConfirmationTrackingEnabled);
+        Assert.Equal((ushort)32, notifications.PrefetchCount);
+        Assert.False(notifications.GlobalPrefetch);
+        Assert.Equal((ushort)1, transport.Connection.CreatedChannels[1].Options!.ConsumerDispatchConcurrency);
+        Assert.Null(ordered.PrefetchCount);
+    }
+
+    [Fact]
+    public async Task ConcurrentConsumerCompletionsSerializeIndividualAcknowledgementsAndRejections()
+    {
+        await using var transport = new TransportDouble(new Dictionary<string, string?>
+        {
+            ["Messaging:Consumers:gna:Concurrency"] = "2"
+        });
+        var channel = transport.AddChannel();
+        channel.CompletionStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        channel.ReleaseCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var failure = new IOException("Saving notification failed");
+        await using var subscription = await transport.Bus.SubscribeAsync<string>("gna", "notifications", "created",
+            (message, _) => message.Payload == "fail" ? Task.FromException(failure) : Task.CompletedTask);
+        var completed = channel.Consumer!.HandleBasicDeliverAsync("consumer-1", 42, false, "notifications", "created",
+            new BasicProperties(), JsonSerializer.SerializeToUtf8Bytes(new MessageEnvelope<string>(Guid.NewGuid(), "ok"),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        await channel.CompletionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var failed = channel.Consumer!.HandleBasicDeliverAsync("consumer-1", 43, false, "notifications", "created",
+            new BasicProperties(), JsonSerializer.SerializeToUtf8Bytes(new MessageEnvelope<string>(Guid.NewGuid(), "fail"),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+
+        Assert.False(completed.IsCompleted);
+        Assert.False(failed.IsCompleted);
+        Assert.Single(channel.Completions);
+        channel.ReleaseCompletion.SetResult();
+        await completed;
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => failed));
+
+        Assert.Equal(1, channel.MaximumConcurrentCompletions);
+        Assert.Collection(channel.Completions,
+            completion => Assert.Equal((42UL, true, false, false), completion),
+            completion => Assert.Equal((43UL, false, false, true), completion));
+    }
+
+    [Fact]
+    public async Task FailedConsumerCancellationStillClosesTheChannelToReleaseOutstandingDeliveries()
+    {
+        await using var transport = new TransportDouble(new Dictionary<string, string?>
+        {
+            ["Messaging:Consumers:gna:Concurrency"] = "2"
+        });
+        var channel = transport.AddChannel();
+        var subscription = await transport.Bus.SubscribeAsync<string>("gna", "notifications", "created", (_, _) => Task.CompletedTask);
+        var failure = new IOException("Consumer cancellation failed");
+        channel.FailureOperation = "BasicCancelAsync";
+        channel.Failure = failure;
+
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => subscription.DisposeAsync().AsTask()));
+
+        Assert.True(channel.Disposed);
+        Assert.Equal("DisposeAsync", channel.Calls.Last());
+        await subscription.DisposeAsync();
+        Assert.Equal(1, channel.Calls.Count(call => call == "DisposeAsync"));
+    }
+
+    [Theory]
+    [InlineData("Concurrency", "0")]
+    [InlineData("Concurrency", "33")]
+    [InlineData("Concurrency", "invalid")]
+    [InlineData("Prefetch", "-1")]
+    [InlineData("Prefetch", "1025")]
+    public async Task InvalidConsumerSettingsFailBeforeOpeningAChannel(string key, string value)
+    {
+        await using var transport = new TransportDouble(new Dictionary<string, string?>
+        {
+            [$"Messaging:Consumers:gna:{key}"] = value
+        });
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            transport.Bus.SubscribeAsync<string>("gna", "notifications", "created", (_, _) => Task.CompletedTask));
+
+        Assert.Contains($"Messaging:Consumers:gna:{key}", error.Message);
+        Assert.Empty(transport.Connection.CreatedChannels);
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("3")]
+    public async Task ConcurrentConsumersRequireABoundedPrefetchAtLeastAsLargeAsTheirConcurrency(string prefetch)
+    {
+        await using var transport = new TransportDouble(new Dictionary<string, string?>
+        {
+            ["Messaging:Consumers:gna:Concurrency"] = "8",
+            ["Messaging:Consumers:gna:Prefetch"] = prefetch
+        });
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            transport.Bus.SubscribeAsync<string>("gna", "notifications", "created", (_, _) => Task.CompletedTask));
+        Assert.Empty(transport.Connection.CreatedChannels);
     }
 
     private static ActivityListener Listen(List<Activity> completed)
@@ -218,14 +464,13 @@ public sealed class RabbitMqBusContractTests
         public RabbitMqMessageBus Bus { get; }
         public ConnectionDouble Connection { get; }
 
-        public TransportDouble()
+        public TransportDouble(Dictionary<string, string?>? settings = null)
         {
             // The sealed bus has no connection-factory seam. Seed its cached interface with a transport
             // double; malformed configuration also guarantees these unit tests cannot open a network connection.
-            Bus = new(new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:rabbitmq"] = "not-a-real-connection-string"
-            }).Build());
+            settings ??= [];
+            settings["ConnectionStrings:rabbitmq"] = "not-a-real-connection-string";
+            Bus = new(new ConfigurationBuilder().AddInMemoryCollection(settings).Build());
             var connection = DispatchProxy.Create<IConnection, ConnectionDouble>();
             Connection = (ConnectionDouble)(object)connection;
             typeof(RabbitMqMessageBus).GetField("_connection", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(Bus, connection);
@@ -289,6 +534,17 @@ public sealed class RabbitMqBusContractTests
         public bool RejectMultiple { get; private set; }
         public bool Requeue { get; private set; }
         public string? CanceledConsumerTag { get; private set; }
+        public ushort? PrefetchCount { get; private set; }
+        public bool GlobalPrefetch { get; private set; }
+        public TaskCompletionSource? PublishStarted { get; set; }
+        public TaskCompletionSource? ReleasePublication { get; set; }
+        public int MaximumConcurrentPublications { get; private set; }
+        private int activePublications;
+        public TaskCompletionSource? CompletionStarted { get; set; }
+        public TaskCompletionSource? ReleaseCompletion { get; set; }
+        public List<(ulong DeliveryTag, bool Acknowledge, bool Multiple, bool Requeue)> Completions { get; } = [];
+        public int MaximumConcurrentCompletions { get; private set; }
+        private int activeCompletions;
 
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
@@ -307,10 +563,11 @@ public sealed class RabbitMqBusContractTests
                 case nameof(IChannel.QueueDeclareAsync):
                     return Task.FromResult(new QueueDeclareOk("gna", 0, 0));
                 case nameof(IChannel.BasicPublishAsync):
-                    Publications.Add(new((string)arguments["exchange"]!, (string)arguments["routingKey"]!,
-                        (bool)arguments["mandatory"]!, (BasicProperties)arguments["basicProperties"]!,
-                        ((ReadOnlyMemory<byte>)arguments["body"]!).ToArray(), (CancellationToken)arguments["cancellationToken"]!));
-                    return ValueTask.CompletedTask;
+                    return PublishAsync(arguments);
+                case nameof(IChannel.BasicQosAsync):
+                    PrefetchCount = (ushort)arguments["prefetchCount"]!;
+                    GlobalPrefetch = (bool)arguments["global"]!;
+                    return Task.CompletedTask;
                 case nameof(IChannel.BasicConsumeAsync):
                     Consumer = (IAsyncBasicConsumer)arguments["consumer"]!;
                     ConsumedQueue = (string)arguments["queue"]!;
@@ -321,12 +578,12 @@ public sealed class RabbitMqBusContractTests
                     AcknowledgedDeliveryTag = (ulong)arguments["deliveryTag"]!;
                     AcknowledgementToken = (CancellationToken)arguments["cancellationToken"]!;
                     AcknowledgeMultiple = (bool)arguments["multiple"]!;
-                    return ValueTask.CompletedTask;
+                    return CompleteDeliveryAsync(arguments, acknowledge: true);
                 case nameof(IChannel.BasicNackAsync):
                     RejectedDeliveryTag = (ulong)arguments["deliveryTag"]!;
                     RejectMultiple = (bool)arguments["multiple"]!;
                     Requeue = (bool)arguments["requeue"]!;
-                    return ValueTask.CompletedTask;
+                    return CompleteDeliveryAsync(arguments, acknowledge: false);
                 case nameof(IChannel.BasicCancelAsync):
                     CanceledConsumerTag = (string)arguments["consumerTag"]!;
                     return Task.CompletedTask;
@@ -338,6 +595,38 @@ public sealed class RabbitMqBusContractTests
                 default:
                     throw new InvalidOperationException("Unexpected channel operation: " + method.Name);
             }
+        }
+
+        private async ValueTask PublishAsync(Dictionary<string, object?> arguments)
+        {
+            var active = Interlocked.Increment(ref activePublications);
+            MaximumConcurrentPublications = Math.Max(MaximumConcurrentPublications, active);
+            var token = (CancellationToken)arguments["cancellationToken"]!;
+            var publication = new Publication((string)arguments["exchange"]!, (string)arguments["routingKey"]!,
+                (bool)arguments["mandatory"]!, (BasicProperties)arguments["basicProperties"]!,
+                ((ReadOnlyMemory<byte>)arguments["body"]!).ToArray(), token);
+            Publications.Add(publication);
+            PublishStarted?.TrySetResult();
+            try
+            {
+                if (ReleasePublication is not null) await ReleasePublication.Task.WaitAsync(token);
+            }
+            finally { Interlocked.Decrement(ref activePublications); }
+        }
+
+        private async ValueTask CompleteDeliveryAsync(Dictionary<string, object?> arguments, bool acknowledge)
+        {
+            activeCompletions++;
+            MaximumConcurrentCompletions = Math.Max(MaximumConcurrentCompletions, activeCompletions);
+            Completions.Add(((ulong)arguments["deliveryTag"]!, acknowledge, (bool)arguments["multiple"]!,
+                !acknowledge && (bool)arguments["requeue"]!));
+            CompletionStarted?.TrySetResult();
+            try
+            {
+                if (ReleaseCompletion is not null)
+                    await ReleaseCompletion.Task.WaitAsync((CancellationToken)arguments["cancellationToken"]!);
+            }
+            finally { activeCompletions--; }
         }
 
         private static object FailedOperation(Type returnType, Exception failure)

@@ -12,6 +12,7 @@ public static class NotificationHubExtensions
         services.AddSignalR();
         services.AddSingleton<IUserIdProvider, NotificationUserIdProvider>();
         services.AddScoped<IRealtimeNotificationSender, SignalRNotificationSender<NotificationHub>>();
+        services.AddScoped<IRealtimeSessionChangeSender, SignalRNotificationSender<NotificationHub>>();
         return services;
     }
 

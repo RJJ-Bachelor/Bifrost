@@ -112,6 +112,8 @@ namespace EirService.HelpRequests.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
+                    b.HasIndex("StudentId", "SessionId", "QueuedAt", "Id");
+
                     b.HasIndex("SessionId", "Generation", "RequestNumber")
                         .IsUnique();
 

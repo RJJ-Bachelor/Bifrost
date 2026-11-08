@@ -11,8 +11,10 @@ public sealed class NotificationDispatcher(IRealtimeNotificationSender realtime,
     {
         string[] channels = notification.DeliveryType == NotificationDeliveryType.RealtimeOnly
             ? ["SignalR"] : ["SignalR", "Push"];
+        List<Exception>? failures = null;
         foreach (var channel in channels)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var sent = channel == "SignalR"
@@ -20,21 +22,27 @@ public sealed class NotificationDispatcher(IRealtimeNotificationSender realtime,
                     : await push.TrySendAsync(notification, cancellationToken);
                 if (sent)
                 {
-                    logger.LogInformation("Notification {NotificationId} for {UserId} sent through {Channel}: {Message}",
+                    logger.LogDebug("Notification {NotificationId} for {UserId} sent through {Channel}: {Message}",
                         notification.NotificationId, notification.UserId, channel, notification.Message);
                     return;
                 }
-                logger.LogInformation("Notification {NotificationId}: {Channel} is unavailable for {UserId}.",
+                logger.LogDebug("Notification {NotificationId}: {Channel} is unavailable for {UserId}.",
                     notification.NotificationId, channel, notification.UserId);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
+                (failures ??= []).Add(exception);
                 logger.LogWarning(exception, "Notification {NotificationId}: {Channel} failed for {UserId}.",
                     notification.NotificationId, channel, notification.UserId);
             }
         }
-        logger.LogInformation("Notification {NotificationId} stored for {UserId}; no delivery channel is available: {Message}",
+        if (failures is { Count: > 0 })
+        {
+            // Offline users need no replay, but a failed transport must remain retryable in the outbox.
+            throw new AggregateException("Notification delivery failed and no fallback channel succeeded.", failures);
+        }
+        logger.LogDebug("Notification {NotificationId} stored for {UserId}; no delivery channel is available: {Message}",
             notification.NotificationId, notification.UserId, notification.Message);
     }
 }

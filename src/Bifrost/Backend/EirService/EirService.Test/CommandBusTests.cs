@@ -38,9 +38,11 @@ using EirService.Contracts.Participants.GetSessionTeacherIds;
 using EirService.Contracts.Participants.GetSessionParticipantIds;
 using EirService.Participants.Application.Features.Internal.GetSessionParticipantIds;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Contracts.Sessions.GetSessionGenerations;
 using EirService.Contracts.HelpRequests.GetWaitingCounts;
 using EirService.Participants.Application.Features.Internal.GetSessionTeacherIds;
 using EirService.Sessions.Application.Features.Internal.GetHelpRequestSession;
+using EirService.Sessions.Application.Features.Internal.GetSessionGenerations;
 using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication;
@@ -115,6 +117,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         builder.Services.AddScoped<ICommandHandler<RememberSessionTeacherCommand>, RememberSessionTeacherCommandHandler>();
         builder.Services.AddScoped<ICommandHandler<GetSessionParticipantIdsQuery, string[]>, GetSessionParticipantIdsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetHelpRequestSessionQuery, HelpRequestSession?>, GetHelpRequestSessionQueryHandler>();
+        builder.Services.AddScoped<ICommandHandler<GetSessionGenerationsQuery, IReadOnlyDictionary<Guid, int>>, GetSessionGenerationsQueryHandler>();
         builder.Services.AddScoped<ICommandHandler<GetSessionTeacherNamesQuery, IReadOnlyDictionary<Guid, IReadOnlyDictionary<string, string?>>>, GetSessionTeacherNamesQueryHandler>();
         builder.Services.AddSingleton(TimeProvider.System);
         var dataProtection = new EphemeralDataProtectionProvider();
@@ -557,6 +560,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         public List<(string UserId, CancellationToken CancellationToken)> Reads { get; } = [];
         public List<(Guid Id, string Message)> RequestMessages { get; } = [];
         public List<(Guid Id, NotificationCreatedMessage Message)> Notifications { get; } = [];
+        public List<OutgoingMessage> Outgoing { get; } = [];
         public Task AddAsync(HelpRequest request, CancellationToken cancellationToken)
         {
             Saved.Add(request);
@@ -574,8 +578,11 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             }
             foreach (var message in OutgoingMessage.Coalesce(outgoing))
             {
+                Outgoing.Add(message);
                 if (message.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((message.Id, help.Message));
                 if (message.Payload is NotificationCreatedMessage notification) Notifications.Add((message.Id, notification));
+                if (message.Payload is SessionChangedMessage changed)
+                    Notifications.AddRange(SessionNotificationTestProjection.Expand(message.Id, changed));
             }
         }
         public Task<HelpRequest?> GetAsync(Guid id, CancellationToken cancellationToken) =>
@@ -585,6 +592,9 @@ public sealed partial class CommandBusTests : IAsyncLifetime
                 .OrderByDescending(request => request.StudentId == null)
                 .ThenByDescending(request => request.ReturnedToQueueAt)
                 .ThenBy(request => request.QueuedAt).ThenBy(request => request.Id).ToArray());
+        public Task<bool> HasOtherPendingAsync(Guid sessionId, int generation, Guid excludedRequestId, CancellationToken cancellationToken) =>
+            Task.FromResult(Saved.Any(request => request.SessionId == sessionId && request.Generation == generation &&
+                request.Id != excludedRequestId && request.Status == HelpRequestStatus.Pending));
         public async Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
             (await GetForSessionAsync(sessionId, generation, cancellationToken))
                 .Select(request => new HelpRequestActivity(request.Id, request.StudentId, request.RequestNumber,
@@ -609,11 +619,13 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             Task.FromResult(Saved.Any(request => request.SessionId == sessionId && request.Generation == generation && request.StudentId == studentId && request.IsOpen));
         public Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken) =>
             throw new NotSupportedException("Reservation is tested against PostgreSQL.");
-        public Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, CancellationToken cancellationToken)
+        public Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string userId, Guid? sessionId = null,
+            CancellationToken cancellationToken = default)
         {
             Reads.Add((userId, cancellationToken));
             executionOrder.Add($"Read help requests for {userId}");
-            return Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.StudentId == userId).OrderBy(request => request.Id).ToArray());
+            return Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => request.StudentId == userId &&
+                (!sessionId.HasValue || request.SessionId == sessionId.Value)).OrderBy(request => request.Id).ToArray());
         }
     }
 

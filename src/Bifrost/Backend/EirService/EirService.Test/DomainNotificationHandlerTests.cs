@@ -71,20 +71,16 @@ public sealed class DomainNotificationHandlerTests
         }
 
         Assert.Equal(session.Id, Assert.Single(participantQuery.Commands).SessionId);
-        var notifications = outgoing.Where(message => message.Payload is NotificationCreatedMessage).ToArray();
+        var broadcast = Assert.Single(outgoing, message => message.Payload is SessionChangedMessage);
+        var audience = Assert.IsType<SessionChangedMessage>(broadcast.Payload);
         var expectedRecipients = sessionExists ? new[] { "colleague", "owner", "student" } : new[] { "colleague", "student" };
-        Assert.Equal(expectedRecipients, notifications.Select(message => ((NotificationCreatedMessage)message.Payload).UserId).Order());
+        Assert.Equal(expectedRecipients, audience.UserIds.Order());
         Assert.Equal(outgoing.Count, outgoing.Select(message => (message.ExchangeName, message.RoutingKey, message.Id)).Distinct().Count());
-        Assert.All(notifications, outgoingMessage =>
-        {
-            var message = Assert.IsType<NotificationCreatedMessage>(outgoingMessage.Payload);
-            Assert.Equal((session.Id, 2, change, NotificationEventType.SessionChanged, NotificationDeliveryType.RealtimeOnly),
-                (message.SessionId!.Value, message.Generation!.Value, message.Change, message.EventType, message.DeliveryType));
-            Assert.Equal(MessageRoutes.Notifications, outgoingMessage.ExchangeName);
-            Assert.Equal(MessageRoutes.NotificationCreated, outgoingMessage.RoutingKey);
-            Assert.Equal($"session-notification:{session.Id}:{message.UserId}", outgoingMessage.CoalescingKey);
-        });
-        if (change == "Renamed") Assert.Equal(notifications.Length, outgoing.Count);
+        Assert.Equal((session.Id, 2, change), (audience.SessionId, audience.Generation, audience.Change));
+        Assert.Equal(MessageRoutes.Notifications, broadcast.ExchangeName);
+        Assert.Equal(MessageRoutes.SessionChanged, broadcast.RoutingKey);
+        Assert.DoesNotContain(outgoing, message => message.Payload is NotificationCreatedMessage);
+        if (change == "Renamed") Assert.Single(outgoing);
         else
         {
             var integration = Assert.Single(outgoing, message => message.Payload is SessionUpdatedIntegrationEvent);

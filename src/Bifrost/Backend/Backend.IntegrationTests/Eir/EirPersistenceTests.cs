@@ -69,7 +69,7 @@ public sealed class EirPersistenceTests
         await using var db = fixture.Open();
         var repository = Repository(db);
 
-        var history = await repository.GetByUserIdAsync("student", default);
+        var history = await repository.GetByUserIdAsync("student", cancellationToken: default);
 
         Assert.Equal(new[] { earlier.Id, later.Id }, history.Select(request => request.Id));
         Assert.Equal(new[] { "Question for student", "Private answer" }, history[0].Messages.OrderBy(message => message.SequenceNumber).Select(message => message.Text.Value));

@@ -61,6 +61,53 @@ public sealed partial class NotificationTests
             && message.Contains(Message.UserId) && message.Contains(Message.Message));
     }
 
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task TransportFailureWithoutSuccessfulFallbackIsRetryable(bool signalRFails, bool pushFails)
+    {
+        var realtime = new Sender(false, signalRFails ? new IOException("SignalR transport failed") : null);
+        var push = new Sender(false, pushFails ? new IOException("Push transport failed") : null);
+
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => new NotificationDispatcher(
+            realtime, push, new Recorder<NotificationDispatcher>()).DispatchAsync(Message, default));
+
+        Assert.Equal((signalRFails ? 1 : 0) + (pushFails ? 1 : 0), failure.InnerExceptions.Count);
+        Assert.All(failure.InnerExceptions, exception => Assert.IsType<IOException>(exception));
+        Assert.Equal(1, realtime.Calls);
+        Assert.Equal(1, push.Calls);
+        Assert.DoesNotContain(Message.Message, failure.Message);
+    }
+
+    [Fact]
+    public async Task FailedRealtimeOnlyDeliveryIsRetryableWithoutStartingPush()
+    {
+        var push = new Sender(true);
+        var failure = new IOException("SignalR transport failed");
+
+        var thrown = await Assert.ThrowsAsync<AggregateException>(() => new NotificationDispatcher(
+            new Sender(false, failure), push, new Recorder<NotificationDispatcher>())
+            .DispatchAsync(Message with { DeliveryType = NotificationDeliveryType.RealtimeOnly }, default));
+
+        Assert.Same(failure, Assert.Single(thrown.InnerExceptions));
+        Assert.Equal(0, push.Calls);
+    }
+
+    [Fact]
+    public async Task CancellationAfterUnavailableSignalRDoesNotStartPush()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var realtime = new Sender(false) { AfterSend = cancellation.Cancel };
+        var push = new Sender(true);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new NotificationDispatcher(
+            realtime, push, new Recorder<NotificationDispatcher>()).DispatchAsync(Message, cancellation.Token));
+
+        Assert.Equal(1, realtime.Calls);
+        Assert.Equal(0, push.Calls);
+    }
+
     [Fact]
     public async Task CancellationDoesNotStartPush()
     {
@@ -155,9 +202,11 @@ public sealed partial class NotificationTests
     private sealed class Sender(bool result, Exception? failure = null) : IRealtimeNotificationSender, IPushNotificationSender
     {
         public int Calls { get; private set; }
+        public Action? AfterSend { get; init; }
         public Task<bool> TrySendAsync(NotificationDeliveryRequestedMessage notification, CancellationToken cancellationToken)
         {
             Calls++;
+            AfterSend?.Invoke();
             return failure is null ? Task.FromResult(result) : Task.FromException<bool>(failure);
         }
     }

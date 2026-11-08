@@ -65,14 +65,16 @@ public sealed class NotificationMessageHandlerTests
     }
 
     [Fact]
-    public async Task FailedPushDoesNotMakeAnAlreadyStoredNotificationFail()
+    public async Task FailedPushIsPropagatedSoTheStoredDeliveryCanBeRetried()
     {
         var push = new DeliverySender(new IOException("Push failed"));
         var realtime = new DeliverySender();
         var message = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), "student", "Answer", DateTimeOffset.UtcNow);
 
-        await new NotificationDispatcher(realtime, push, NullLogger<NotificationDispatcher>.Instance).DispatchAsync(message, default);
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => new NotificationDispatcher(
+            realtime, push, NullLogger<NotificationDispatcher>.Instance).DispatchAsync(message, default));
 
+        Assert.IsType<IOException>(Assert.Single(failure.InnerExceptions));
         Assert.Equal(1, realtime.Calls);
         Assert.Equal(1, push.Calls);
     }
@@ -81,8 +83,7 @@ public sealed class NotificationMessageHandlerTests
     public async Task PushCancellationIsPropagatedToTheCaller()
     {
         using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        var push = new DeliverySender(new OperationCanceledException(cancellation.Token));
+        var push = new DeliverySender { CancelOnSend = cancellation };
         var message = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), "student", "Answer", DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => new NotificationDispatcher(
@@ -125,9 +126,12 @@ public sealed class NotificationMessageHandlerTests
     private sealed class DeliverySender(Exception? failure = null) : IRealtimeNotificationSender, IPushNotificationSender
     {
         public int Calls { get; private set; }
+        public CancellationTokenSource? CancelOnSend { get; init; }
         public Task<bool> TrySendAsync(NotificationDeliveryRequestedMessage notification, CancellationToken cancellationToken)
         {
             Calls++;
+            CancelOnSend?.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
             return failure is null ? Task.FromResult(false) : Task.FromException<bool>(failure);
         }
     }

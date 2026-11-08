@@ -8,7 +8,10 @@ using EirService.HelpRequests.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Shared.Application.Persistence;
+using Shared.Infrastructure.Persistence;
+using System.Data.Common;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 
@@ -28,8 +31,12 @@ public static class DependencyInjection
                 "The 'eir' PostgreSQL connection string is not configured.");
         }
 
-        services.AddDbContext<EirRequestDbContext>(options =>
-            options.UseNpgsql(connectionString, postgres => postgres.MigrationsHistoryTable("__HelpRequestsMigrationsHistory")));
+        var maximumPoolSize = configuration.GetValue("Database:MaximumPoolSize", 40);
+        services.AddSharedPostgresDataSource("eir", new NpgsqlConnectionStringBuilder(connectionString),
+            NpgsqlDataSource.Create, maximumPoolSize);
+        services.AddDbContext<EirRequestDbContext>((provider, options) =>
+            options.UseNpgsql(provider.GetRequiredKeyedService<DbDataSource>("eir"),
+                postgres => postgres.MigrationsHistoryTable("__HelpRequestsMigrationsHistory")));
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirRequestDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddInternalOutbox<EirRequestDbContext>(TimeSpan.FromMilliseconds(500));

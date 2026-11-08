@@ -17,18 +17,29 @@ public sealed class HelpRequestRepository(
     public Task<HelpRequest?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Requests.Include(request => request.Messages).SingleOrDefaultAsync(request => request.Id == id, cancellationToken);
 
-    public async Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string studentId, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<HelpRequest>> GetByUserIdAsync(string studentId, Guid? sessionId = null,
+        CancellationToken cancellationToken = default) =>
         await dbContext.Requests.AsNoTracking().Include(request => request.Messages)
-            .Where(request => request.StudentId == studentId).OrderBy(request => request.QueuedAt).ThenBy(request => request.Id)
+            .Where(request => request.StudentId == studentId &&
+                (!sessionId.HasValue || request.SessionId == sessionId.Value))
+            .OrderBy(request => request.QueuedAt).ThenBy(request => request.Id)
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<HelpRequest>> GetForSessionAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
         await SessionRequests(sessionId, generation).Include(request => request.Messages).ToListAsync(cancellationToken);
 
+    public Task<bool> HasOtherPendingAsync(Guid sessionId, int generation, Guid excludedRequestId, CancellationToken cancellationToken) =>
+        dbContext.Requests.AnyAsync(request => request.SessionId == sessionId && request.Generation == generation &&
+            request.Id != excludedRequestId && request.Status == HelpRequestStatus.Pending, cancellationToken);
+
     public async Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
-        await SessionRequests(sessionId, generation)
+        await dbContext.Requests.AsNoTracking()
+            .Where(request => request.SessionId == sessionId && request.Generation == generation)
             .Select(request => new HelpRequestActivity(request.Id, request.StudentId, request.RequestNumber,
-                request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt))
+                request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt)
+            {
+                ReturnedToQueueAt = request.ReturnedToQueueAt
+            })
             .ToListAsync(cancellationToken);
 
     private IOrderedQueryable<HelpRequest> SessionRequests(Guid sessionId, int generation) =>
@@ -87,6 +98,7 @@ public sealed class HelpRequestRepository(
 
     public async Task<HelpRequest?> TakeNextAsync(Guid sessionId, int generation, string teacherId, CancellationToken cancellationToken)
     {
+        using var writeSlot = await HelpRequestUnitOfWork.EnterWriteAsync(cancellationToken);
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         // Acquire the queue lock before locking a row, matching archival cleanup's lock order.
         var queueKey = $"helprequests:{sessionId}:{generation}";
