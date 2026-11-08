@@ -110,6 +110,20 @@ describe('SessionApi', () => {
     });
   });
 
+  describe('clearSession', () => {
+    it('posts expectedGeneration to the clear endpoint', async () => {
+      const promise = firstValueFrom(service.clearSession('session-1', 1));
+
+      const request = http.expectOne('/api/teachers/sessions/session-1/clear');
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ expectedGeneration: 1 });
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(null);
+
+      await expect(promise).resolves.toBeNull();
+    });
+  });
+
   describe('deleteSession', () => {
     it('deletes the session at the teacher endpoint', async () => {
       const promise = firstValueFrom(service.deleteSession('session-1'));
