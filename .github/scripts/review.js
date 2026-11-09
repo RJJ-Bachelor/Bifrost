@@ -244,6 +244,7 @@ function loadRequestedFiles(requestedFiles, loadedFilesMap) {
     if (!cleanPath || cleanPath === "docs/PROJECT_CONTEXT.md") continue;
     if (loadedFilesMap.has(cleanPath)) continue;
     if (IGNORED_EXTENSIONS.some((ext) => cleanPath.toLowerCase().endsWith(ext))) continue;
+    if (IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(cleanPath))) continue;
 
     // Prevent path traversal outside the repository
     const fullPath = path.resolve(process.cwd(), cleanPath);
@@ -298,6 +299,7 @@ function getRepositoryFileList() {
       .filter((line) => {
         if (!line) return false;
         if (line.startsWith(".github/") || line.startsWith(".githooks/") || line.startsWith(".")) return false;
+        if (IGNORED_DIFF_PATTERNS.some((pattern) => pattern.test(line))) return false;
         return !IGNORED_EXTENSIONS.some((ext) => line.toLowerCase().endsWith(ext));
       })
       .join("\n");
@@ -627,7 +629,17 @@ const IGNORED_DIFF_PATTERNS = [
   /\.Designer\.cs$/i,
   /ModelSnapshot\.cs$/i,
   /\.min\.(js|css)$/i,
-  /\.map$/i
+  /\.map$/i,
+  // Generated performance-test output — scoped to the test project so a future
+  // "Results/" folder in business code is still reviewed.
+  /(?:^|[\\/])Backend\.Performance\.Tests[\\/]Results[\\/]/i,
+  // Vendored frontend libraries (Bootstrap, jQuery, …) restored via LibMan/npm.
+  /(?:^|[\\/])wwwroot[\\/]lib[\\/]/i,
+  // .NET test output (dotnet test --logger trx). Preventive — not present today.
+  /(?:^|[\\/])TestResults[\\/]/i,
+  // Coverage reports (coverlet / reportgenerator). Preventive.
+  /(?:^|[\\/])coverage[\\/]/i,
+  /coverage\.(xml|json|info)$/i
 ];
 
 function filterDiff(diffText) {
