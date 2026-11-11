@@ -18,6 +18,7 @@ internal sealed class MemorySessionRepository : ISessionRepository, IUnitOfWork<
     }
     public void Remove(Session session) => pendingDeletes.Add(session);
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) => Task.FromResult(sessions.SingleOrDefault(session => session.Id == id));
+    public Task<Session?> GetWithArchivesAsync(Guid id, CancellationToken cancellationToken) => GetAsync(id, cancellationToken);
     public Task<Session?> GetByCodeAsync(string code, SessionCodeType codeType, CancellationToken cancellationToken) =>
         Task.FromResult(sessions.SingleOrDefault(session => (codeType == SessionCodeType.Teacher ? session.TeacherCode.Value : session.Code.Value) == code));
     public Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken) =>

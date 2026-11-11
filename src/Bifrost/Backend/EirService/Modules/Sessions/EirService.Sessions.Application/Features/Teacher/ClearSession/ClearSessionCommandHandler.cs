@@ -12,7 +12,7 @@ public sealed class ClearSessionCommandHandler(
 {
     public async Task<ClearSessionResult> ExecuteAsync(ClearSessionCommand command, CancellationToken cancellationToken)
     {
-        var session = await repository.GetAsync(command.SessionId, cancellationToken);
+        var session = await repository.GetWithArchivesAsync(command.SessionId, cancellationToken);
 
         if (session is null || (session.CreatedByTeacherId != command.TeacherId &&
             !await new IsSessionTeacherQuery(session.Id, command.TeacherId).ExecuteAsync(cancellationToken)))

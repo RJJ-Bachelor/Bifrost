@@ -59,6 +59,7 @@ public sealed class Session : AggregateRoot<Guid>
 
         var previousGeneration = CurrentGeneration;
         CurrentGeneration = checked(CurrentGeneration + 1);
+        archives.Clear();
         LastClearedAtUtc = now.ToUniversalTime();
         CurrentGenerationStartedAtUtc = LastClearedAtUtc.Value;
         RaiseDomainEvent(new SessionClearedDomainEvent(Id, previousGeneration, CurrentGeneration, LastClearedAtUtc.Value));

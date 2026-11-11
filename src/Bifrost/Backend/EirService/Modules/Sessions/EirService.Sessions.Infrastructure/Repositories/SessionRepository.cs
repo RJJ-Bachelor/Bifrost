@@ -31,6 +31,10 @@ public sealed class SessionRepository(EirSessionDbContext dbContext) : ISessionR
     public Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Sessions.SingleOrDefaultAsync(session => session.Id == id, cancellationToken);
 
+    public Task<Session?> GetWithArchivesAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Sessions.Include(session => session.Archives)
+            .SingleOrDefaultAsync(session => session.Id == id, cancellationToken);
+
     public Task<Session?> GetByCodeAsync(string code, SessionCodeType codeType, CancellationToken cancellationToken)
     {
         var value = new SessionCode(code);
