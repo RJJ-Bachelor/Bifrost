@@ -24,36 +24,40 @@ public sealed class EirPersistenceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 1, 8, 0, 0, TimeSpan.Zero);
 
-    //[Fact]
-    //public async Task QueueQueriesPreserveFaqReturnAndFifoPriorityWithinTheRequestedGeneration()
-    //{
-    //    await using var fixture = await RequestDatabase.CreateAsync();
-    //    var sessionId = Guid.NewGuid();
-    //    var first = Request(sessionId, "first", at: Now);
-    //    var second = Request(sessionId, "second", at: Now.AddMinutes(1));
-    //    var returned = Request(sessionId, "returned", at: Now.AddMinutes(2));
-    //    returned.Reserve("teacher", Now.AddMinutes(3));
-    //    returned.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(4));
-    //    var latestReturn = Request(sessionId, "latest-return", at: Now.AddMinutes(5));
-    //    latestReturn.Reserve("teacher", Now.AddMinutes(6));
-    //    latestReturn.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(7));
-    //    var faq = HelpRequest.CreateFaq(Guid.NewGuid(), sessionId, 1, new("Shared question"), Now.AddMinutes(8));
-    //    await fixture.SeedAsync(first, second, returned, latestReturn, faq,
-    //        Request(sessionId, "other-generation", 2), Request(Guid.NewGuid(), "other-session"));
-    //    await using var db = fixture.Open();
-    //    var repository = Repository(db);
+    [Fact]
+    public async Task QueueQueriesPreserveFaqReturnAndFifoPriorityWithinTheRequestedGeneration()
+    {
+        await using var fixture = await RequestDatabase.CreateAsync();
+        var sessionId = Guid.NewGuid();
+        var first = Request(sessionId, "first", at: Now);
+        var second = Request(sessionId, "second", at: Now.AddMinutes(1));
+        var returned = Request(sessionId, "returned", at: Now.AddMinutes(2));
+        returned.Reserve("teacher", Now.AddMinutes(3));
+        returned.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(4));
+        var latestReturn = Request(sessionId, "latest-return", at: Now.AddMinutes(5));
+        latestReturn.Reserve("teacher", Now.AddMinutes(6));
+        latestReturn.Cancel("teacher", AuthorRole.Teacher, Now.AddMinutes(7));
+        var faq = HelpRequest.CreateFaq(Guid.NewGuid(), sessionId, 1, new("Shared question"), Now.AddMinutes(8));
+        await fixture.SeedAsync(first, second, returned, latestReturn, faq,
+            Request(sessionId, "other-generation", 2), Request(Guid.NewGuid(), "other-session"));
+        await using var db = fixture.Open();
+        var repository = Repository(db);
 
-    //    var queue = await repository.GetForSessionAsync(sessionId, 1, default);
-    //    var activity = await repository.GetSessionActivityAsync(sessionId, 1, default);
+        var queue = await repository.GetForSessionAsync(sessionId, 1, default);
+        var activity = await repository.GetSessionActivityAsync(sessionId, 1, default);
 
-    //    var expected = new[] { faq.Id, latestReturn.Id, returned.Id, first.Id, second.Id };
-    //    Assert.Equal(expected, queue.Select(request => request.Id));
-    //    Assert.Equal(expected, activity.Select(request => request.Id));
-    //    Assert.Equal("Shared question", Assert.Single(queue[0].Messages).Text.Value);
-    //    Assert.Equal("Question for first", Assert.Single(queue[3].Messages).Text.Value);
-    //    Assert.Equal(latestReturn.ReturnedToQueueAt, queue[1].ReturnedToQueueAt);
-    //    Assert.Empty(db.ChangeTracker.Entries());
-    //}
+        var expected = new[] { faq.Id, latestReturn.Id, returned.Id, first.Id, second.Id };
+        Assert.Equal(expected, queue.Select(request => request.Id));
+        Assert.Equal(expected.Order(), activity.Select(request => request.Id).Order());
+        Assert.Equal("Shared question", Assert.Single(queue[0].Messages).Text.Value);
+        Assert.Equal("Question for first", Assert.Single(queue[3].Messages).Text.Value);
+        Assert.Equal(latestReturn.ReturnedToQueueAt, queue[1].ReturnedToQueueAt);
+        Assert.Equal(latestReturn.ReturnedToQueueAt,
+            Assert.Single(activity, request => request.Id == latestReturn.Id).ReturnedToQueueAt);
+        Assert.Equal(returned.ReturnedToQueueAt,
+            Assert.Single(activity, request => request.Id == returned.Id).ReturnedToQueueAt);
+        Assert.Empty(db.ChangeTracker.Entries());
+    }
 
     [Fact]
     public async Task HistoryAndIdQueriesRoundTripMessagesAndDoNotLeakOtherStudents()

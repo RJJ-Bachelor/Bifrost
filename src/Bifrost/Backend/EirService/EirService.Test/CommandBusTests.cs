@@ -595,10 +595,12 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         public Task<bool> HasOtherPendingAsync(Guid sessionId, int generation, Guid excludedRequestId, CancellationToken cancellationToken) =>
             Task.FromResult(Saved.Any(request => request.SessionId == sessionId && request.Generation == generation &&
                 request.Id != excludedRequestId && request.Status == HelpRequestStatus.Pending));
-        public async Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
-            (await GetForSessionAsync(sessionId, generation, cancellationToken))
+        public Task<IReadOnlyList<HelpRequestActivity>> GetSessionActivityAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<HelpRequestActivity>>(Saved
+                .Where(request => request.SessionId == sessionId && request.Generation == generation)
                 .Select(request => new HelpRequestActivity(request.Id, request.StudentId, request.RequestNumber,
-                    request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt)).ToArray();
+                    request.HelpType, request.Status, request.AssignedTeacherId, request.QueuedAt, request.StartedAt, request.ClosedAt)
+                    { ReturnedToQueueAt = request.ReturnedToQueueAt }).ToArray());
         public Task<IReadOnlyList<HelpRequest>> GetByIdsAsync(Guid[] ids, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<HelpRequest>>(Saved.Where(request => ids.Contains(request.Id)).ToArray());
         public Task<string[]> GetWaitingStudentIdsAsync(Guid sessionId, int generation, CancellationToken cancellationToken) =>
