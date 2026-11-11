@@ -111,8 +111,9 @@ public sealed partial class CommandBusTests
         Assert.Equal(expected, result.Status);
         Assert.Equal(expected, request.Status);
         Assert.Empty(request.GetDomainEvents());
-        Assert.Contains(_requests.Notifications, notification => notification.Message.HelpRequestId == request.Id &&
-            notification.Message.Status == expected.ToString());
+        Assert.Contains(_requests.Notifications, notification => notification.Message.SessionId == sessionId &&
+            notification.Message.Change == (action switch
+            { HelpRequestAction.Start => "Started", HelpRequestAction.Complete => "Completed", _ => "ReturnedToQueue" }));
         if (action == HelpRequestAction.Cancel) Assert.Null(result.AssignedTeacherId);
         if (action == HelpRequestAction.Complete) Assert.NotNull(result.ClosedAt);
     }

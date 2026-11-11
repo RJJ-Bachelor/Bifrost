@@ -1,6 +1,7 @@
 using EirService.Contracts.Exceptions;
 using EirService.Contracts.Participants.IsSessionParticipant;
 using EirService.Contracts.Sessions.GetHelpRequestSession;
+using EirService.Contracts.Sessions.GetSessionGenerations;
 using EirService.HelpRequests.Application.Repositories;
 using EirService.HelpRequests.Domain.Entities;
 using FastEndpoints;
@@ -11,17 +12,21 @@ public sealed class HelpRequestAccess(IHelpRequestRepository repository)
 {
     public async Task<HelpRequestSession> ForSessionAsync(Guid sessionId, string actorId, AuthorRole role, CancellationToken cancellationToken)
     {
+        // Student flows need the current generation and membership, not the teacher roster.
+        if (role == AuthorRole.Student)
+        {
+            var generations = await new GetSessionGenerationsQuery([sessionId]).ExecuteAsync(cancellationToken);
+            if (!generations.TryGetValue(sessionId, out var generation) ||
+                !await new IsSessionParticipantQuery(sessionId, actorId).ExecuteAsync(cancellationToken))
+                throw new ResourceNotFoundException();
+            return new HelpRequestSession(sessionId, generation, []);
+        }
+
         var session = await new GetHelpRequestSessionQuery(sessionId).ExecuteAsync(cancellationToken)
             ?? throw new ResourceNotFoundException();
 
-        var allowed = role switch
-        {
-            AuthorRole.Teacher => session.TeacherIds.Contains(actorId, StringComparer.Ordinal),
-            AuthorRole.Student => await new IsSessionParticipantQuery(sessionId, actorId).ExecuteAsync(cancellationToken),
-            _ => false
-        };
-
-        if (!allowed) throw new ResourceNotFoundException();
+        if (role != AuthorRole.Teacher || !session.TeacherIds.Contains(actorId, StringComparer.Ordinal))
+            throw new ResourceNotFoundException();
 
         return session;
     }

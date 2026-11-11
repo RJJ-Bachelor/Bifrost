@@ -89,8 +89,8 @@ public sealed partial class CommandBusTests
         var generic = Assert.Single(_requests.Notifications, item => item.Message.UserId == "student").Message;
         Assert.Equal(NotificationDeliveryType.RealtimeOnly, generic.DeliveryType);
         Assert.Equal(NotificationEventType.SessionChanged, generic.EventType);
-        Assert.Equal(request.Id, generic.HelpRequestId);
-        Assert.Equal("Pending", generic.Status);
+        Assert.Null(generic.HelpRequestId);
+        Assert.Null(generic.Status);
     }
 
     [Theory]

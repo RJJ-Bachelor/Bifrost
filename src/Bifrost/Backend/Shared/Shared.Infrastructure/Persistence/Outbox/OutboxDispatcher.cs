@@ -14,27 +14,44 @@ public sealed class OutboxDispatcher<TDbContext>(
     IServiceScopeFactory scopeFactory, IMessageBus messageBus, TimeProvider timeProvider,
     ILogger<OutboxDispatcher<TDbContext>> logger, TimeSpan pollingInterval = default) : BackgroundService where TDbContext : DbContext
 {
+    private const int PageSize = 50;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        using var timer = new PeriodicTimer(pollingInterval == default ? TimeSpan.FromSeconds(5) : pollingInterval, timeProvider);
-        do
+        var interval = pollingInterval == default ? TimeSpan.FromSeconds(5) : pollingInterval;
+        while (!stoppingToken.IsCancellationRequested)
         {
-            try { await PublishPendingAsync(stoppingToken); }
+            try
+            {
+                // A full successful page may leave more work; only wait when idle or after failure.
+                if (await PublishPageAsync(stoppingToken)) continue;
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
-            catch (Exception exception) { logger.LogError(exception, "Outbox delivery failed; pending messages will be retried."); }
-        } while (await timer.WaitForNextTickAsync(stoppingToken));
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Outbox delivery failed; pending messages will be retried.");
+            }
+            // Delay from the completed attempt: failures must not spin on an already elapsed timer.
+            try { await Task.Delay(interval, timeProvider, stoppingToken); }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+        }
     }
 
-    public async Task PublishPendingAsync(CancellationToken cancellationToken)
+    public Task PublishPendingAsync(CancellationToken cancellationToken)
+        => PublishPageAsync(cancellationToken);
+
+    private async Task<bool> PublishPageAsync(CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var pending = await dbContext.Set<OutboxMessage>().Where(message => message.PublishedAtUtc == null &&
                 message.ExchangeName != InternalMessageRoutes.Exchange)
-            .OrderBy(message => message.LastAttemptAtUtc ?? message.CreatedAtUtc).ThenBy(message => message.Id).Take(50).ToListAsync(cancellationToken);
+            .OrderBy(message => message.LastAttemptAtUtc ?? message.CreatedAtUtc).ThenBy(message => message.Id)
+            .Take(PageSize).ToListAsync(cancellationToken);
         var published = 0;
         foreach (var message in pending)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var previousActivity = Activity.Current;
             Activity.Current = null;
             try
@@ -44,22 +61,23 @@ public sealed class OutboxDispatcher<TDbContext>(
                 await messageBus.PublishAsync(message.MessageId, payload, message.ExchangeName, message.RoutingKey,
                     cancellationToken, message.MessageType);
                 message.MarkPublished(timeProvider.GetUtcNow());
-                // A crash after publish can deliver the same MessageId again. Consumers must be idempotent.
-                await dbContext.SaveChangesAsync(cancellationToken);
                 published++;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (Exception exception)
             {
-                // Failed messages move behind unattempted messages so a failed route cannot starve the next batch.
+                // Failed rows move behind unattempted work; one bad route cannot starve the queue.
                 message.MarkFailed(timeProvider.GetUtcNow());
-                await dbContext.SaveChangesAsync(cancellationToken);
                 logger.LogError(exception, "Outbox message {MessageId} to {RoutingKey} failed; it will be retried.",
                     message.MessageId, message.RoutingKey);
             }
             finally { Activity.Current = previousActivity; }
+
+            // Persist each outcome before the next message. A crash can repeat its stable MessageId.
+            await dbContext.SaveChangesAsync(cancellationToken);
         }
         if (published > 0)
             logger.LogInformation("Published {MessageCount} outbox messages from {DbContext}.", published, typeof(TDbContext).Name);
+        return pending.Count == PageSize && published == pending.Count;
     }
 }

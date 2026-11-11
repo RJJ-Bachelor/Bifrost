@@ -1,0 +1,14 @@
+{
+  "Students": 10,
+  "ActiveStudents": 3,
+  "WarmupStudents": 2,
+  "Lessons": 1,
+  "LessonWeights": [1],
+  "WarmupSeconds": 10,
+  "RampUpSeconds": 10,
+  "SteadySeconds": 30,
+  "RampDownSeconds": 5,
+  "StudentPauseSeconds": 2,
+  "TeacherPauseSeconds": 1,
+  "EnvironmentDescription": "Smoke profile; supply actual environment description before interpreting results"
+}

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
 using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 using GnaService.Application.Notifications;
@@ -31,10 +32,16 @@ public static class DependencyInjection
                 "The 'gna' PostgreSQL connection string is not configured.");
         }
 
+        var maximumPoolSize = configuration.GetValue("Database:MaximumPoolSize", 40);
+        var databaseConnection = new NpgsqlConnectionStringBuilder(connectionString)
+        {
+            MaxPoolSize = maximumPoolSize
+        }.ConnectionString;
         services.AddDbContext<GnaNotificationDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(databaseConnection));
         services.AddRabbitMqMessageBus(configuration);
         services.AddRabbitMqQueue(MessageRoutes.NotificationCreated, MessageRoutes.Notifications, MessageRoutes.NotificationCreated);
+        services.AddRabbitMqQueue(MessageRoutes.SessionChanged, MessageRoutes.Notifications, MessageRoutes.SessionChanged);
         services.AddRabbitMqQueue("gna-request-updated", MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated);
         services.AddScoped<INotificationMessageHandler, NotificationMessageHandler>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
@@ -46,6 +53,7 @@ public static class DependencyInjection
         services.AddScoped<IPushNotificationSender, PushNotificationSender>();
         services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
         services.AddHostedService<NotificationMessageSubscriber>();
+        services.AddHostedService<SessionChangedSubscriber>();
 
         return services;
     }

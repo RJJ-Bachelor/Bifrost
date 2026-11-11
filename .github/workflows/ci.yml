@@ -30,7 +30,7 @@ jobs:
           test "${#PROJECTS[@]}" -gt 0
           for project in "${PROJECTS[@]}"; do
             dotnet test "$project" --configuration Release --verbosity minimal -m:1 -nr:false \
-              --collect:"XPlat Code Coverage" --settings scripts/Test/coverage.runsettings \
+              --collect:"XPlat Code Coverage" --settings scripts/Test/coverage/coverage.runsettings \
               --results-directory "Test/coverage/TestResults/$(basename "$project" .csproj)" --logger trx
           done
 

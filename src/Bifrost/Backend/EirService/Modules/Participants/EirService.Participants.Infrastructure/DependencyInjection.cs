@@ -14,6 +14,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Npgsql;
+using Shared.Infrastructure.Persistence;
+using System.Data.Common;
 
 namespace EirService.Participants.Infrastructure;
 
@@ -23,7 +26,8 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("eir")
             ?? throw new InvalidOperationException("The 'eir' PostgreSQL connection string is not configured.");
-        services.AddDbContext<EirParticipantDbContext>(options => options.UseNpgsql(connectionString,
+        services.AddSharedPostgresDataSource("eir", new NpgsqlConnectionStringBuilder(connectionString), NpgsqlDataSource.Create);
+        services.AddDbContext<EirParticipantDbContext>((provider, options) => options.UseNpgsql(provider.GetRequiredKeyedService<DbDataSource>("eir"),
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "participants")));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IParticipantRepository, ParticipantRepository>();

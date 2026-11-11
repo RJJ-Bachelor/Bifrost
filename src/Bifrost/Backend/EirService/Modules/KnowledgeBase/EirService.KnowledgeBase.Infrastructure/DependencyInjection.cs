@@ -11,6 +11,9 @@ using Shared.Application.Persistence;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Infrastructure.Persistence.UnitOfWork;
+using Npgsql;
+using Shared.Infrastructure.Persistence;
+using System.Data.Common;
 
 namespace EirService.KnowledgeBase.Infrastructure;
 
@@ -20,7 +23,8 @@ public static class DependencyInjection
     {
         var connectionString = configuration.GetConnectionString("eir")
             ?? throw new InvalidOperationException("The 'eir' PostgreSQL connection string is not configured.");
-        services.AddDbContext<EirKnowledgeBaseDbContext>(options => options.UseNpgsql(connectionString,
+        services.AddSharedPostgresDataSource("eir", new NpgsqlConnectionStringBuilder(connectionString), NpgsqlDataSource.Create);
+        services.AddDbContext<EirKnowledgeBaseDbContext>((provider, options) => options.UseNpgsql(provider.GetRequiredKeyedService<DbDataSource>("eir"),
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "knowledgebase")));
         services.AddScoped<IFaqRepository, FaqRepository>();
         services.AddUnitOfWork<IFaqRepository, EirKnowledgeBaseDbContext>();

@@ -71,7 +71,7 @@ public sealed partial class SessionIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE sessions.outbox ADD CONSTRAINT "RejectLifecycleNotificationForTest"
-            CHECK ("RoutingKey" <> 'gna-notification-requested');
+            CHECK ("RoutingKey" <> 'session.changed');
             """);
         var aggregate = (await scope.ServiceProvider.GetRequiredService<ISessionRepository>().GetAsync(session.Id, CancellationToken.None))!;
         aggregate.Clear(1, clock.Now);
@@ -96,18 +96,24 @@ public sealed partial class SessionIntegrationTests
         var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
         var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
         var messages = (await db.Outbox.AsNoTracking()
-            .Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync())
-            .Select(message => (message.MessageId, Payload: JsonSerializer.Deserialize<NotificationCreatedMessage>(message.Payload, options)!))
+            .Where(message => message.RoutingKey == MessageRoutes.SessionChanged).ToArrayAsync())
+            .Select(message => (Row: message, Payload: JsonSerializer.Deserialize<SessionChangedMessage>(message.Payload, options)!))
             .Where(message => message.Payload.SessionId == sessionId && message.Payload.Change == change).ToArray();
-        Assert.Equal(recipients.Order(), messages.Select(message => message.Payload.UserId).Order());
-        Assert.Equal(recipients.Length, messages.Select(message => message.MessageId).Distinct().Count());
-        Assert.All(messages, message =>
+        var broadcast = Assert.Single(messages);
+        Assert.Equal(MessageRoutes.Notifications, broadcast.Row.ExchangeName);
+        Assert.Equal(generation, broadcast.Payload.Generation);
+        Assert.Equal(recipients.Order(), broadcast.Payload.UserIds.Order());
+        Assert.Equal(recipients.Length, broadcast.Payload.UserIds.Distinct(StringComparer.Ordinal).Count());
+        Assert.Empty(await db.Outbox.Where(message => message.RoutingKey == MessageRoutes.NotificationCreated).ToArrayAsync());
+        using var payload = JsonDocument.Parse(broadcast.Row.Payload);
+        Assert.Equal(new[] { "change", "generation", "sessionId", "userIds" },
+            payload.RootElement.EnumerateObject().Select(property => property.Name).Order());
+        Assert.All(SessionNotificationTestProjection.Expand(broadcast.Row.MessageId, broadcast.Payload), message =>
         {
-            Assert.Equal(generation, message.Payload.Generation);
-            Assert.Equal(NotificationEventType.SessionChanged, message.Payload.EventType);
-            Assert.Equal(NotificationDeliveryType.RealtimeOnly, message.Payload.DeliveryType);
-            Assert.Null(message.Payload.HelpRequestId);
-            Assert.Null(message.Payload.Status);
+            Assert.Equal(NotificationEventType.SessionChanged, message.Message.EventType);
+            Assert.Equal(NotificationDeliveryType.RealtimeOnly, message.Message.DeliveryType);
+            Assert.Null(message.Message.HelpRequestId);
+            Assert.Null(message.Message.Status);
         });
         var integrationEvents = (await db.Outbox.AsNoTracking()
             .Where(message => message.RoutingKey == MessageRoutes.SessionUpdated).ToArrayAsync())

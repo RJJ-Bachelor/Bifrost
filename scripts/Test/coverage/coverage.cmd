@@ -1,6 +1,6 @@
 @echo off
 setlocal
-for %%i in ("%~dp0..\..") do set "REPO_ROOT=%%~fi"
+for %%i in ("%~dp0..\..\..") do set "REPO_ROOT=%%~fi"
 if /i "%~1"=="--coverage-locked" goto coverage
 set "BIFROST_COVERAGE_SCRIPT=%~f0"
 set "BIFROST_COVERAGE_ROOT=%REPO_ROOT%"

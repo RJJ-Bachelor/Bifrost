@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
 $projects = @(
     'Backend/EirService/EirService.Test/EirService.Test.csproj',
     'Backend/GnaService/GnaService.Test/GnaService.Test.csproj',

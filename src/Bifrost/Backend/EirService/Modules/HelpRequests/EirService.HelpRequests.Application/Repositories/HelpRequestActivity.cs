@@ -7,6 +7,8 @@ public sealed record HelpRequestActivity(
     Guid Id, string? StudentId, int RequestNumber, HelpType HelpType, HelpRequestStatus Status,
     string? AssignedTeacherId, DateTimeOffset QueuedAt, DateTimeOffset? StartedAt, DateTimeOffset? ClosedAt)
 {
+    public DateTimeOffset? ReturnedToQueueAt { get; init; }
+
     public bool IsOpen => Status is HelpRequestStatus.Pending or HelpRequestStatus.Active or
         HelpRequestStatus.AwaitingFaq or HelpRequestStatus.AwaitingConfirmation;
     public bool IsCompleted => Status is HelpRequestStatus.CompletedByFaq or

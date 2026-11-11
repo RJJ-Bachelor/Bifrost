@@ -25,8 +25,11 @@ public sealed partial class NotificationTests
         var push = new Sender(true);
         var notification = Message with { DeliveryType = NotificationDeliveryType.RealtimeOnly };
 
-        await new NotificationDispatcher(realtime, push, new Recorder<NotificationDispatcher>())
-            .DispatchAsync(notification, default);
+        var dispatcher = new NotificationDispatcher(realtime, push, new Recorder<NotificationDispatcher>());
+        if (connectionFails)
+            await Assert.ThrowsAsync<AggregateException>(() => dispatcher.DispatchAsync(notification, default));
+        else
+            await dispatcher.DispatchAsync(notification, default);
 
         Assert.Equal(1, realtime.Calls);
         Assert.Equal(0, push.Calls);

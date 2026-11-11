@@ -221,12 +221,8 @@ public sealed partial class SessionIntegrationTests
                     ["Created", "StudentMessageAdded", "Reserved", "Started", "Completed", "ReturnedToQueue",
                      "Cancelled", "Answered", "FaqLinked", "FaqCreated", "FaqAnswered", "FaqRejected", "FaqAccepted", "FaqCancelled"]);
                 Assert.Equal("Sessionen er opdateret.", notification.Messages);
-                if (notification.HelpRequestId is not null || notification.Status is not null)
-                {
-                    Assert.True(notification.UserId is "provider|opaque-teacher" or "colleague" || notification.UserId == requestOwner);
-                    Assert.NotNull(notification.HelpRequestId);
-                    Assert.NotNull(notification.Status);
-                }
+                Assert.Null(notification.HelpRequestId);
+                Assert.Null(notification.Status);
             }
         }
     }

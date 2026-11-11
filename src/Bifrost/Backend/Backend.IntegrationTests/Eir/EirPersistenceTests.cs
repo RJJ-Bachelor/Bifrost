@@ -48,10 +48,14 @@ public sealed class EirPersistenceTests
 
         var expected = new[] { faq.Id, latestReturn.Id, returned.Id, first.Id, second.Id };
         Assert.Equal(expected, queue.Select(request => request.Id));
-        Assert.Equal(expected, activity.Select(request => request.Id));
+        Assert.Equal(expected.Order(), activity.Select(request => request.Id).Order());
         Assert.Equal("Shared question", Assert.Single(queue[0].Messages).Text.Value);
         Assert.Equal("Question for first", Assert.Single(queue[3].Messages).Text.Value);
         Assert.Equal(latestReturn.ReturnedToQueueAt, queue[1].ReturnedToQueueAt);
+        Assert.Equal(latestReturn.ReturnedToQueueAt,
+            Assert.Single(activity, request => request.Id == latestReturn.Id).ReturnedToQueueAt);
+        Assert.Equal(returned.ReturnedToQueueAt,
+            Assert.Single(activity, request => request.Id == returned.Id).ReturnedToQueueAt);
         Assert.Empty(db.ChangeTracker.Entries());
     }
 
@@ -69,7 +73,7 @@ public sealed class EirPersistenceTests
         await using var db = fixture.Open();
         var repository = Repository(db);
 
-        var history = await repository.GetByUserIdAsync("student", default);
+        var history = await repository.GetByUserIdAsync("student", cancellationToken: default);
 
         Assert.Equal(new[] { earlier.Id, later.Id }, history.Select(request => request.Id));
         Assert.Equal(new[] { "Question for student", "Private answer" }, history[0].Messages.OrderBy(message => message.SequenceNumber).Select(message => message.Text.Value));
