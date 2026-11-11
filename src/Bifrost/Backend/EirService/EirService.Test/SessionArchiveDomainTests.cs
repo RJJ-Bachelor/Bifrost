@@ -57,6 +57,31 @@ public sealed class SessionArchiveDomainTests
         Assert.Equal(4, session.CurrentGeneration);
     }
 
+    [Fact]
+    public void ClearRemovesAllArchivesOnlyWhenGenerationMatches()
+    {
+        var session = Session.Create("Title", new SessionCode("ABCD2345"), new SessionCode("EFGH6789"), "teacher", null, CreatedAt);
+        var first = session.Archive(1, CreatedAt.AddHours(1));
+        var second = session.Archive(2, CreatedAt.AddHours(2));
+        session.ClearDomainEvents();
+        var clearedAt = CreatedAt.AddHours(3);
+
+        Assert.Throws<InvalidOperationException>(() => session.Clear(2, clearedAt));
+        Assert.Equal(new[] { first, second }, session.Archives);
+        Assert.Equal(3, session.CurrentGeneration);
+        Assert.Empty(session.GetDomainEvents());
+
+        session.Clear(3, clearedAt);
+
+        Assert.Empty(session.Archives);
+        Assert.Equal(4, session.CurrentGeneration);
+        Assert.Equal(clearedAt, session.LastClearedAtUtc);
+        Assert.Equal(clearedAt, session.CurrentGenerationStartedAtUtc);
+        var domainEvent = Assert.IsType<SessionClearedDomainEvent>(Assert.Single(session.GetDomainEvents()));
+        Assert.Equal((session.Id, 3, 4, clearedAt),
+            (domainEvent.SessionId, domainEvent.PreviousGeneration, domainEvent.CurrentGeneration, domainEvent.ClearedAtUtc));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

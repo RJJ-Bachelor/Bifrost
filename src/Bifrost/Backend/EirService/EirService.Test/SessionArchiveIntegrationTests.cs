@@ -80,7 +80,7 @@ public sealed partial class SessionIntegrationTests
     }
 
     [PostgresFact]
-    public async Task ArchivesKeepIndividualTitlesAndGenerationBoundariesAcrossArchivesAndClear()
+    public async Task ClearRemovesSessionArchivesAndAllowsArchivingAgainWithNewGenerationBoundaries()
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
@@ -98,49 +98,97 @@ public sealed partial class SessionIntegrationTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             expected.Add((await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!);
         }
+
+        var otherSession = await CreateAsync("Other session");
+        await JoinAsync(otherSession.Code);
+        using var otherResponse = await ArchiveAsync(otherSession.Id, 1, "Other lesson");
+        Assert.Equal(HttpStatusCode.OK, otherResponse.StatusCode);
+        var otherArchive = (await otherResponse.Content.ReadFromJsonAsync<ArchiveSessionResult>())!;
+
+        Assert.Equal(new[] { "First lesson", "Second lesson" }, expected.Select(archive => archive.Title));
+        Assert.Equal(new[] { 1, 2 }, expected.Select(archive => archive.Generation));
+        Assert.Equal(new[] { session.CreatedAtUtc, expected[0].ArchivedAtUtc },
+            expected.Select(archive => archive.StartedAtUtc));
+        Assert.Equal(new[] { session.CreatedAtUtc.AddHours(1), session.CreatedAtUtc.AddHours(2) },
+            expected.Select(archive => archive.ArchivedAtUtc));
+
+        using (var response = await ClearAsync(session.Id, 2))
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        await AssertArchivesAsync(session.Id, expected.ToArray());
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            Assert.Equal(2, await db.Archives.CountAsync(archive => archive.SessionId == session.Id));
+            var saved = await db.Sessions.AsNoTracking().SingleAsync(saved => saved.Id == session.Id);
+            Assert.Equal(3, saved.CurrentGeneration);
+            Assert.Null(saved.LastClearedAtUtc);
+        }
+
         clock.Now = clock.Now.AddHours(1);
         var clearedAt = clock.Now;
         using (var response = await ClearAsync(session.Id, 3))
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await AssertArchivesAsync(session.Id);
+        foreach (var (client, role) in new[] { (teacher, "teachers"), (student, "students") })
+        {
+            foreach (var archive in expected)
+            {
+                using var response = await client.GetAsync($"/api/{role}/sessions/{session.Id}/archives/{archive.ArchiveId}");
+                Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+            }
+        }
+        await AssertArchivesAsync(otherSession.Id, otherArchive);
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            Assert.False(await db.Archives.AnyAsync(archive => archive.SessionId == session.Id));
+            Assert.Equal(otherArchive.ArchiveId, (await db.Archives.SingleAsync()).Id);
+        }
+
         clock.Now = clock.Now.AddHours(1);
+        ArchiveSessionResult afterClear;
         using (var response = await ArchiveAsync(session.Id, 4, "After clear"))
         {
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            expected.Add((await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!);
+            afterClear = (await response.Content.ReadFromJsonAsync<ArchiveSessionResult>())!;
+        }
+        Assert.Equal(("After clear", 4, clearedAt, clock.Now),
+            (afterClear.Title, afterClear.Generation, afterClear.StartedAtUtc, afterClear.ArchivedAtUtc));
+        await AssertArchivesAsync(session.Id, afterClear);
+        await AssertArchivesAsync(otherSession.Id, otherArchive);
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
+            var saved = await db.Sessions.AsNoTracking().SingleAsync(saved => saved.Id == session.Id);
+            Assert.Equal(session.Title, saved.Title);
+            Assert.Equal(5, saved.CurrentGeneration);
+            Assert.Equal(clearedAt, saved.LastClearedAtUtc);
+            Assert.Equal(clock.Now, saved.CurrentGenerationStartedAtUtc);
+            Assert.Equal(2, await db.Archives.CountAsync());
+            Assert.Equal(afterClear.ArchiveId,
+                (await db.Archives.SingleAsync(archive => archive.SessionId == session.Id)).Id);
         }
 
-        Assert.Equal(new[] { "First lesson", "Second lesson", "After clear" }, expected.Select(archive => archive.Title));
-        Assert.Equal(new[] { 1, 2, 4 }, expected.Select(archive => archive.Generation));
-        Assert.Equal(new[] { session.CreatedAtUtc, expected[0].ArchivedAtUtc, clearedAt },
-            expected.Select(archive => archive.StartedAtUtc));
-        Assert.Equal(new[] { session.CreatedAtUtc.AddHours(1), session.CreatedAtUtc.AddHours(2), clock.Now },
-            expected.Select(archive => archive.ArchivedAtUtc));
-
-        foreach (var (client, role) in new[] { (teacher, "teachers"), (student, "students") })
+        async Task AssertArchivesAsync(Guid sessionId, params ArchiveSessionResult[] expectedArchives)
         {
-            var archives = (await client.GetFromJsonAsync<SessionArchiveSummary[]>(
-                $"/api/{role}/sessions/{session.Id}/archives"))!;
-            Assert.Equal(expected.AsEnumerable().Reverse().Select(archive => archive.ArchiveId), archives.Select(archive => archive.Id));
-            foreach (var archive in archives)
+            foreach (var (client, role) in new[] { (teacher, "teachers"), (student, "students") })
             {
-                var original = expected.Single(item => item.ArchiveId == archive.Id);
-                Assert.Equal((original.Title, original.Generation, original.StartedAtUtc, original.ArchivedAtUtc),
-                    (archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc));
-                var detail = (await client.GetFromJsonAsync<SessionArchiveResult>(
-                    $"/api/{role}/sessions/{session.Id}/archives/{archive.Id}"))!;
-                Assert.Equal((archive.Id, archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc),
-                    (detail.Id, detail.Title, detail.Generation, detail.StartedAtUtc, detail.ArchivedAtUtc));
+                var archives = (await client.GetFromJsonAsync<SessionArchiveSummary[]>(
+                    $"/api/{role}/sessions/{sessionId}/archives"))!;
+                Assert.Equal(expectedArchives.Reverse().Select(archive => archive.ArchiveId), archives.Select(archive => archive.Id));
+                foreach (var archive in archives)
+                {
+                    var original = expectedArchives.Single(item => item.ArchiveId == archive.Id);
+                    Assert.Equal((original.Title, original.Generation, original.StartedAtUtc, original.ArchivedAtUtc),
+                        (archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc));
+                    var detail = (await client.GetFromJsonAsync<SessionArchiveResult>(
+                        $"/api/{role}/sessions/{sessionId}/archives/{archive.Id}"))!;
+                    Assert.Equal((archive.Id, archive.Title, archive.Generation, archive.StartedAtUtc, archive.ArchivedAtUtc),
+                        (detail.Id, detail.Title, detail.Generation, detail.StartedAtUtc, detail.ArchivedAtUtc));
+                }
             }
         }
-
-        await using var scope = app.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<EirSessionDbContext>();
-        var saved = await db.Sessions.AsNoTracking().SingleAsync();
-        Assert.Equal(session.Title, saved.Title);
-        Assert.Equal(5, saved.CurrentGeneration);
-        Assert.Equal(clearedAt, saved.LastClearedAtUtc);
-        Assert.Equal(clock.Now, saved.CurrentGenerationStartedAtUtc);
-        Assert.Equal(3, await db.Archives.CountAsync());
     }
 
     [PostgresFact]

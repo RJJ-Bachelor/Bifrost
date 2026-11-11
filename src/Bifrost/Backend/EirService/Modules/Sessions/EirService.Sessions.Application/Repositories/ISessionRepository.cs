@@ -7,6 +7,7 @@ public interface ISessionRepository
 {
     Task<bool> TryAddAsync(Session session, CancellationToken cancellationToken);
     Task<Session?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<Session?> GetWithArchivesAsync(Guid id, CancellationToken cancellationToken);
     void Remove(Session session);
     Task<Session?> GetByCodeAsync(string code, SessionCodeType codeType, CancellationToken cancellationToken);
     Task<IReadOnlyList<Session>> GetByTeacherAsync(string teacherId, CancellationToken cancellationToken);
