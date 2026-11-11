@@ -7,4 +7,4 @@ public sealed record GetQueueQuery(Guid SessionId, string TeacherId) : ICommand<
 
 public sealed record TeacherQueueResult(
     Guid SessionId, int Generation, int WaitingCount, int UnreservedWaitingCount, Guid? MyReservedRequestId,
-    IReadOnlyList<HelpRequestResult> Requests, IReadOnlyList<HelpRequestResult> ActiveRequests);
+    IReadOnlyList<HelpRequestResult> Requests, IReadOnlyList<HelpRequestResult> ActiveRequests, int? EstimatedWaitMinutes);
