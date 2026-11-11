@@ -103,7 +103,7 @@ public sealed partial class CommandBusTests
     }
 
     [Fact]
-    public async Task StudentQueueEstimatesUseAverageTimeBetweenStartsAndNumberOfRequestsAhead()
+    public async Task QueueEstimatesUseAverageTimeBetweenStartsAndNumberOfRequestsAhead()
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Queue pace").ExecuteAsync();
@@ -128,6 +128,7 @@ public sealed partial class CommandBusTests
         Assert.Equal(14, status.GetProperty("estimatedWaitMinutes").GetInt32());
         Assert.Equal(4, ownQueue.GetProperty("position").GetInt32());
         Assert.Equal(11, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+        await AssertTeacherQueueEstimateMatchesAsync(session.Id, status);
     }
 
     [Fact]
@@ -183,7 +184,7 @@ public sealed partial class CommandBusTests
     [InlineData(2, 0)]
     [InlineData(2, 1)]
     [InlineData(2, 2)]
-    public async Task StudentQueueEstimatesAreNullWithoutDistinctStartTimes(int waitingCount, int startedCount)
+    public async Task QueueEstimatesAreNullWithoutDistinctStartTimes(int waitingCount, int startedCount)
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Unknown estimate").ExecuteAsync();
@@ -206,6 +207,7 @@ public sealed partial class CommandBusTests
         Assert.Equal(JsonValueKind.Null, status.GetProperty("estimatedWaitMinutes").ValueKind);
         Assert.Equal(JsonValueKind.Null, ownQueue.GetProperty("estimatedWaitMinutes").ValueKind);
         if (waitingCount > 0) Assert.Equal(1, ownQueue.GetProperty("position").GetInt32());
+        await AssertTeacherQueueEstimateMatchesAsync(session.Id, status);
     }
 
     [Theory]
@@ -233,7 +235,7 @@ public sealed partial class CommandBusTests
     [Theory]
     [InlineData(HelpType.Physical)]
     [InlineData(HelpType.Digital)]
-    public async Task EmptyStudentQueueHasZeroEstimateWhenTimeBetweenStartsIsKnown(HelpType helpType)
+    public async Task EmptyQueueHasZeroEstimateWhenTimeBetweenStartsIsKnown(HelpType helpType)
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Known empty queue").ExecuteAsync();
@@ -257,10 +259,11 @@ public sealed partial class CommandBusTests
 
         Assert.Equal(0, status.GetProperty("waitingCount").GetInt32());
         Assert.Equal(0, status.GetProperty("estimatedWaitMinutes").GetInt32());
+        await AssertTeacherQueueEstimateMatchesAsync(session.Id, status);
     }
 
     [Fact]
-    public async Task StudentQueueEstimatesIncludeSimultaneousStartsWhenTheQueueAlsoProgressedLater()
+    public async Task QueueEstimatesIncludeSimultaneousStartsWhenTheQueueAlsoProgressedLater()
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Parallel teachers").ExecuteAsync();
@@ -279,10 +282,11 @@ public sealed partial class CommandBusTests
 
         Assert.Equal(3, status.GetProperty("estimatedWaitMinutes").GetInt32());
         Assert.Equal(2, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+        await AssertTeacherQueueEstimateMatchesAsync(session.Id, status);
     }
 
     [Fact]
-    public async Task StudentQueueEstimatesIgnoreCancelledRequestsAndOtherSessionsOrGenerations()
+    public async Task QueueEstimatesIgnoreCancelledRequestsAndOtherSessionsOrGenerations()
     {
         var studentId = AuthenticateStudent();
         var session = await new CreateSessionCommand("owner", "Current queue pace").ExecuteAsync();
@@ -309,6 +313,7 @@ public sealed partial class CommandBusTests
         Assert.Equal(2, status.GetProperty("waitingCount").GetInt32());
         Assert.Equal(6, status.GetProperty("estimatedWaitMinutes").GetInt32());
         Assert.Equal(3, ownQueue.GetProperty("estimatedWaitMinutes").GetInt32());
+        await AssertTeacherQueueEstimateMatchesAsync(session.Id, status);
     }
 
     [Fact]
@@ -494,6 +499,17 @@ public sealed partial class CommandBusTests
         using var response = await _client.GetAsync($"/api/{role}/sessions/{Guid.NewGuid()}/{resource}");
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    private async Task AssertTeacherQueueEstimateMatchesAsync(Guid sessionId, JsonElement studentStatus)
+    {
+        Authenticate("Teacher", "owner");
+        var queue = await ReadActivityAsync($"/api/teachers/sessions/{sessionId}/queue");
+        Assert.Equal(studentStatus.GetProperty("waitingCount").GetInt32(), queue.GetProperty("waitingCount").GetInt32());
+        var expected = studentStatus.GetProperty("estimatedWaitMinutes");
+        var actual = queue.GetProperty("estimatedWaitMinutes");
+        Assert.Equal(expected.ValueKind, actual.ValueKind);
+        if (expected.ValueKind == JsonValueKind.Number) Assert.Equal(expected.GetInt32(), actual.GetInt32());
     }
 
     private async Task<JsonElement> ReadActivityAsync(string path)

@@ -26,6 +26,6 @@ public sealed class GetQueueQueryHandler(IHelpRequestRepository repository, Help
             .Select(request => (Guid?)request.Id).FirstOrDefault();
         return new TeacherQueueResult(session.Id, session.Generation, waiting.Length,
             waiting.Count(request => request.AssignedTeacherId is null), myReservedRequestId,
-            waiting.Select(Map).ToArray(), active.Select(Map).ToArray());
+            waiting.Select(Map).ToArray(), active.Select(Map).ToArray(), QueueWaitEstimate.ForPosition(requests, waiting.Length));
     }
 }
