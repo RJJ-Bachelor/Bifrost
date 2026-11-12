@@ -25,6 +25,8 @@ using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.Participants.Application.Features.Student.JoinSession;
+using EirService.Participants.Application.Features.Student.CreateIdentityTransferCode;
+using EirService.Participants.Application.Features.Student.RedeemIdentityTransferCode;
 using EirService.Participants.Application.Features.Teacher.JoinSession;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
@@ -158,6 +160,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         builder.Services.AddTransient<IValidator<GetSessionsQuery>, GetSessionsQueryValidator>();
         builder.Services.AddTransient<IValidator<GetStudentSessionQuery>, GetStudentSessionQueryValidator>();
         builder.Services.AddTransient<IValidator<JoinSessionCommand>, JoinSessionCommandValidator>();
+        builder.Services.AddTransient<IValidator<CreateIdentityTransferCodeCommand>, CreateIdentityTransferCodeCommandValidator>();
+        builder.Services.AddTransient<IValidator<RedeemIdentityTransferCodeCommand>, RedeemIdentityTransferCodeCommandValidator>();
         builder.Services.AddTransient<IValidator<JoinTeacherSessionCommand>, JoinTeacherSessionCommandValidator>();
         builder.Services.AddCommandMiddleware(options => options.Register(typeof(CommandValidationMiddleware<,>), typeof(CommandLoggingMiddleware<,>)));
         builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();

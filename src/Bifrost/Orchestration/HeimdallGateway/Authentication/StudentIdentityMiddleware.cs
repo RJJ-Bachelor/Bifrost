@@ -14,14 +14,13 @@ public sealed class StudentIdentityMiddleware(RequestDelegate next)
             if (!hasValidIdentity || expiresAt - clock.GetUtcNow() <= StudentIdentityCookie.Lifetime / 2)
             {
                 var protectedIdentity = studentCookie.Protect(hasValidIdentity ? userId! : Guid.NewGuid().ToString("N"));
-                context.Response.Cookies.Append(StudentCookieHandler.CookieName, protectedIdentity, new CookieOptions
+                context.Response.OnStarting(() =>
                 {
-                    Path = "/api/students",
-                    HttpOnly = true,
-                    SameSite = SameSiteMode.Lax,
-                    Secure = context.Request.IsHttps,
-                    IsEssential = true,
-                    MaxAge = StudentIdentityCookie.Lifetime
+                    // A downstream identity transfer takes precedence over automatic issuance or renewal.
+                    if (!context.Response.Headers.SetCookie.Any(header =>
+                        header?.StartsWith(StudentCookieHandler.CookieName + "=", StringComparison.Ordinal) == true))
+                        studentCookie.AppendProtectedToResponse(context, protectedIdentity);
+                    return Task.CompletedTask;
                 });
 
                 // Forward the newly issued or renewed cookie on this request too.

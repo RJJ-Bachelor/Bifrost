@@ -1,29 +1,21 @@
-using System.Security.Cryptography;
+using Shared.Domain.ValueObjects;
 
 namespace EirService.Sessions.Domain.ValueObjects;
 
 public sealed record SessionCode
 {
-    public const int Length = 8;
-    private const string Alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    public const int Length = ShortCode.Length;
 
     public string Value { get; }
 
     public SessionCode(string value)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        var normalized = value.Trim().ToUpperInvariant();
-        if (normalized.Length != Length || normalized.Any(character => !Alphabet.Contains(character)))
-            throw new ArgumentException("A session code must contain eight letters or digits from the session alphabet.", nameof(value));
-
-        Value = normalized;
+        Value = new ShortCode(value).Value;
     }
 
-    public static SessionCode Generate() => new(new string(
-        Enumerable.Range(0, Length).Select(_ => Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)]).ToArray()));
+    public static SessionCode Generate() => new(ShortCode.Generate().Value);
 
-    public static bool IsValid(string? value) => value is not null &&
-        value.Trim().Length == Length && value.Trim().ToUpperInvariant().All(Alphabet.Contains);
+    public static bool IsValid(string? value) => ShortCode.IsValid(value);
 
     public override string ToString() => Value;
 }

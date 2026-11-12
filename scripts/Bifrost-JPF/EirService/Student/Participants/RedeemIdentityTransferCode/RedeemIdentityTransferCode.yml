@@ -1,0 +1,31 @@
+info:
+  name: RedeemIdentityTransferCode
+  type: http
+  seq: 1
+http:
+  method: POST
+  url: '{{gatewayUrl}}/api/students/identity-transfer-codes/redeem'
+  auth: null
+  body:
+    type: json
+    data: |-
+      {
+        "code": "{{identityTransferCode}}"
+      }
+runtime:
+  assertions:
+    - expression: res.status
+      operator: eq
+      value: '204'
+settings:
+  encodeUrl: true
+  timeout: 30000
+  followRedirects: false
+docs: |-
+  Run in the destination browser or device with the code from CreateIdentityTransferCode.
+  No login is required. Replace identityTransferCode with the copied code when using
+  another device. The code may only be used once and expires after ten minutes.
+  Returns 204 and sets the student cookie, replacing any existing student identity
+  in this browser. The restored identity has access to its existing sessions and history.
+  Existing devices retain their cookies; this does not merge two students' histories.
+  Invalid format returns 400; unknown, expired, or used codes return 404.

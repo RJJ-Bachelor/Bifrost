@@ -1,0 +1,14 @@
+:host { display: block; }
+.identity-transfer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+.identity-transfer-grid > * { min-width: 0; }
+.identity-transfer-grid h3 { font-size: 17px; }
+.identity-transfer-id { overflow-wrap: anywhere; margin-bottom: 22px; }
+.generated-transfer { margin-top: 20px; }
+.generated-code { font-family: monospace; font-size: 23px; font-weight: 700; letter-spacing: .15em; }
+#identity-transfer-code { text-transform: uppercase; letter-spacing: .12em; }
+.hint { margin-top: 10px; }
+.alert { margin-top: 20px; margin-bottom: 0; }
+@media (max-width: 800px) {
+  .identity-transfer-grid { grid-template-columns: 1fr; gap: 28px; }
+  .identity-transfer-grid > form { border-top: 1px solid var(--role-line); padding-top: 24px; }
+}

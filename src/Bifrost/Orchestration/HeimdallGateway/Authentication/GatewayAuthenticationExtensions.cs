@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Api.Authentication;
+using System.Threading.RateLimiting;
 
 namespace HeimdallGateway.Authentication;
 
@@ -107,11 +108,27 @@ public static class GatewayAuthenticationExtensions
                 .RequireClaim("sub")
                 .RequireRole("Teacher"));
         });
+        services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                HttpMethods.IsPost(context.Request.Method) &&
+                context.Request.Path.Value?.TrimEnd('/').Equals("/api/students/identity-transfer-codes/redeem", StringComparison.OrdinalIgnoreCase) == true
+                    ? RateLimitPartition.GetFixedWindowLimiter(context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 10,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0
+                        })
+                    : RateLimitPartition.GetNoLimiter("unlimited"));
+        });
         return services;
     }
 
     public static WebApplication UseHeimdallAuthentication(this WebApplication app)
     {
+        app.UseRateLimiter();
         app.UseMiddleware<StudentIdentityMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();

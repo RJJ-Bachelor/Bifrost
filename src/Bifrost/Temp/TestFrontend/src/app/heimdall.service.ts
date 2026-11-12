@@ -7,6 +7,11 @@ export interface Identity {
   name?: string | null;
 }
 
+export interface IdentityTransferCode {
+  code: string;
+  expiresAtUtc: string;
+}
+
 export interface SessionSummary {
   id: string;
   title: string;

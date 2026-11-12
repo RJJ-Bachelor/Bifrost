@@ -51,6 +51,19 @@ Afsluttede anmodninger har status `CompletedByFaq`, `CompletedByDigital` eller `
 
 Brug en separat browserprofil til hver studerende. Faner i samme profil deler den eksisterende studenter-cookie. Lærerlogin og logout bruger fortsat Heimdall og VarService.
 
+## Flyt studenteridentitet og historik
+
+På **Studerende → Dine sessioner** findes **Flyt din historik**:
+
+1. Vælg **Opret overførselskode** i den browser, hvor historikken findes. Kopiér koden; den kan bruges én gang inden for 10 minutter.
+2. Åbn `/students` i en anden browserprofil, en anden browser eller på et andet device. Faner i samme profil deler cookie og tester derfor samme identitet.
+3. Indtast koden under **Indtast koden på dit nye device**, og vælg **Hent min historik**. Siden genindlæses med den nye cookie, og sessionslisten og SignalR-forbindelsen bruger den overførte identitet.
+4. Sammenlign den viste studenteridentitet, og åbn en eksisterende session for at kontrollere samtaler og arkiv. Begge devices har adgang til samme historik efter overførslen.
+
+Har du andre studenterfaner åbne i målbrowserens profil, skal de genindlæses efter overførslen, så deres data og notifikationsforbindelse bruger den nye identitet.
+
+Udstedelse bruger `POST /api/students/identity-transfer-codes`; indløsning bruger `POST /api/students/identity-transfer-codes/redeem` med `{ code }`. Udløbne eller brugte koder giver en tydelig fejl. Ved for mange indløsningsforsøg skal du vente et minut. Opdatér og genstart backend med Participants-migrationen, før flowet testes.
+
 ## SignalR og opdateringer
 
 Cirklen øverst til højre viser SignalR-forbindelsens tilstand. Grøn betyder forbundet. Rød betyder afbrudt, opkobling eller genforbindelse. Hold markøren over cirklen for en tekststatus. Status følger den aktuelle rolle og identitet, også ved fejl og genforbindelse.

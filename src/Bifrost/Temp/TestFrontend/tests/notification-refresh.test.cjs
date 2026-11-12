@@ -79,6 +79,7 @@ function fixture(role = 'teachers') {
     './notification.service': { NotificationService },
     './notification.model': compile('notification.model.ts'),
     './heimdall.service': { HeimdallService },
+    './student/identity-transfer/student-identity-transfer.component': { StudentIdentityTransferComponent: class {} },
     './student/help-requests/student-help-requests.component': { StudentHelpRequestsComponent: class {} },
     './teacher/help-requests/teacher-help-requests.component': { TeacherHelpRequestsComponent: class {} }
   });
