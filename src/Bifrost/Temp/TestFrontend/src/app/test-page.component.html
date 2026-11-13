@@ -44,6 +44,7 @@
       </form>
     </section>
     </div>
+    <app-student-identity-transfer *ngIf="!isTeacher" [userId]="identity.userId" />
     <section class="card sessions-section" aria-labelledby="sessions-title">
       <header class="panel-heading"><div><p class="eyebrow">DIT OVERBLIK</p><h2 id="sessions-title">{{ isTeacher ? 'Mine sessioner' : 'Mine tilmeldte sessioner' }} <span class="count">{{ sessions.length }}</span></h2><p class="hint">Åbn en session for at se spørgsmål og hjælp.</p></div><button class="text-button" (click)="refresh()" [disabled]="busy || refreshing">↻ Opdatér</button></header>
       <div *ngIf="!loading && sessions.length === 0" class="empty-state"><h3>Ingen sessioner endnu</h3><p>{{ isTeacher ? 'Deltag med en underviserkode, eller opret din egen session.' : 'Tilmeld dig med en studenterkode ovenfor.' }}</p></div>

@@ -284,3 +284,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Session lifecycle updates (`SessionCleared`, `SessionArchived`, `SessionDeleted`) now emit both an external RabbitMQ integration event (`session.updated`) for external services like `MimirService` and an internal command (`eir.session.changed`) for intra-module handling within `EirService.HelpRequests`.
 - A dedicated integration test project (`Backend.IntegrationTests`) was added covering SQLite-backed relational behavior, migration contracts, and notification pipelines.
 - Shared persistence infrastructure now provides `AddInternalOutbox` and `AddInternalCommand` extensions for registering and processing local outbox commands independently of the broker.
+
+---
+
+## Update 2026-11-12
+
+- `EirService.Participants` introduces a student identity transfer mechanism enabling anonymous students to migrate their session history and participation across browsers or devices using short-lived, single-use 8-character codes.
+- Identity transfer codes are persisted in the `participants` schema (`identity_transfers` table) with a strict ten-minute expiration and atomic single-redemption cleanup.
+- `HeimdallGateway` enforces centralized rate limiting via ASP.NET Core `RateLimiter` on the student identity redemption endpoint to prevent brute-force exploitation.
+- The `ShortCode` value object is unified in shared domain infrastructure to standardise validation, case normalization, and formatting for eight-character alphanumeric codes.
+- The test frontend provides a dedicated `StudentIdentityTransferComponent` to generate, copy, and redeem identity transfer codes with automatic session state reload.

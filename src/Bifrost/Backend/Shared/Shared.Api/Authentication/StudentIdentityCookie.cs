@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 
 namespace Shared.Api.Authentication;
@@ -13,6 +14,19 @@ public sealed class StudentIdentityCookie(IOptionsMonitor<StudentCookieOptions> 
         .DataProtectionProvider!.CreateProtector(ProtectionPurpose).ToTimeLimitedDataProtector();
 
     public string Protect(string userId) => protector.Protect(userId, Lifetime);
+
+    public void AppendToResponse(HttpContext context, string userId) => AppendProtectedToResponse(context, Protect(userId));
+
+    public void AppendProtectedToResponse(HttpContext context, string cookie) =>
+        context.Response.Cookies.Append(StudentCookieHandler.CookieName, cookie, new CookieOptions
+        {
+            Path = "/api/students",
+            HttpOnly = true,
+            SameSite = SameSiteMode.Lax,
+            Secure = context.Request.IsHttps,
+            IsEssential = true,
+            MaxAge = Lifetime
+        });
 
     public bool TryUnprotect(string? cookie, out string? userId) => TryUnprotect(cookie, out userId, out _);
 

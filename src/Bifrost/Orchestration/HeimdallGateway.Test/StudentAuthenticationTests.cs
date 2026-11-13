@@ -33,6 +33,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     private readonly Dictionary<string, WebApplication> services = [];
     private WebApplication gateway = null!;
     private HttpClient client = null!;
+    private const string RecoveredStudentId = "33333333333333333333333333333333";
 
     public async Task InitializeAsync()
     {
@@ -66,6 +67,11 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
         builder.Services.AddSingleton<IForwarderHttpClientFactory>(new TestServiceClientFactory(services));
         gateway = builder.Build();
+        gateway.Use((context, next) =>
+        {
+            context.Connection.RemoteIpAddress ??= IPAddress.Loopback;
+            return next(context);
+        });
         gateway.UseHeimdallAuthentication();
         gateway.MapPost("/test/teacher-login", async (HttpContext context, bool expired) =>
         {
@@ -198,6 +204,71 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             Assert.Equal(userId, (await response.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
             Assert.False(response.Headers.Contains("Set-Cookie"));
         }
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("renewable")]
+    [InlineData("valid")]
+    public async Task RedeemingIdentityPreservesTheServiceCookieThroughTheGateway(string existingCookie)
+    {
+        if (existingCookie != "missing")
+        {
+            var cookie = StudentProtector().Protect(Guid.NewGuid().ToString("N"),
+                DateTimeOffset.UtcNow.AddDays(existingCookie == "renewable" ? 1 : 365));
+            client.DefaultRequestHeaders.Add("Cookie", StudentCookieHandler.CookieName + "=" + cookie);
+        }
+
+        using var redeemed = await client.PostAsJsonAsync("/api/students/identity-transfer-codes/redeem", new { Code = "ABCD2345" });
+
+        Assert.Equal(HttpStatusCode.OK, redeemed.StatusCode);
+        var recoveredCookie = Assert.Single(redeemed.Headers.GetValues("Set-Cookie"));
+        Assert.Contains("path=/api/students", recoveredCookie);
+        Assert.Contains("httponly", recoveredCookie);
+        Assert.Contains("samesite=lax", recoveredCookie);
+        Assert.Equal(RecoveredStudentId, StudentProtector().Unprotect(recoveredCookie.Split(';')[0].Split('=', 2)[1], out _));
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", recoveredCookie.Split(';')[0]);
+
+        using var identity = await client.GetAsync("/api/students/me");
+        Assert.Equal(RecoveredStudentId, (await identity.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
+        using var notifications = await client.GetAsync("/api/students/notifications/negotiate");
+        Assert.Equal(RecoveredStudentId, (await notifications.Content.ReadFromJsonAsync<ReceivedIdentity>())!.UserId);
+    }
+
+    [Fact]
+    public async Task RedeemingIdentityIsRateLimitedDespiteSpoofedForwardedAddressesAndNewCookies()
+    {
+        for (var attempt = 1; attempt <= 11; attempt++)
+        {
+            var route = attempt % 2 == 0
+                ? "/API/STUDENTS/IDENTITY-TRANSFER-CODES/REDEEM/"
+                : "/api/students/identity-transfer-codes/redeem";
+            using var request = new HttpRequestMessage(HttpMethod.Post, route)
+            {
+                Content = JsonContent.Create(new { Code = "ABCD2345" })
+            };
+            request.Headers.Add("X-Forwarded-For", $"203.0.113.{attempt}");
+            request.Headers.Add("Cookie", StudentCookieHandler.CookieName + "=" +
+                StudentProtector().Protect(Guid.NewGuid().ToString("N"), TimeSpan.FromDays(365)));
+
+            using var response = await client.SendAsync(request);
+
+            Assert.Equal(attempt <= 10 ? HttpStatusCode.OK : HttpStatusCode.TooManyRequests, response.StatusCode);
+        }
+
+        using var identity = await client.GetAsync("/api/students/me");
+        Assert.Equal(HttpStatusCode.OK, identity.StatusCode);
+        using var getTransfer = await client.GetAsync("/api/students/identity-transfer-codes/redeem");
+        Assert.Equal(HttpStatusCode.OK, getTransfer.StatusCode);
+
+        var otherClient = await gateway.GetTestServer().SendAsync(context =>
+        {
+            context.Connection.RemoteIpAddress = IPAddress.Parse("192.0.2.1");
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = "/api/students/identity-transfer-codes/redeem";
+        });
+        Assert.Equal(StatusCodes.Status200OK, otherClient.Response.StatusCode);
     }
 
     [Theory]
@@ -471,7 +542,15 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             context.Request.Headers.Authorization.ToString(), context.Request.Path.ToString());
         app.MapGet("/api/students/{**path}", Identity).RequireAuthorization("Student");
         app.MapGet("/api/teachers/{**path}", Identity).RequireAuthorization("Teacher");
-        if (name == "eir") app.MapPost("/api/test/seed", Identity).RequireAuthorization("Teacher");
+        if (name == "eir")
+        {
+            app.MapPost("/api/test/seed", Identity).RequireAuthorization("Teacher");
+            app.MapPost("/api/students/identity-transfer-codes/redeem", (HttpContext context, StudentIdentityCookie cookies) =>
+            {
+                cookies.AppendToResponse(context, RecoveredStudentId);
+                return Results.Ok();
+            }).AllowAnonymous();
+        }
         if (name == "mimir")
         {
             app.MapPost("/api/test/generalizations", Identity).RequireAuthorization("Teacher");

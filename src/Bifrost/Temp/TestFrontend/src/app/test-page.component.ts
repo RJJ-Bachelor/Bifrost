@@ -12,12 +12,13 @@ import {
   HelpType, HelpRequestMessageType, Identity, SessionArchive, SessionArchiveSummary, SessionStatistics, SessionSummary,
   StudentQueue, StudentQueueStatus, TeacherQueue, TeacherQueueStatus, TeacherSession, TeacherSessionListItem
 } from './heimdall.service';
+import { StudentIdentityTransferComponent } from './student/identity-transfer/student-identity-transfer.component';
 import { StudentHelpRequestsComponent } from './student/help-requests/student-help-requests.component';
 import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-help-requests.component';
 
 @Component({
   selector: 'app-test-page',
-  imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent],
+  imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent, StudentIdentityTransferComponent],
   templateUrl: './test-page.component.html',
   host: {
     '[class.teacher-page]': 'isTeacher',

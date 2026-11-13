@@ -6,6 +6,7 @@ namespace EirService.Participants.Infrastructure.Persistence;
 public sealed class EirParticipantDbContext(DbContextOptions<EirParticipantDbContext> options) : DbContext(options)
 {
     public DbSet<SessionParticipant> Participants => Set<SessionParticipant>();
+    public DbSet<StudentIdentityTransfer> IdentityTransfers => Set<StudentIdentityTransfer>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,6 +20,15 @@ public sealed class EirParticipantDbContext(DbContextOptions<EirParticipantDbCon
             entity.Property(participant => participant.SubjectId).HasMaxLength(100).IsRequired();
             entity.Property(participant => participant.Role).HasConversion<string>().HasMaxLength(20);
             entity.HasIndex(participant => new { participant.SubjectId, participant.Role });
+        });
+        modelBuilder.Entity<StudentIdentityTransfer>(entity =>
+        {
+            entity.ToTable("identity_transfers");
+            entity.Ignore(transfer => transfer.Id);
+            entity.HasKey(transfer => transfer.Code);
+            entity.Property(transfer => transfer.Code).HasMaxLength(8).ValueGeneratedNever();
+            entity.Property(transfer => transfer.StudentId).HasMaxLength(100).IsRequired();
+            entity.HasIndex(transfer => transfer.ExpiresAtUtc);
         });
     }
 }

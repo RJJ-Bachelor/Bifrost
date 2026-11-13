@@ -31,6 +31,7 @@ public static class DependencyInjection
             postgres => postgres.MigrationsHistoryTable("__EFMigrationsHistory", "participants")));
         services.TryAddSingleton(TimeProvider.System);
         services.AddScoped<IParticipantRepository, ParticipantRepository>();
+        services.AddScoped<IStudentIdentityTransferRepository, StudentIdentityTransferRepository>();
         services.AddScoped<ICommandHandler<GetSessionTeacherIdsQuery, string[]>, GetSessionTeacherIdsQueryHandler>();
         services.AddScoped<ICommandHandler<GetSessionTeachersQuery, IReadOnlyList<SessionTeacher>>, GetSessionTeachersQueryHandler>();
         services.AddScoped<ICommandHandler<RememberSessionTeacherCommand>, RememberSessionTeacherCommandHandler>();

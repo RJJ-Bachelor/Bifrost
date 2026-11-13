@@ -1,0 +1,31 @@
+<section class="card" aria-labelledby="identity-transfer-title" [attr.aria-busy]="busy">
+  <header class="panel-heading"><div><p class="eyebrow">FORTSÆT PÅ ET ANDET DEVICE</p><h2 id="identity-transfer-title">Flyt din historik</h2></div></header>
+  <p class="hint identity-transfer-id">Din studenteridentitet: <code>{{ userId }}</code></p>
+  <div class="identity-transfer-grid">
+    <div>
+      <h3>1. Opret kode på dit nuværende device</h3>
+      <p>Opret en kode, og indtast den på det device, hvor du vil fortsætte med dine sessioner og samtaler.</p>
+      <button type="button" (click)="createCode()" [disabled]="busy">{{ busy ? 'Arbejder …' : 'Opret overførselskode' }}</button>
+      <div *ngIf="generatedCode as transfer" class="generated-transfer" role="status">
+        <label for="generated-transfer-code">Din overførselskode</label>
+        <div class="input-action">
+          <input id="generated-transfer-code" class="generated-code" [value]="transfer.code" readonly (click)="$any($event.target).select()">
+          <button type="button" class="secondary" (click)="copyCode()" [disabled]="busy">Kopiér kode</button>
+        </div>
+        <p class="hint">Kan bruges én gang. Udløber kl. <time [attr.datetime]="transfer.expiresAtUtc">{{ transfer.expiresAtUtc | date:'HH:mm' }}</time> (efter 10 minutter).</p>
+      </div>
+    </div>
+    <form (ngSubmit)="redeemIdentity()">
+      <h3>2. Indtast koden på dit nye device</h3>
+      <p>Brug koden fra dit andet device. Denne browser skifter til den identitet, som koden tilhører.</p>
+      <label for="identity-transfer-code">Overførselskode</label>
+      <div class="input-action">
+        <input id="identity-transfer-code" name="identityTransferCode" [(ngModel)]="redeemCode" placeholder="Fx ABCD2345" required pattern="\s*[A-HJ-NP-Za-hj-np-z2-9]{8}\s*" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" [disabled]="busy" aria-describedby="identity-transfer-help">
+        <button type="submit" [disabled]="busy || !canRedeem">{{ busy ? 'Arbejder …' : 'Hent min historik' }}</button>
+      </div>
+      <p id="identity-transfer-help" class="hint">Siden genindlæses efter overførslen. Begge devices har herefter adgang til samme historik.</p>
+    </form>
+  </div>
+  <p *ngIf="error" class="alert error" role="alert">{{ error }}</p>
+  <p *ngIf="notice" class="alert success" role="status">{{ notice }}</p>
+</section>
