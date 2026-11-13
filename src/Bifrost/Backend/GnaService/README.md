@@ -4,7 +4,7 @@ Gna forsøger først SignalR. For `RealtimeOrPush` sendes Web Push til brugerens
 
 Fallback gælder pr. bruger: Har brugeren én aktiv SignalR-forbindelse, springes push over på **alle** brugerens enheder, også en telefon uden forbindelse. Forbindelsesregistret ligger i hukommelsen på én Gna-instans; flere instanser kræver fælles registrering af forbindelser. SignalR og push bekræfter afsendelse/accept hos transporten, ikke at telefonen har vist eller brugeren har læst beskeden.
 
-Backend er klar til Web Push. PWA-manifest, service worker og tilmeldingsknapper skal tilføjes i frontend; eksemplerne nedenfor viser den nødvendige integration.
+Testfrontenden har PWA-manifest, service worker og knapper til tilmelding og afmelding. Se [testfrontendens opsætning](../../Temp/TestFrontend/README.md#pwa-og-push-beskeder). Eksemplerne nedenfor viser integrationen, hvis en anden frontend skal tilsluttes.
 
 ## Opsæt serveren
 

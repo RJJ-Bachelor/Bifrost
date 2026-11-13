@@ -27,6 +27,7 @@ const update = { recipientRole: 'teachers', sessionId, eventType: 'SessionChange
 function fixture(role = 'teachers') {
   class HeimdallService {}
   class NotificationService {}
+  class PushNotificationService {}
   class DestroyRef {}
   class ActivatedRoute {}
   class Router {}
@@ -61,6 +62,7 @@ function fixture(role = 'teachers') {
   const dependencies = new Map([
     [HeimdallService, api],
     [NotificationService, { received, reconnected }],
+    [PushNotificationService, { setIdentity: async () => {}, clearIdentity: async () => {}, prepareIdentityChange: async () => {} }],
     [DestroyRef, { onDestroy: callback => destroyed.subscribe(callback) }],
     [ActivatedRoute, { snapshot: { data: { role }, queryParamMap: { get: () => null } }, paramMap: rx.NEVER, queryParamMap: rx.NEVER }],
     [Router, { navigate: () => Promise.resolve(true) }]
@@ -77,6 +79,8 @@ function fixture(role = 'teachers') {
       forkJoin: sources => rx.forkJoin({ ...sources }),
       interval: () => { throw new Error('The session page must not poll'); } },
     './notification.service': { NotificationService },
+    './notifications/push/push-notification.service': { PushNotificationService },
+    './notifications/push/push-notifications.component': { PushNotificationsComponent: class {} },
     './notification.model': compile('notification.model.ts'),
     './heimdall.service': { HeimdallService },
     './student/identity-transfer/student-identity-transfer.component': { StudentIdentityTransferComponent: class {} },

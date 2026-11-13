@@ -1,0 +1,17 @@
+<section class="card" *ngIf="push.hasIdentity()" aria-labelledby="push-title" [attr.aria-busy]="push.busy()">
+  <header class="panel-heading"><div><p class="eyebrow">PÅ DENNE ENHED</p><h2 id="push-title">Push-beskeder</h2></div></header>
+  <p>Få en besked, når du ikke har forbindelse til appen. Tilmeldingen gælder din aktuelle identitet på denne enhed.</p>
+  <p *ngIf="!push.supported()" class="hint">{{ push.unavailableReason }}</p>
+  <p *ngIf="push.offline()" class="hint" role="status">Du er offline. Tilmelding og afmelding kræver forbindelse til serveren.</p>
+  <p *ngIf="push.error()" class="alert error" role="alert">{{ push.error() }}</p>
+  <p *ngIf="push.notice()" class="alert success" role="status">{{ push.notice() }}</p>
+  <ng-container *ngIf="push.supported()">
+    <p class="hint" role="status">{{ push.busy() ? 'Kontrollerer push-abonnement …' : (push.enabled() ? 'Push er aktiveret på denne enhed.' : 'Push er ikke aktiveret på denne enhed.') }}</p>
+    <div class="actions">
+      <button *ngIf="!push.enabled() && push.ready()" type="button" (click)="push.enable()" [disabled]="push.busy() || push.offline()">Aktivér push-beskeder</button>
+      <button *ngIf="push.enabled()" type="button" class="secondary" (click)="push.disable()" [disabled]="push.busy()">Slå push fra</button>
+      <button *ngIf="!push.ready() && !push.busy()" type="button" class="secondary" (click)="push.retry()" [disabled]="push.offline()">Prøv igen</button>
+    </div>
+    <p class="hint">På iPhone og iPad: Åbn siden i Safari, vælg Del → Føj til hjemmeskærm, og aktivér derefter push i den installerede app.</p>
+  </ng-container>
+</section>

@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Bifrost testfrontend",
+  "short_name": "Bifrost",
+  "description": "Sessioner, hjælp og beskeder i Bifrost.",
+  "lang": "da",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1f4f7",
+  "theme_color": "#003d73",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
