@@ -13,6 +13,8 @@ using Shared.Infrastructure.Persistence.Messaging;
 using GnaService.Application.Notifications;
 using GnaService.Infrastructure.Notifications;
 using GnaService.Infrastructure.Push;
+using Lib.Net.Http.WebPush;
+using Lib.Net.Http.WebPush.Authentication;
 using Shared.Application.Persistence;
 using GnaService.Infrastructure.Persistence.Outbox;
 
@@ -50,6 +52,15 @@ public static class DependencyInjection
         services.AddHostedService<NotificationOutboxDispatcher>();
         services.AddSingleton<IConnectionRegistry, ConnectionRegistry>();
         services.AddScoped<NotificationDispatcher>();
+        services.AddOptions<WebPushOptions>()
+            .Bind(configuration.GetSection(WebPushOptions.SectionName))
+            .Validate(options => options.IsValid(), "Push requires a contact URI and a valid matching VAPID key pair when enabled.")
+            .ValidateOnStart();
+        services.AddMemoryCache();
+        services.AddSingleton<IVapidTokenCache, VapidTokenCache>();
+        services.AddHttpClient("WebPush", client => client.Timeout = TimeSpan.FromSeconds(15))
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+            .AddTypedClient(client => new PushServiceClient(client) { AutoRetryAfter = false });
         services.AddScoped<IPushNotificationSender, PushNotificationSender>();
         services.AddScoped<IPushSubscriptionRepository, PushSubscriptionRepository>();
         services.AddHostedService<NotificationMessageSubscriber>();
