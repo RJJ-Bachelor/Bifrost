@@ -28,6 +28,13 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
             .OrderBy(generalization => generalization.CreatedAt)
             .ToArrayAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Guid>> GetGeneralizationMemberIdsAsync(Guid generalizationId,
+        CancellationToken cancellationToken) =>
+        await dbContext.Requests
+            .Where(request => request.GeneralizationId == generalizationId)
+            .Select(request => request.Id)
+            .ToArrayAsync(cancellationToken);
+
     public async Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
         CancellationToken cancellationToken)
     {

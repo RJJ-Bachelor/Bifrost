@@ -12,6 +12,8 @@ public interface IHelpRequestRepository
 
     Task<IReadOnlyList<Generalization>> GetGeneralizationsAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Guid>> GetGeneralizationMemberIdsAsync(Guid generalizationId, CancellationToken cancellationToken);
+
     Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
         CancellationToken cancellationToken);
 }

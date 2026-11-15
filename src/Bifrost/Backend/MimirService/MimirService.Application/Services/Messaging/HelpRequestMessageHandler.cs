@@ -26,6 +26,7 @@ public sealed class HelpRequestMessageHandler(ILogger<HelpRequestMessageHandler>
         var (generalization, reply) = decision.Type switch
         {
             GeneralizationDecisionType.Pair => Pair(request, decision, waiting),
+            GeneralizationDecisionType.Join => await JoinAsync(request, decision, generalizations, cancellationToken),
             _ => (null, null)
         };
 
@@ -58,5 +59,21 @@ public sealed class HelpRequestMessageHandler(ILogger<HelpRequestMessageHandler>
                 generalization.Question, new[] { partner.Id, request.Id }.Order().ToArray()),
             MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
         return (generalization, reply);
+    }
+
+    private async Task<(Generalization? Generalization, OutgoingMessage? Reply)> JoinAsync(HelpRequest request,
+        GeneralizationDecision decision, IReadOnlyList<Generalization> generalizations, CancellationToken cancellationToken)
+    {
+        var generalization = generalizations.FirstOrDefault(candidate => candidate.Id == decision.CandidateId);
+        if (generalization is null) return (null, null);
+
+        var members = await requestRepository.GetGeneralizationMemberIdsAsync(generalization.Id, cancellationToken);
+        request.LinkToGeneralization(generalization);
+        var reply = new OutgoingMessage(request.Id,
+            new GeneralizedCreatedMessage(generalization.Id, generalization.SessionId, generalization.Generation,
+                generalization.Question, members.Append(request.Id).Order().ToArray()),
+            MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+        // The generalization is already stored, so only the request and the reply are added.
+        return (null, reply);
     }
 }
