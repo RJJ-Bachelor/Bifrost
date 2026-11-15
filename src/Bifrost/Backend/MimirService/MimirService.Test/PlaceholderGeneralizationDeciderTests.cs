@@ -19,11 +19,8 @@ public sealed class PlaceholderGeneralizationDeciderTests
         var other = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Request, "Something else");
         var first = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Request, "Help me");
         var second = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Request, "Help me");
-        var generalization = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Generalization, "Help me");
-        var decision = await decider.DecideAsync("Help me", [generalization, other, first, second], CancellationToken.None);
-        Assert.Equal(GeneralizationDecisionType.Pair, decision.Type);
-        Assert.Equal(first.Id, decision.CandidateId);
-        Assert.Equal(PlaceholderGeneralizationDecider.Question, decision.FaqQuestion);
+        var decision = await decider.DecideAsync(" Help me ", [other, first, second], CancellationToken.None);
+        Assert.Equal(new GeneralizationDecision(GeneralizationDecisionType.Pair, first.Id, "Help me"), decision);
     }
 
     [Fact]
@@ -44,10 +41,11 @@ public sealed class PlaceholderGeneralizationDeciderTests
     }
 
     [Fact]
-    public async Task NeverJoinsAGeneralization()
+    public async Task JoinsAGeneralizationWithTheSameTextBeforePairing()
     {
-        var generalization = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Generalization, "Help me");
-        var decision = await decider.DecideAsync("Help me", [generalization], CancellationToken.None);
-        Assert.Equal(GeneralizationDecision.Standalone, decision);
+        var waiting = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Request, "Help me");
+        var generalization = new GeneralizationCandidate(Guid.NewGuid(), GeneralizationCandidateType.Generalization, "help ME");
+        var decision = await decider.DecideAsync("Help me", [waiting, generalization], CancellationToken.None);
+        Assert.Equal(new GeneralizationDecision(GeneralizationDecisionType.Join, generalization.Id, null), decision);
     }
 }

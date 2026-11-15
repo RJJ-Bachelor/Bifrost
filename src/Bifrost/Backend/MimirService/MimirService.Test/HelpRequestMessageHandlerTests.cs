@@ -62,7 +62,7 @@ public sealed class HelpRequestMessageHandlerTests
         Assert.Equal(generalization.Id, published.GeneralizationId);
         Assert.Equal(sessionId, published.SessionId);
         Assert.Equal(1, published.Generation);
-        Assert.Equal(PlaceholderGeneralizationDecider.Question, published.Question);
+        Assert.Equal(second.Payload.Message, published.Question);
         Assert.Equal(new[] { first.Payload.HelpRequestId, second.Payload.HelpRequestId }.Order(), published.HelpRequestIds);
     }
 
