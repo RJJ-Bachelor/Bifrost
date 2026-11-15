@@ -294,3 +294,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `HeimdallGateway` enforces centralized rate limiting via ASP.NET Core `RateLimiter` on the student identity redemption endpoint to prevent brute-force exploitation.
 - The `ShortCode` value object is unified in shared domain infrastructure to standardise validation, case normalization, and formatting for eight-character alphanumeric codes.
 - The test frontend provides a dedicated `StudentIdentityTransferComponent` to generate, copy, and redeem identity transfer codes with automatic session state reload.
+
+---
+
+## Update 2026-11-15
+
+- `MimirService` generalization pipeline evaluates existing generalizations alongside waiting help requests as candidates for incoming requests.
+- `PlaceholderGeneralizationDecider` supports `Join` decisions to attach incoming requests to existing generalizations when text matches.
+- Dynamic question text derived from student input is used for generalizations instead of a fixed placeholder string.
+- `HelpRequestMessageHandler` resolves generalization member IDs and dispatches updated `GeneralizedCreatedMessage` events upon joins.
+- Repositories in `MimirService` provide queries for fetching existing generalizations and their associated member request IDs.
