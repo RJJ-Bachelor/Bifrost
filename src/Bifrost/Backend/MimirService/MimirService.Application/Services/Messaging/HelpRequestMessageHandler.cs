@@ -18,8 +18,10 @@ public sealed class HelpRequestMessageHandler(ILogger<HelpRequestMessageHandler>
         var request = HelpRequest.Create(payload.HelpRequestId, payload.SessionId, payload.Generation, payload.Message);
 
         var waiting = await requestRepository.GetWaitingAsync(payload.SessionId, payload.Generation, cancellationToken);
-        var candidates = waiting
-            .Select(candidate => new GeneralizationCandidate(candidate.Id, GeneralizationCandidateType.Request, candidate.Message))
+        var generalizations = await requestRepository.GetGeneralizationsAsync(payload.SessionId, payload.Generation, cancellationToken);
+        var candidates = generalizations
+            .Select(candidate => new GeneralizationCandidate(candidate.Id, GeneralizationCandidateType.Generalization, candidate.Question))
+            .Concat(waiting.Select(candidate => new GeneralizationCandidate(candidate.Id, GeneralizationCandidateType.Request, candidate.Message)))
             .ToArray();
         var decision = await decider.DecideAsync(payload.Message, candidates, cancellationToken);
         logger.LogInformation("Mimir decided {Decision} for help request {HelpRequestId} with candidate {CandidateId}.",

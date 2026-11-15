@@ -82,8 +82,28 @@ public sealed class HelpRequestMessageHandlerTests
         Assert.Null(reply);
     }
 
+    [Fact]
+    public async Task GeneralizationsInSessionAreCandidates()
+    {
+        var repository = new FakeRepository();
+        var sessionId = Guid.NewGuid();
+        await Handler(repository).HandleAsync(Message(sessionId), CancellationToken.None);
+        await Handler(repository).HandleAsync(Message(sessionId), CancellationToken.None);
+        var generalization = repository.Added[1].Generalization!;
+
+        var decider = new RecordingDecider();
+        await Handler(repository, decider).HandleAsync(Message(sessionId), CancellationToken.None);
+
+        var candidate = Assert.Single(decider.Candidates);
+        Assert.Equal(new GeneralizationCandidate(generalization.Id, GeneralizationCandidateType.Generalization,
+            generalization.Question), candidate);
+    }
+
     private static HelpRequestMessageHandler Handler(FakeRepository repository) =>
-        new(NullLogger<HelpRequestMessageHandler>.Instance, repository, new PlaceholderGeneralizationDecider(), TimeProvider.System);
+        Handler(repository, new PlaceholderGeneralizationDecider());
+
+    private static HelpRequestMessageHandler Handler(FakeRepository repository, IGeneralizationDecider decider) =>
+        new(NullLogger<HelpRequestMessageHandler>.Instance, repository, decider, TimeProvider.System);
 
     private static MessageEnvelope<HelpRequestCreatedMessage> Message() => Message(Guid.NewGuid());
 
@@ -99,12 +119,30 @@ public sealed class HelpRequestMessageHandlerTests
             Task.FromResult<IReadOnlyList<HelpRequest>>(Added.Select(added => added.Request)
                 .Where(request => request.SessionId == sessionId && request.Generation == generation && request.GeneralizationId is null)
                 .ToArray());
+        public Task<IReadOnlyList<Generalization>> GetGeneralizationsAsync(Guid sessionId, int generation,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<Generalization>>(Added.Select(added => added.Generalization)
+                .OfType<Generalization>()
+                .Where(generalization => generalization.SessionId == sessionId && generalization.Generation == generation)
+                .ToArray());
         public Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
             CancellationToken cancellationToken)
         {
             if (Added.Any(added => added.Request.Id == request.Id)) return Task.FromResult(false);
             Added.Add((request, generalization, reply));
             return Task.FromResult(true);
+        }
+    }
+
+    private sealed class RecordingDecider : IGeneralizationDecider
+    {
+        public IReadOnlyList<GeneralizationCandidate> Candidates { get; private set; } = [];
+
+        public Task<GeneralizationDecision> DecideAsync(string newQuestion,
+            IReadOnlyList<GeneralizationCandidate> candidates, CancellationToken cancellationToken)
+        {
+            Candidates = candidates;
+            return Task.FromResult(GeneralizationDecision.Standalone);
         }
     }
 }
