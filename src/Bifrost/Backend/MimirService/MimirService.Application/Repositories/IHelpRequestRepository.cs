@@ -10,6 +10,10 @@ public interface IHelpRequestRepository
     // The returned requests are tracked, so linking one to a generalization is saved by TryAddAsync.
     Task<IReadOnlyList<HelpRequest>> GetWaitingAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<Generalization>> GetGeneralizationsAsync(Guid sessionId, int generation, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<Guid>> GetGeneralizationMemberIdsAsync(Guid generalizationId, CancellationToken cancellationToken);
+
     Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
         CancellationToken cancellationToken);
 }

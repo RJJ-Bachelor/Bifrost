@@ -18,30 +18,62 @@ public sealed class HelpRequestMessageHandler(ILogger<HelpRequestMessageHandler>
         var request = HelpRequest.Create(payload.HelpRequestId, payload.SessionId, payload.Generation, payload.Message);
 
         var waiting = await requestRepository.GetWaitingAsync(payload.SessionId, payload.Generation, cancellationToken);
-        var candidates = waiting
-            .Select(candidate => new GeneralizationCandidate(candidate.Id, GeneralizationCandidateType.Request, candidate.Message))
-            .ToArray();
-        var decision = await decider.DecideAsync(payload.Message, candidates, cancellationToken);
+        var generalizations = await requestRepository.GetGeneralizationsAsync(payload.SessionId, payload.Generation, cancellationToken);
+        var decision = await decider.DecideAsync(payload.Message, Candidates(generalizations, waiting), cancellationToken);
         logger.LogInformation("Mimir decided {Decision} for help request {HelpRequestId} with candidate {CandidateId}.",
             decision.Type, payload.HelpRequestId, decision.CandidateId);
 
-        Generalization? generalization = null;
-        OutgoingMessage? reply = null;
-        if (decision is { Type: GeneralizationDecisionType.Pair, FaqQuestion: { } question } &&
-            waiting.FirstOrDefault(candidate => candidate.Id == decision.CandidateId) is { } partner)
+        var (generalization, reply) = decision.Type switch
         {
-            generalization = Generalization.Create(Guid.NewGuid(), payload.SessionId, payload.Generation,
-                question, timeProvider.GetUtcNow());
-            partner.LinkToGeneralization(generalization);
-            request.LinkToGeneralization(generalization);
-            reply = new OutgoingMessage(generalization.Id,
-                new GeneralizedCreatedMessage(generalization.Id, payload.SessionId, payload.Generation,
-                    generalization.Question, new[] { partner.Id, request.Id }.Order().ToArray()),
-                MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
-        }
+            GeneralizationDecisionType.Pair => Pair(request, decision, waiting),
+            GeneralizationDecisionType.Join => await JoinAsync(request, decision, generalizations, cancellationToken),
+            _ => (null, null)
+        };
 
         if (await requestRepository.TryAddAsync(request, generalization, reply, cancellationToken))
             logger.LogInformation("Mimir stored help request {HelpRequestId} for session {SessionId} generation {Generation}.",
                 payload.HelpRequestId, payload.SessionId, payload.Generation);
+    }
+
+    private static GeneralizationCandidate[] Candidates(IEnumerable<Generalization> generalizations,
+        IEnumerable<HelpRequest> waiting) =>
+    [
+        .. generalizations.Select(generalization =>
+            new GeneralizationCandidate(generalization.Id, GeneralizationCandidateType.Generalization, generalization.Question)),
+        .. waiting.Select(request =>
+            new GeneralizationCandidate(request.Id, GeneralizationCandidateType.Request, request.Message))
+    ];
+
+    private (Generalization? Generalization, OutgoingMessage? Reply) Pair(HelpRequest request,
+        GeneralizationDecision decision, IReadOnlyList<HelpRequest> waiting)
+    {
+        var partner = waiting.FirstOrDefault(candidate => candidate.Id == decision.CandidateId);
+        if (partner is null || decision.FaqQuestion is null) return (null, null);
+
+        var generalization = Generalization.Create(Guid.NewGuid(), request.SessionId, request.Generation,
+            decision.FaqQuestion, timeProvider.GetUtcNow());
+        partner.LinkToGeneralization(generalization);
+        request.LinkToGeneralization(generalization);
+        var reply = new OutgoingMessage(generalization.Id,
+            new GeneralizedCreatedMessage(generalization.Id, generalization.SessionId, generalization.Generation,
+                generalization.Question, new[] { partner.Id, request.Id }.Order().ToArray()),
+            MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+        return (generalization, reply);
+    }
+
+    private async Task<(Generalization? Generalization, OutgoingMessage? Reply)> JoinAsync(HelpRequest request,
+        GeneralizationDecision decision, IReadOnlyList<Generalization> generalizations, CancellationToken cancellationToken)
+    {
+        var generalization = generalizations.FirstOrDefault(candidate => candidate.Id == decision.CandidateId);
+        if (generalization is null) return (null, null);
+
+        var members = await requestRepository.GetGeneralizationMemberIdsAsync(generalization.Id, cancellationToken);
+        request.LinkToGeneralization(generalization);
+        var reply = new OutgoingMessage(request.Id,
+            new GeneralizedCreatedMessage(generalization.Id, generalization.SessionId, generalization.Generation,
+                generalization.Question, members.Append(request.Id).Order().ToArray()),
+            MessageRoutes.Requests, MessageRoutes.GeneralizedCreated);
+        // The generalization is already stored, so only the request and the reply are added.
+        return (null, reply);
     }
 }
