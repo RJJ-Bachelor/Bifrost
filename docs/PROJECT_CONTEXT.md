@@ -304,3 +304,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Dynamic question text derived from student input is used for generalizations instead of a fixed placeholder string.
 - `HelpRequestMessageHandler` resolves generalization member IDs and dispatches updated `GeneralizedCreatedMessage` events upon joins.
 - Repositories in `MimirService` provide queries for fetching existing generalizations and their associated member request IDs.
+
+---
+
+## Update 2026-11-16
+
+- `GnaService` implements live Web Push notification fallback using `Lib.Net.Http.WebPush` with VAPID authentication for disconnected users.
+- New student and teacher API endpoints under `/api/*/notifications/push/` manage browser push subscriptions and public keys.
+- `PushNotificationSender` automatically removes expired or inactive subscriptions upon receiving HTTP `404` or `410` responses from push services.
+- Aspire orchestration (`YggdrasilService`) automatically provisions stable local VAPID keys and push configuration parameters.
+- The test frontend provides PWA capabilities and subscription management via `PushNotificationService` and a dedicated service worker.
