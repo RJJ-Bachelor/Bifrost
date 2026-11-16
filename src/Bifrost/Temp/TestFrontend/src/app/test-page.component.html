@@ -6,7 +6,7 @@
   </div>
   <div class="heading-actions" *ngIf="identity">
     <span *ngIf="isTeacher" class="signed-in">{{ identity.name || 'Logget ind som underviser' }}</span>
-    <button *ngIf="isTeacher" class="text-button" (click)="api.logout()" [disabled]="busy">Log ud</button>
+    <button *ngIf="isTeacher" class="text-button" (click)="logout()" [disabled]="busy">Log ud</button>
   </div>
 </div>
 
@@ -22,6 +22,7 @@
 <div *ngIf="!loading && error && !identity && !loginRequired" class="actions"><button class="secondary" (click)="loadIdentity()">Prøv igen</button></div>
 
 <ng-container *ngIf="identity">
+  <app-push-notifications />
   <ng-container *ngIf="!sessionId">
     <div class="overview-actions" [class.with-create]="isTeacher">
     <section class="card join-card" aria-labelledby="join-title">

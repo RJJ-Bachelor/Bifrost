@@ -106,9 +106,54 @@ Alle modtagne notifikationer logges med `console.info` i browserens udviklerkons
 
 Ældre eller ukendte eventtyper logges som en almindelig notifikation. Annullerede anmodninger får ikke nye FAQ-svar.
 
-Eirs HelpRequests-outbox og Gnas leverings-outbox kontrolleres hvert 500 ms. Gnas `NotificationOutboxDispatcher` læser leveringsopgaver direkte fra databasen og kalder `NotificationDispatcher`, som sender via SignalR eller anvender den tilladte push-fallback. Der er ingen intern RabbitMQ-runde fra Gna til sig selv. Notifikation og leveringsopgave gemmes stadig atomisk, og allerede behandlede opgaver genafsendes ikke. En utilgængelig klient afslutter leveringsforsøget; ved genforbindelse henter frontenden den aktuelle tilstand. Uventede fejl i outboxbehandlingen genforsøges. Dette er backendens outboxpolling, mens kødata i frontenden fortsat opdateres ved hændelser. Web Push-afsendelsen er endnu ikke implementeret.
+Eirs HelpRequests-outbox og Gnas leverings-outbox kontrolleres hvert 500 ms. Gnas `NotificationOutboxDispatcher` læser leveringsopgaver direkte fra databasen og kalder `NotificationDispatcher`, som sender via SignalR eller anvender den tilladte push-fallback. Der er ingen intern RabbitMQ-runde fra Gna til sig selv. Notifikation og leveringsopgave gemmes stadig atomisk, og allerede behandlede opgaver genafsendes ikke. En utilgængelig klient afslutter leveringsforsøget; ved genforbindelse henter frontenden den aktuelle tilstand. Uventede fejl i outboxbehandlingen genforsøges. Dette er backendens outboxpolling, mens kødata i frontenden fortsat opdateres ved hændelser. Web Push-fallback er implementeret i Gna; se opsætning og PWA-registrering nedenfor.
 
-API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udviklingsproxyen i `proxy.conf.json` videresender `/api` og WebSockets til Heimdall. Se [Gna-notifikationer](../../../../docs/gna-notifications.md).
+API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udviklingsproxyen i `proxy.conf.json` videresender `/api`, `/account` og WebSockets til Heimdall. Se [Gna-notifikationer](../../../../docs/gna-notifications.md).
+
+## PWA og push-beskeder
+
+Testfrontenden kan installeres som PWA. Den bruger et manifest og en lille service worker til push, uden ekstra Angular-pakker. Service workeren gemmer ingen sider, API-svar eller samtaler i en offline-cache; appen kræver fortsat netværk.
+
+1. Start Aspire. Det aktiverer automatisk push på **GnaService** og opretter et fast lokalt VAPID-nøglepar til udvikleren. Privatnøglen gemmes uden for repositoryet. Se [Gnas opsætning](../../Backend/GnaService/README.md) for andre miljøer.
+2. Åbn **Studerende** eller log ind som **Underviser**. Under **Push-beskeder** vælges **Aktivér push-beskeder**, og browserens tilladelse godkendes. Tilladelsen efterspørges kun ved brugerens klik.
+3. Brug browserens installationsmulighed. På iPhone/iPad: tilføj appen til hjemmeskærmen, åbn den derfra, og aktivér push inde i den installerede app.
+4. Vælg **Slå push fra**, hvis denne browser/enhed ikke længere skal modtage beskeder.
+
+Registreringen bruger den aktuelle rolle og den eksisterende login-cookie gennem Heimdall. PWA'en henter `GET /api/{students|teachers}/notifications/push/public-key`, opretter et browserabonnement og gemmer det med `PUT /api/{students|teachers}/notifications/push/subscriptions`. Afmelding bruger `DELETE` samme sted med `{ endpoint }`. Ingen bruger-id'er sendes i registreringen.
+
+Et eksisterende abonnement genregistreres efter genindlæsning uden en ny tilladelsesdialog. Push bevares ved almindelig navigation og lukning af appen. Før logout, rolleskift eller indløsning af en overførselskode ryddes det tidligere abonnement op. Ved udløbet login afmeldes browserens abonnement lokalt. Det holder et abonnement knyttet til den rigtige identitet.
+
+En push viser beskeden, også når appen er lukket. Et tryk fokuserer en åben Bifrost-fane eller åbner forsiden. Gnas payload indeholder ingen modtagerrolle, så service workeren gætter ikke en studenter-/underviseradresse.
+
+### Test på computer og telefon
+
+Med ngrok kan den byggede PWA og API'et bruge samme HTTPS-adresse. Installer Node.js, .NET SDK og ngrok, kør `npm.cmd ci`, og konfigurér ngroks authtoken lokalt med `ngrok config add-authtoken <din-token>` (eller `NGROK_AUTHTOKEN`). Token skal ikke stå i scriptet.
+
+Start Aspire med `aspire run`. Ved lokal opstart sørger AppHost automatisk for VAPID-nøgler og sender push-konfigurationen til Gna. Hver udvikler får sit eget faste lokale nøglepar, som genbruges efter genstart, så enhedernes abonnementer bevares. Privatnøglen gemmes uden for repositoryet.
+
+I AppHosts `appsettings.json` styrer `Parameters:push-enabled` aktiveringen (som standard `true`), og `Parameters:push-subject` angiver kontaktadressen som `mailto:` eller offentlig HTTPS-adresse. Privatnøglen gemmes automatisk i AppHosts user-secrets som `Parameters:push-private-key` og sendes til Gna, som selv beregner den offentlige nøgle. Ved ændringer genstartes Aspire. Ngroks authtoken skal fortsat konfigureres lokalt som beskrevet ovenfor.
+
+Kør derefter fra denne mappe:
+
+```powershell
+.\start-pwa.bat
+```
+
+Scriptet kontrollerer student-cookie og Gnas public-key-endpoint gennem Heimdall, bygger frontenden og starter PWA-serveren samt ngrok. Åbn den viste HTTPS-adresse på telefonen. `-Domain dit-domæne.ngrok-free.dev` kan ændre det konfigurerede ngrok-domæne. Ved HTTP 503 genstartes Aspire, og `Parameters:push-enabled` kontrolleres; 502 betyder, at gatewayen ikke kan nå backendservicen; 401/403 peger på autentifikation.
+
+Linjen med `%~dp0` hører til i `.bat`-filen. Ved direkte kørsel fra PowerShell bruges `powershell -NoProfile -ExecutionPolicy Bypass -File .\start-pwa.ps1`.
+
+`npm start` på `http://localhost:7003` understøtter service workers til lokal udvikling. På telefonen skal frontenden åbnes over **HTTPS med et certifikat, telefonen stoler på**. En almindelig HTTP-adresse på det lokale netværk giver ikke adgang til Push API. Med et allerede betroet certifikat kan dev-serveren eksempelvis startes sådan:
+
+```powershell
+npm.cmd start -- --host 0.0.0.0 --ssl --ssl-cert "C:\certificates\frontend.pem" --ssl-key "C:\certificates\frontend-key.pem"
+```
+
+Certifikatet skal dække det værtsnavn eller den IP-adresse, telefonen bruger. Åbn den tilsvarende HTTPS-adresse på port 7003. På iPhone/iPad kræver Web Push iOS/iPadOS 16.4 eller nyere og installation på hjemmeskærmen. Se [WebKit om iPhone/iPad](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/) og [MDN om installation](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
+
+Login/logout går nu gennem frontendens relative `/account`-proxy. Ved underviserlogin fra en telefon skal gatewayens `Frontend:Url`/`Frontend:AdditionalUrls` tillade den brugte HTTPS-origin, og Idun/OIDC-authority samt callback-adresser skal kunne nås fra telefonen. De eksisterende `localhost`-adresser i backendens udviklingsopsætning peger ellers på telefonen selv. Studenteridentiteten bruger den eksisterende `/api`-proxy og kræver ikke underviserlogin.
+
+For at teste fallback skal **alle** faner/enheder med SignalR for samme bruger lukkes. Vent, til forbindelsen er afbrudt i Gna, og udløs en relevant `RealtimeOrPush`-besked, eksempelvis et svar fra underviseren. Telefonen skal vise en notifikation. Med en aktiv SignalR-forbindelse eller `RealtimeOnly` skal der ikke komme en ekstra push. Kontrollér også afmelding og skift af identitet på en delt enhed.
 
 ## Build
 

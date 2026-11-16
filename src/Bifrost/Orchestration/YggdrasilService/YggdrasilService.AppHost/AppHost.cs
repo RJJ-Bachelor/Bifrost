@@ -1,4 +1,5 @@
 using Aspire.Hosting;
+using YggdrasilService.AppHost.Parameters;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -27,6 +28,13 @@ var geminiApiKey = builder.AddParameter("gemini-api-key", secret: true);
 // Generalization: Fake (default in appsettings.json) or Gemini with the https-gemini launch profile
 var generalizationDecider = builder.AddParameter("generalization-decider");
 
+// Web Push: Aspire keeps the generated private key stable across local runs.
+var pushEnabled = builder.AddParameter("push-enabled");
+var pushSubject = builder.AddParameter("push-subject");
+var pushPrivateKey = builder.ExecutionContext.IsRunMode
+    ? builder.AddParameter("push-private-key", new VapidPrivateKeyDefault(), secret: true, persist: true)
+    : builder.AddParameter("push-private-key", secret: true);
+
 // IdentityServer
 var varService = builder.AddProject<Projects.VarService>("varservice", launchProfileName: "http")
     .WithReference(varDatabase)
@@ -50,6 +58,9 @@ var gnaService = builder.AddProject<Projects.GnaService_Api>("gnaservice-api")
     .WithReference(rabbitmq)
     .WithReference(gnaDatabase)
     .WithHttpEndpoint(port: 6001)
+    .WithEnvironment("Push__Enabled", pushEnabled)
+    .WithEnvironment("Push__Subject", pushSubject)
+    .WithEnvironment("Push__PrivateKey", pushPrivateKey)
     .WithEnvironment("Database__MaximumPoolSize", "40")
     .WithEnvironment("Messaging__Consumers__gna-notification-requested__Concurrency", "8")
     .WithEnvironment("Messaging__Consumers__gna-notification-requested__Prefetch", "32")

@@ -13,6 +13,7 @@ const compiled = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
 
 function fixture() {
   class HeimdallService {}
+  class PushNotificationService {}
   class DestroyRef {}
   class HttpErrorResponse extends Error {
     constructor(status) { super(); this.status = typeof status === 'number' ? status : status?.status; }
@@ -20,6 +21,7 @@ function fixture() {
   const destroyed = new rx.Subject();
   const scheduler = new rx.VirtualTimeScheduler(undefined, 31000);
   const requests = [];
+  const lifecycle = [];
   const navigations = [];
   const copied = [];
   const storage = new Map([
@@ -35,7 +37,8 @@ function fixture() {
     response: rx.of(transfer),
     storageUnavailable: false,
     clipboardAvailable: true,
-    clipboardError: null
+    clipboardError: null,
+    cleanup: () => Promise.resolve()
   };
   const browserStorage = {
     get length() {
@@ -50,10 +53,12 @@ function fixture() {
     }
   };
   const api = { post: (url, body) => rx.defer(() => {
+    lifecycle.push('post');
     requests.push({ url, body: body === null ? null : { ...body } });
     return state.response;
   }) };
-  const dependencies = new Map([[HeimdallService, api], [DestroyRef, {}]]);
+  const dependencies = new Map([[HeimdallService, api], [DestroyRef, {}],
+    [PushNotificationService, { prepareIdentityChange: () => { lifecycle.push('cleanup'); return state.cleanup(); } }]]);
   const modules = {
     '@angular/common': { CommonModule: class {} },
     '@angular/common/http': { HttpErrorResponse },
@@ -71,7 +76,8 @@ function fixture() {
       timeout: options => rx.timeout(typeof options === 'number' ? { first: options, scheduler } : { ...options, scheduler })
     },
     'rxjs/operators': rx,
-    '../../heimdall.service': { HeimdallService }
+    '../../heimdall.service': { HeimdallService },
+    '../../notifications/push/push-notification.service': { PushNotificationService }
   };
   const exports = {};
   const navigator = {
@@ -95,7 +101,7 @@ function fixture() {
   const component = new exports.StudentIdentityTransferComponent();
   component.userId = 'current-student';
   return {
-    component, state, requests, navigations, copied, storage, transfer, scheduler, HttpErrorResponse,
+    component, state, requests, lifecycle, navigations, copied, storage, transfer, scheduler, HttpErrorResponse,
     destroy: () => { destroyed.next(); destroyed.complete(); }
   };
 }
@@ -133,7 +139,7 @@ test('an in-flight command blocks repeated creation and redemption until the res
   assert.equal(component.busy, false);
 });
 
-test('redemption normalizes the code and clears only cached student selections after success', t => {
+test('redemption normalizes the code and clears only cached student selections after success', async t => {
   const { component, state, requests, navigations, storage, destroy } = fixture();
   t.after(destroy);
   const pending = new rx.Subject();
@@ -144,6 +150,7 @@ test('redemption normalizes the code and clears only cached student selections a
   component.redeemIdentity();
   component.redeemIdentity();
   component.createCode();
+  await new Promise(setImmediate);
 
   assert.deepEqual(requests, [{ url: 'students/identity-transfer-codes/redeem', body: { code: 'ABCD2345' } }]);
   assert.equal(component.busy, true);
@@ -158,7 +165,59 @@ test('redemption normalizes the code and clears only cached student selections a
   assert.deepEqual(navigations, ['/students']);
 });
 
-test('successful redemption still restarts the student page when browser storage is unavailable', t => {
+test('redemption waits for push cleanup before changing the identity cookie', async t => {
+  const { component, state, requests, lifecycle, navigations, destroy } = fixture();
+  t.after(destroy);
+  let finishCleanup;
+  state.cleanup = () => new Promise(resolve => { finishCleanup = resolve; });
+  state.response = rx.of(null);
+  component.redeemCode = 'ABCD2345';
+
+  component.redeemIdentity();
+
+  assert.deepEqual(lifecycle, ['cleanup']);
+  assert.deepEqual(requests, []);
+  assert.equal(component.busy, true);
+  finishCleanup();
+  await new Promise(setImmediate);
+  assert.deepEqual(lifecycle, ['cleanup', 'post']);
+  assert.deepEqual(navigations, ['/students']);
+});
+
+test('unsafe push cleanup blocks identity transfer and preserves the current selections', async t => {
+  const { component, state, requests, storage, navigations, destroy } = fixture();
+  t.after(destroy);
+  const initialStorage = Array.from(storage.entries());
+  state.cleanup = () => Promise.reject(new Error('Unsubscribe failed'));
+  component.redeemCode = 'ABCD2345';
+
+  component.redeemIdentity();
+  await new Promise(setImmediate);
+
+  assert.deepEqual(requests, []);
+  assert.deepEqual(navigations, []);
+  assert.deepEqual(Array.from(storage.entries()), initialStorage);
+  assert.equal(component.busy, false);
+  assert.match(component.error, /Push-abonnementet/);
+});
+
+test('leaving during push cleanup prevents the identity-changing request', async () => {
+  const { component, state, requests, navigations, destroy } = fixture();
+  let finishCleanup;
+  state.cleanup = () => new Promise(resolve => { finishCleanup = resolve; });
+  component.redeemCode = 'ABCD2345';
+
+  component.redeemIdentity();
+  destroy();
+  finishCleanup();
+  await new Promise(setImmediate);
+
+  assert.deepEqual(requests, []);
+  assert.deepEqual(navigations, []);
+  assert.equal(component.busy, false);
+});
+
+test('successful redemption still restarts the student page when browser storage is unavailable', async t => {
   const { component, state, navigations, destroy } = fixture();
   t.after(destroy);
   component.redeemCode = 'ABCD2345';
@@ -166,6 +225,7 @@ test('successful redemption still restarts the student page when browser storage
   state.response = rx.of(null);
 
   component.redeemIdentity();
+  await new Promise(setImmediate);
 
   assert.equal(component.busy, false);
   assert.deepEqual(navigations, ['/students']);
@@ -193,7 +253,7 @@ test('the redemption action accepts the shared eight-character alphabet regardle
   }
 });
 
-for (const status of [404, 429, 500]) test(`a failed redemption (${status}) preserves the current identity's cache and permits retry`, t => {
+for (const status of [404, 429, 500]) test(`a failed redemption (${status}) preserves the current identity's cache and permits retry`, async t => {
   const { component, state, storage, navigations, HttpErrorResponse, destroy } = fixture();
   t.after(destroy);
   const initialStorage = Array.from(storage.entries());
@@ -201,6 +261,7 @@ for (const status of [404, 429, 500]) test(`a failed redemption (${status}) pres
   state.response = rx.throwError(() => new HttpErrorResponse(status));
 
   component.redeemIdentity();
+  await new Promise(setImmediate);
 
   assert.equal(component.redeemCode, 'ABCD2345');
   assert.equal(component.busy, false);
@@ -211,6 +272,7 @@ for (const status of [404, 429, 500]) test(`a failed redemption (${status}) pres
   assert.deepEqual(navigations, []);
   state.response = rx.of(null);
   component.redeemIdentity();
+  await new Promise(setImmediate);
   assert.deepEqual(navigations, ['/students']);
 });
 
@@ -229,12 +291,13 @@ test('a failed code creation ends loading and preserves the current browser iden
   assert.deepEqual(navigations, []);
 });
 
-for (const action of ['createCode', 'redeemIdentity']) test(`a stalled ${action} request stops loading after thirty seconds`, t => {
+for (const action of ['createCode', 'redeemIdentity']) test(`a stalled ${action} request stops loading after thirty seconds`, async t => {
   const { component, state, scheduler, navigations, destroy } = fixture();
   t.after(destroy);
   state.response = rx.NEVER;
   component.redeemCode = 'ABCD2345';
   component[action]();
+  await new Promise(setImmediate);
   scheduler.schedule(() => {
     assert.equal(component.busy, true);
     assert.equal(component.error, '');
@@ -249,13 +312,14 @@ for (const action of ['createCode', 'redeemIdentity']) test(`a stalled ${action}
   assert.deepEqual(navigations, []);
 });
 
-for (const action of ['createCode', 'redeemIdentity']) test(`leaving the component cancels a pending ${action} request`, () => {
+for (const action of ['createCode', 'redeemIdentity']) test(`leaving the component cancels a pending ${action} request`, async () => {
   const { component, state, transfer, navigations, storage, destroy } = fixture();
   const initialStorage = Array.from(storage.entries());
   const pending = new rx.Subject();
   state.response = pending;
   component.redeemCode = transfer.code;
   component[action]();
+  await new Promise(setImmediate);
   assert.equal(component.busy, true);
 
   destroy();

@@ -18,6 +18,7 @@ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname, '../s
 function fixture(role = 'students', helpType = 'Digital') {
   class HeimdallService {}
   class NotificationService {}
+  class PushNotificationService {}
   class DestroyRef {}
   class ActivatedRoute {}
   class Router {}
@@ -43,6 +44,7 @@ function fixture(role = 'students', helpType = 'Digital') {
   const dependencies = new Map([
     [HeimdallService, api],
     [NotificationService, { received: rx.NEVER, reconnected: rx.NEVER }],
+    [PushNotificationService, { setIdentity: async () => {}, clearIdentity: async () => {}, prepareIdentityChange: async () => {} }],
     [DestroyRef, { onDestroy: callback => destroyed.subscribe(callback) }],
     [ActivatedRoute, { snapshot: { data: { role }, queryParamMap: { get: () => null } }, paramMap: rx.NEVER, queryParamMap: rx.NEVER }],
     [Router, { navigate: () => Promise.resolve(true) }]
@@ -56,6 +58,8 @@ function fixture(role = 'students', helpType = 'Digital') {
     '@angular/router': { ActivatedRoute, Router, RouterLink: class {} },
     rxjs: { ...rx, auditTime: () => rx.map(value => value), interval: () => rx.NEVER },
     './notification.service': { NotificationService },
+    './notifications/push/push-notification.service': { PushNotificationService },
+    './notifications/push/push-notifications.component': { PushNotificationsComponent: class {} },
     './notification.model': model,
     './heimdall.service': { HeimdallService },
     './student/identity-transfer/student-identity-transfer.component': { StudentIdentityTransferComponent: class {} },

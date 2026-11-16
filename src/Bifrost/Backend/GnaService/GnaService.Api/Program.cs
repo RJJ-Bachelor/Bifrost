@@ -1,5 +1,6 @@
 using Shared.Api.Authentication;
 using GnaService.Api.Hubs;
+using GnaService.Api.Middleware;
 using FastEndpoints;
 using GnaService.Application.Services.Messaging;
 using GnaService.Infrastructure;
@@ -19,6 +20,7 @@ public class Program
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
         builder.Services.AddNotificationRealtime();
         builder.Services.AddMessaging(typeof(NotificationMessageHandler).Assembly);
+        builder.Services.AddPushNotificationApi();
 
         var app = builder.Build();
         app.Services.UseMessaging();
@@ -31,8 +33,10 @@ public class Program
         }
 
         app.MapDefaultEndpoints();
+        app.UseMiddleware<ValidationExceptionMiddleware>();
         app.UseAuthentication();
         app.UseAuthorization();
+        app.UseFastEndpoints(configuration => configuration.Endpoints.RoutePrefix = "api");
         app.MapNotificationHubs();
 
         app.Run();

@@ -176,9 +176,9 @@ export class HeimdallService {
   patch<T>(path: string, body: unknown) { return this.http.patch<T>('/api/' + path, body, { withCredentials: true }); }
 
   login(returnPath = '/teachers') {
-    window.location.assign('http://localhost:6004/account/login?returnUrl=' + encodeURIComponent(window.location.origin + returnPath));
+    window.location.assign('/account/login?returnUrl=' + encodeURIComponent(window.location.origin + returnPath));
   }
   logout() {
-    window.location.assign('http://localhost:6004/account/logout?returnUrl=' + encodeURIComponent(window.location.origin + '/teachers'));
+    window.location.assign('/account/logout?returnUrl=' + encodeURIComponent(window.location.origin + '/teachers'));
   }
 }

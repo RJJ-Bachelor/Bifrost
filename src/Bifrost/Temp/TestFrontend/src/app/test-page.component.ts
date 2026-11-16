@@ -6,6 +6,8 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable, Subject, Subscription, auditTime, catchError, combineLatest, filter, finalize, forkJoin, map, merge, of, switchMap, tap, throwError, timeout } from 'rxjs';
 import { NotificationService } from './notification.service';
+import { PushNotificationService } from './notifications/push/push-notification.service';
+import { PushNotificationsComponent } from './notifications/push/push-notifications.component';
 import { SessionRefresh, helpRequestId, notificationRefreshParts, visibleSessionRefresh } from './notification.model';
 import {
   ArchiveSessionResult, ClearSessionResult, Faq, HeimdallService, HelpRequest, HelpRequestAction, HelpRequestStatus, HelpRequestSummary,
@@ -18,7 +20,7 @@ import { TeacherHelpRequestsComponent } from './teacher/help-requests/teacher-he
 
 @Component({
   selector: 'app-test-page',
-  imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent, StudentIdentityTransferComponent],
+  imports: [CommonModule, FormsModule, RouterLink, StudentHelpRequestsComponent, TeacherHelpRequestsComponent, StudentIdentityTransferComponent, PushNotificationsComponent],
   templateUrl: './test-page.component.html',
   host: {
     '[class.teacher-page]': 'isTeacher',
@@ -35,6 +37,7 @@ export class TestPageComponent {
     TeacherAnswer: 'Svar fra underviser'
   };
   private readonly notifications = inject(NotificationService);
+  private readonly pushNotifications = inject(PushNotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -227,6 +230,7 @@ export class TestPageComponent {
         this.loginRequired = false;
         this.error = '';
         void this.notifications.connect(this.role, identity.userId);
+        void this.pushNotifications.setIdentity(this.role, identity.userId);
         this.refresh();
       },
       error: failure => { this.loading = false; this.handleError(failure); }
@@ -335,6 +339,20 @@ export class TestPageComponent {
   }
 
   login() { this.api.login(this.router.url); }
+
+  async logout() {
+    if (!this.isTeacher || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      await this.pushNotifications.prepareIdentityChange();
+      this.api.logout();
+    } catch {
+      this.error = 'Push-abonnementet kunne ikke afmeldes. Prøv igen, før du logger ud.';
+    } finally {
+      this.busy = false;
+    }
+  }
 
   ownsSession(session: SessionSummary | TeacherSession) {
     return 'createdByTeacherId' in session && session.createdByTeacherId === this.identity?.userId;
@@ -604,6 +622,7 @@ export class TestPageComponent {
       this.identity = null;
       this.loginRequired = this.isTeacher;
       void this.notifications.stop(this.role);
+      void this.pushNotifications.clearIdentity(this.role);
     }
     const message = status === 401 ? this.isTeacher ? '' : 'Din studenteridentitet kunne ikke hentes. Prøv at genindlæse siden.'
       : status === 403 ? 'Du har ikke adgang til denne handling.'

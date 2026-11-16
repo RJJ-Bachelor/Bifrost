@@ -3,8 +3,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, DestroyRef, Input, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { finalize, timeout } from 'rxjs';
+import { defer, finalize, switchMap, timeout } from 'rxjs';
 import { HeimdallService, IdentityTransferCode } from '../../heimdall.service';
+import { PushNotificationService } from '../../notifications/push/push-notification.service';
 
 @Component({
   selector: 'app-student-identity-transfer',
@@ -14,6 +15,7 @@ import { HeimdallService, IdentityTransferCode } from '../../heimdall.service';
 })
 export class StudentIdentityTransferComponent {
   private readonly api = inject(HeimdallService);
+  private readonly pushNotifications = inject(PushNotificationService);
   private readonly destroyRef = inject(DestroyRef);
   @Input({ required: true }) userId = '';
   generatedCode: IdentityTransferCode | null = null;
@@ -44,7 +46,12 @@ export class StudentIdentityTransferComponent {
     this.error = '';
     this.notice = '';
     const code = this.redeemCode.trim().toUpperCase();
-    this.api.post<void>('students/identity-transfer-codes/redeem', { code }).pipe(
+    let identityPrepared = false;
+    defer(() => this.pushNotifications.prepareIdentityChange()).pipe(
+      switchMap(() => {
+        identityPrepared = true;
+        return this.api.post<void>('students/identity-transfer-codes/redeem', { code });
+      }),
       timeout(30000), takeUntilDestroyed(this.destroyRef), finalize(() => { this.busy = false; })
     ).subscribe({
       next: () => {
@@ -58,7 +65,10 @@ export class StudentIdentityTransferComponent {
         // Reload identity, session data and the notification connection with the new cookie.
         window.location.replace('/students');
       },
-      error: failure => { this.handleError(failure); }
+      error: failure => {
+        if (identityPrepared) this.handleError(failure);
+        else this.error = 'Push-abonnementet kunne ikke afmeldes. Prøv igen, før du skifter identitet.';
+      }
     });
   }
 
