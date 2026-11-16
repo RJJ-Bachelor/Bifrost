@@ -114,7 +114,7 @@ API-kald bruger elevens cookie eller lærerens login med `withCredentials`. Udvi
 
 Testfrontenden kan installeres som PWA. Den bruger et manifest og en lille service worker til push, uden ekstra Angular-pakker. Service workeren gemmer ingen sider, API-svar eller samtaler i en offline-cache; appen kræver fortsat netværk.
 
-1. Aktivér push og konfigurér et fast VAPID-nøglepar på **GnaService** som beskrevet i [Gnas opsætning](../../Backend/GnaService/README.md). Privatnøglen bliver på serveren.
+1. Start Aspire. Det aktiverer automatisk push på **GnaService** og opretter et fast lokalt VAPID-nøglepar til udvikleren. Privatnøglen gemmes uden for repositoryet. Se [Gnas opsætning](../../Backend/GnaService/README.md) for andre miljøer.
 2. Åbn **Studerende** eller log ind som **Underviser**. Under **Push-beskeder** vælges **Aktivér push-beskeder**, og browserens tilladelse godkendes. Tilladelsen efterspørges kun ved brugerens klik.
 3. Brug browserens installationsmulighed. På iPhone/iPad: tilføj appen til hjemmeskærmen, åbn den derfra, og aktivér push inde i den installerede app.
 4. Vælg **Slå push fra**, hvis denne browser/enhed ikke længere skal modtage beskeder.
@@ -126,6 +126,22 @@ Et eksisterende abonnement genregistreres efter genindlæsning uden en ny tillad
 En push viser beskeden, også når appen er lukket. Et tryk fokuserer en åben Bifrost-fane eller åbner forsiden. Gnas payload indeholder ingen modtagerrolle, så service workeren gætter ikke en studenter-/underviseradresse.
 
 ### Test på computer og telefon
+
+Med ngrok kan den byggede PWA og API'et bruge samme HTTPS-adresse. Installer Node.js, .NET SDK og ngrok, kør `npm.cmd ci`, og konfigurér ngroks authtoken lokalt med `ngrok config add-authtoken <din-token>` (eller `NGROK_AUTHTOKEN`). Token skal ikke stå i scriptet.
+
+Start Aspire med `aspire run`. Ved lokal opstart sørger AppHost automatisk for VAPID-nøgler og sender push-konfigurationen til Gna. Hver udvikler får sit eget faste lokale nøglepar, som genbruges efter genstart, så enhedernes abonnementer bevares. Privatnøglen gemmes uden for repositoryet.
+
+I AppHosts `appsettings.json` styrer `Parameters:push-enabled` aktiveringen (som standard `true`), og `Parameters:push-subject` angiver kontaktadressen som `mailto:` eller offentlig HTTPS-adresse. Privatnøglen gemmes automatisk i AppHosts user-secrets som `Parameters:push-private-key` og sendes til Gna, som selv beregner den offentlige nøgle. Ved ændringer genstartes Aspire. Ngroks authtoken skal fortsat konfigureres lokalt som beskrevet ovenfor.
+
+Kør derefter fra denne mappe:
+
+```powershell
+.\start-pwa.bat
+```
+
+Scriptet kontrollerer student-cookie og Gnas public-key-endpoint gennem Heimdall, bygger frontenden og starter PWA-serveren samt ngrok. Åbn den viste HTTPS-adresse på telefonen. `-Domain dit-domæne.ngrok-free.dev` kan ændre det konfigurerede ngrok-domæne. Ved HTTP 503 genstartes Aspire, og `Parameters:push-enabled` kontrolleres; 502 betyder, at gatewayen ikke kan nå backendservicen; 401/403 peger på autentifikation.
+
+Linjen med `%~dp0` hører til i `.bat`-filen. Ved direkte kørsel fra PowerShell bruges `powershell -NoProfile -ExecutionPolicy Bypass -File .\start-pwa.ps1`.
 
 `npm start` på `http://localhost:7003` understøtter service workers til lokal udvikling. På telefonen skal frontenden åbnes over **HTTPS med et certifikat, telefonen stoler på**. En almindelig HTTP-adresse på det lokale netværk giver ikke adgang til Push API. Med et allerede betroet certifikat kan dev-serveren eksempelvis startes sådan:
 

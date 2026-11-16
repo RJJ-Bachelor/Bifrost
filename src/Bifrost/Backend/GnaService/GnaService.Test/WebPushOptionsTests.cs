@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using GnaService.Infrastructure.Push;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.Configuration;
 
 namespace GnaService.Test;
 
@@ -21,6 +22,61 @@ public sealed class WebPushOptionsTests
         options.Subject = subject;
 
         Assert.True(options.IsValid());
+    }
+
+    [Fact]
+    public void PrivateKeyAloneDerivesTheMatchingPublicKey()
+    {
+        var options = ValidOptions();
+        var expectedPublicKey = options.PublicKey;
+        options.PublicKey = string.Empty;
+
+        Assert.True(options.IsValid());
+        Assert.Equal(expectedPublicKey, options.PublicKey);
+    }
+
+    [Fact]
+    public void ConfigurationBindingSupportsPrivateKeyAlone()
+    {
+        var expected = ValidOptions();
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Enabled"] = "true",
+            ["Subject"] = expected.Subject,
+            ["PrivateKey"] = expected.PrivateKey
+        }).Build();
+
+        var options = configuration.Get<WebPushOptions>()!;
+
+        Assert.True(options.IsValid());
+        Assert.Equal(expected.PublicKey, options.PublicKey);
+    }
+
+    [Fact]
+    public void ConfigurationBindingIgnoresUnusedPrivateKeyWhenDisabled()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Enabled"] = "false",
+            ["PrivateKey"] = "invalid!"
+        }).Build();
+
+        var options = configuration.Get<WebPushOptions>()!;
+
+        Assert.True(options.IsValid());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("invalid!")]
+    [InlineData("AQ")]
+    public void PrivateKeyAloneRejectsMissingOrMalformedKeys(string privateKey)
+    {
+        var options = ValidOptions();
+        options.PublicKey = string.Empty;
+        options.PrivateKey = privateKey;
+
+        Assert.False(options.IsValid());
     }
 
     [Theory]

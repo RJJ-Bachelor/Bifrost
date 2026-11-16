@@ -259,7 +259,6 @@ public sealed class PushNotificationSenderTests
             Options = new WebPushOptions
             {
                 Enabled = true, Subject = "mailto:push@example.test",
-                PublicKey = WebEncoders.Base64UrlEncode(PublicKeyBytes(parameters)),
                 PrivateKey = WebEncoders.Base64UrlEncode(parameters.D!)
             };
             httpClient = new HttpClient(new RecordingHandler(Requests, respond));

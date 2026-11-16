@@ -10,6 +10,8 @@ Testfrontenden har PWA-manifest, service worker og knapper til tilmelding og afm
 
 Web Push kræver ikke en særskilt konto hos Firebase, Google eller Apple. Browseren opretter abonnementet hos sin push-tjeneste. Gna identificerer sig med ét fast VAPID-nøglepar. [Apple beskriver server- og browseropsætningen her](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers).
 
+Til lokal udvikling aktiverer Aspire automatisk push og opretter et fast lokalt VAPID-nøglepar pr. udvikler. Nøglerne genbruges efter genstart og gemmes uden for repositoryet. AppHost sender konfigurationen videre til Gna. `Parameters:push-enabled` styrer aktiveringen (som standard `true`), og `Parameters:push-subject` er kontaktadressen som `mailto:` eller offentlig HTTPS-adresse i AppHosts settings. Genstart Aspire efter ændringer. [Testfrontendens startscript](../../Temp/TestFrontend/README.md#test-på-computer-og-telefon) starter derefter PWA og ngrok; ngroks authtoken kræver fortsat lokal opsætning. Det følgende er den manuelle opsætning til andre miljøer.
+
 Generér nøglerne én gang i dit eget miljø:
 
 ```powershell
@@ -21,11 +23,10 @@ Gem samme nøglepar permanent. Nøgler må ikke genereres ved hver opstart; skif
 ```text
 Push__Enabled=true
 Push__Subject=mailto:jeres-kontakt@jeres-domæne.dk
-Push__PublicKey=<publicKey fra det genererede nøglepar>
 Push__PrivateKey=<privateKey fra samme nøglepar>
 ```
 
-De svarer til `Push:Enabled`, `Push:Subject`, `Push:PublicKey` og `Push:PrivateKey`. Push er som standard deaktiveret. Brug en reel kontaktadresse; alternativt kan `Subject` være en offentlig HTTPS-adresse. Privatnøglen skal kun findes på serveren. Den offentlige nøgle må udleveres til PWA'en. [Officiel vejledning til nøglegenerering](https://github.com/web-push-libs/web-push#command-line).
+De svarer til `Push:Enabled`, `Push:Subject` og `Push:PrivateKey`. Gna beregner selv den offentlige nøgle ud fra privatnøglen og udleverer den til PWA'en via det eksisterende endpoint. En eksplicit `Push:PublicKey` understøttes fortsat og valideres mod privatnøglen. Push er som standard deaktiveret. Brug en reel kontaktadresse; alternativt kan `Subject` være en offentlig HTTPS-adresse. Privatnøglen skal kun findes på serveren. [Officiel vejledning til nøglegenerering](https://github.com/web-push-libs/web-push#command-line).
 
 Brug den eksisterende HTTPS-gateway. Telefonen skal stole på HTTPS-certifikatet; en HTTP-adresse på det lokale netværk er ikke tilstrækkelig. På iPhone/iPad kræves iOS/iPadOS 16.4 eller nyere: Tilføj PWA'en til hjemmeskærmen, åbn den dér, og lad brugeren trykke på en tilmeldingsknap. Tilladelsen skal anmodes som følge af brugerens handling. [WebKit om iPhone/iPad](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
 

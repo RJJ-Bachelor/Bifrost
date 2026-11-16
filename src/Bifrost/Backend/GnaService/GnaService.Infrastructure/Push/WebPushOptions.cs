@@ -5,12 +5,31 @@ namespace GnaService.Infrastructure.Push;
 
 public sealed class WebPushOptions
 {
+    private string configuredPublicKey = string.Empty;
+
     public const string SectionName = "Push";
 
     public bool Enabled { get; set; }
     public string Subject { get; set; } = string.Empty;
-    public string PublicKey { get; set; } = string.Empty;
     public string PrivateKey { get; set; } = string.Empty;
+
+    public string PublicKey
+    {
+        get
+        {
+            if (!Enabled || !string.IsNullOrEmpty(configuredPublicKey) || string.IsNullOrEmpty(PrivateKey))
+                return configuredPublicKey;
+
+            using var key = ECDsa.Create(new ECParameters
+            {
+                Curve = ECCurve.NamedCurves.nistP256,
+                D = WebEncoders.Base64UrlDecode(PrivateKey)
+            });
+            var parameters = key.ExportParameters(false);
+            return WebEncoders.Base64UrlEncode([4, .. parameters.Q.X!, .. parameters.Q.Y!]);
+        }
+        set => configuredPublicKey = value;
+    }
 
     public bool IsValid()
     {
