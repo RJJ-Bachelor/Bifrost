@@ -41,11 +41,17 @@ public sealed class TeacherFaqTests
         faq.RecordAnswer("Answer", "teacher", Now.AddMinutes(1), "Corrected question");
         Assert.Equal("Corrected question", faq.Question);
         Assert.Equal(Now, faq.AnsweredAt);
-        Assert.Single(faq.GetDomainEvents());
+        Assert.Equal(2, faq.GetDomainEvents().Count);
+        Assert.Single(faq.GetDomainEvents().OfType<FaqAnswerRecordedDomainEvent>());
+        Assert.Single(faq.GetDomainEvents().OfType<FaqQuestionChangedDomainEvent>());
+        faq.ClearDomainEvents();
+        faq.RecordAnswer("Answer", "teacher", Now.AddMinutes(2), "Corrected question");
+        Assert.Empty(faq.GetDomainEvents());
 
         Assert.Throws<InvalidOperationException>(() => faq.RecordAnswer("Answer", "teacher", Now, "Another question"));
         Assert.Equal("Corrected question", faq.Question);
         Assert.Equal("Answer", faq.Answer);
+        Assert.Empty(faq.GetDomainEvents());
     }
 
     [Theory]

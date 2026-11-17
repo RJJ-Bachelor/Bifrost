@@ -41,6 +41,8 @@ public static class DependencyInjection
         services.AddHostedService<HelpRequestMessageSubscriber>();
         services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
         services.AddHostedService<SessionUpdatedMessageSubscriber>();
+        services.AddScoped<IFaqQuestionChangedMessageHandler, FaqQuestionChangedMessageHandler>();
+        services.AddHostedService<FaqQuestionChangedMessageSubscriber>();
         services.AddGeminiLlmClient(configuration);
 
         return services;

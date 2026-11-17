@@ -58,11 +58,14 @@ public sealed class FaqAnswer : AggregateRoot<Guid>
             if (Answer == text && AnsweredByTeacherId == teacherId && Question == questionText) return;
             throw new InvalidOperationException("This FAQ has already been answered.");
         }
+        var previousQuestion = Question;
         Question = questionText;
         Answer = text;
         AnsweredByTeacherId = teacherId;
         AnsweredAt = now.ToUniversalTime();
         RaiseDomainEvent(new FaqAnswerRecordedDomainEvent(this));
+        if (Question != previousQuestion)
+            RaiseDomainEvent(new FaqQuestionChangedDomainEvent(this, previousQuestion));
     }
 
     private static string Text(string value)

@@ -9,6 +9,7 @@ public static class MessageRoutes
     public const string HelpRequestUpdated = "request.updated";
     public const string HelpRequestAnswered = "request.answered";
     public const string GeneralizedCreated = "generalized.created";
+    public const string FaqQuestionChanged = "faq.question-changed";
     public const string Notifications = "notifications";
     public const string NotificationCreated = "gna-notification-requested";
     public const string SessionChanged = "session.changed";

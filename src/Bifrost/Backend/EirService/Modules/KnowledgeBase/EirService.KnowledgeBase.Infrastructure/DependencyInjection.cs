@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Persistence;
+using Shared.Application.Messaging;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Application.Messaging.Contracts;
@@ -33,6 +34,7 @@ public static class DependencyInjection
         services.AddUnitOfWork<IFaqRepository, EirKnowledgeBaseDbContext>();
         services.AddScoped<IUnitOfWork<IFaqRepository>, KnowledgeBaseUnitOfWork>();
         services.AddRabbitMqMessageBus(configuration);
+        services.AddRabbitMqQueue("mimir-faq-question-changed", MessageRoutes.Requests, MessageRoutes.FaqQuestionChanged);
         services.AddOutbox<EirKnowledgeBaseDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddHostedService<RegisterGeneralizationMessageSubscriber>();
         services.AddModuleMessageRoute<FaqAnsweredIntegrationEvent>(EirModuleRoutes.FaqAnswerRecorded,
