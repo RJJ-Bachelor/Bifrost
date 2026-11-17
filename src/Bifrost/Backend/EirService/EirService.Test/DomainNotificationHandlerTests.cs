@@ -83,20 +83,19 @@ public sealed class DomainNotificationHandlerTests
         if (change == "Renamed") Assert.Single(outgoing);
         else
         {
-            var integration = Assert.Single(outgoing, message => message.Payload is SessionUpdatedIntegrationEvent);
+            var integration = Assert.Single(outgoing, message => message.RoutingKey == MessageRoutes.SessionUpdated);
             var payload = Assert.IsType<SessionUpdatedIntegrationEvent>(integration.Payload);
-            Assert.Equal(eventId, integration.Id);
+            Assert.Equal(eventId, integration.Metadata!.CausationId);
             Assert.Equal(session.Id, payload.SessionId);
             Assert.Equal(2, payload.Generation);
             Assert.Equal(Enum.Parse<SessionUpdateType>(change), payload.EventType);
             Assert.Equal(change == "Deleted" ? null : (int?)1, payload.PreviousGeneration);
             Assert.Equal(MessageRoutes.SessionUpdated, integration.RoutingKey);
-            var internalMessage = Assert.Single(outgoing, message => message.Payload is HandleSessionChangeCommand);
-            Assert.Equal(integration.Id, internalMessage.Id);
+            var internalMessage = Assert.Single(outgoing, message => message.RoutingKey == EirModuleRoutes.SessionUpdated);
+            Assert.NotEqual(integration.Id, internalMessage.Id);
             Assert.Equal(InternalMessageRoutes.Exchange, internalMessage.ExchangeName);
-            Assert.Equal(EirModuleRoutes.SessionChanged, internalMessage.RoutingKey);
-            Assert.Equal(new HandleSessionChangeCommand(payload.EventId, payload.SessionId, payload.Generation,
-                Enum.Parse<SessionChangeType>(change), payload.UpdatedAtUtc, payload.PreviousGeneration), internalMessage.Payload);
+            Assert.Equal(EirModuleRoutes.SessionUpdated, internalMessage.RoutingKey);
+            Assert.Equal(payload, internalMessage.Payload);
             Assert.Equal(outgoing.Count, OutgoingMessage.Coalesce(outgoing).Count());
         }
     }

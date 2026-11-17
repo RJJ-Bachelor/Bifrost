@@ -107,6 +107,15 @@ namespace GnaService.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
                 {
+                    b.Property<int>("SchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
+                    b.Property<DateTimeOffset?>("OccurredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<Guid?>("CorrelationId").HasColumnType("uuid");
+                    b.Property<Guid?>("CausationId").HasColumnType("uuid");
+                    b.Property<int>("FailureCount").HasColumnType("integer");
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("DeadLetteredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("LastError").HasMaxLength(2000).HasColumnType("character varying(2000)");
+
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 

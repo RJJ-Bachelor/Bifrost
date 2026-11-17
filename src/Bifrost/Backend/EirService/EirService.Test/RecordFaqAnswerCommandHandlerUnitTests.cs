@@ -2,6 +2,7 @@ using EirService.Contracts.KnowledgeBase.RecordFaqAnswer;
 using EirService.KnowledgeBase.Application.Features.Internal.RecordFaqAnswer;
 using EirService.KnowledgeBase.Application.Repositories;
 using EirService.KnowledgeBase.Domain.Entities;
+using EirService.KnowledgeBase.Domain.DomainEvents;
 using Shared.Application.Persistence;
 
 namespace EirService.Test;
@@ -53,7 +54,9 @@ public sealed class RecordFaqAnswerCommandHandlerUnitTests
         Assert.Equal("Answer", faq.Answer);
         Assert.Equal(Now, faq.AnsweredAt);
         Assert.Equal("teacher", faq.AnsweredByTeacherId);
-        Assert.Single(faq.GetDomainEvents());
+        Assert.Equal(2, faq.GetDomainEvents().Count);
+        Assert.Single(faq.GetDomainEvents().OfType<FaqAnswerRecordedDomainEvent>());
+        Assert.Single(faq.GetDomainEvents().OfType<FaqQuestionChangedDomainEvent>());
         Assert.Equal(2, repository.Commits);
     }
 

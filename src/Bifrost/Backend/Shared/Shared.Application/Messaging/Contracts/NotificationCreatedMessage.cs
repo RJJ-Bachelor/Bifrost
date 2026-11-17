@@ -3,6 +3,7 @@ using Shared.Domain.Notifications;
 
 namespace Shared.Application.Messaging.Contracts;
 
+[MessageContract("notification.created")]
 public sealed record NotificationCreatedMessage(
     string UserId,
     string Messages,

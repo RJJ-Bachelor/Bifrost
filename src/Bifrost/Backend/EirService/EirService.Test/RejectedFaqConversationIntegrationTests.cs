@@ -213,7 +213,7 @@ public sealed partial class SessionIntegrationTests
     {
         await using var scope = app.Services.CreateAsyncScope();
         var messages = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-            .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync();
+            .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswerRecorded).ToArrayAsync();
         Assert.Single(messages.Select(message => JsonSerializer.Deserialize<RecordFaqAnswerCommand>(
             message.Payload, FaqJsonOptions)!), message => message.FaqId == faqId);
         var dispatcher = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<EirRequestDbContext>>(app.Services);

@@ -1,5 +1,6 @@
 namespace Shared.Application.Messaging.Contracts;
 
+[MessageContract("session.updated")]
 public sealed record SessionUpdatedIntegrationEvent(
     Guid EventId,
     Guid SessionId,

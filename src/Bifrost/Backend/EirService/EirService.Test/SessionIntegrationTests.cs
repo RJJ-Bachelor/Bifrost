@@ -403,7 +403,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var integrationEvent = JsonSerializer.Deserialize<SessionUpdatedIntegrationEvent>(queued.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
         Assert.Equal(domainEvent.Id, integrationEvent.EventId);
-        Assert.Equal(domainEvent.Id, queued.MessageId);
+        Assert.Equal(domainEvent.Id, queued.CausationId);
         Assert.Equal(created.Id, integrationEvent.SessionId);
         Assert.Equal(1, integrationEvent.PreviousGeneration);
         Assert.Equal(2, integrationEvent.Generation);
@@ -446,7 +446,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
             """);
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
-        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).MessageId);
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).CausationId);
         Assert.Equal(2, (await db.Sessions.SingleAsync()).CurrentGeneration);
     }
 
@@ -670,7 +670,8 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var events = Enum.GetValues<SessionUpdateType>().Select(type =>
             new SessionUpdatedIntegrationEvent(Guid.NewGuid(), sessionId, 4, type, clock.Now, 3)).ToArray();
         var originals = events.Select(update => OutboxMessage.Create(
-            new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated), clock.Now)).ToArray();
+            new(update.EventId, update, MessageRoutes.Sessions, MessageRoutes.SessionUpdated,
+                Metadata: new MessageMetadata(typeof(SessionUpdatedIntegrationEvent).FullName!, 1, clock.Now)), clock.Now)).ToArray();
         originals.Single(message => message.MessageId == events.Single(update => update.EventType == SessionUpdateType.Archived).EventId)
             .MarkPublished(clock.Now.AddSeconds(1));
         var existing = new HandleSessionChangeCommand(events[0].EventId, sessionId, 4,
@@ -678,9 +679,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         var existingInternal = OutboxMessage.Create(new(existing.EventId, existing,
             InternalMessageRoutes.Exchange, EirModuleRoutes.SessionChanged), clock.Now);
         existingInternal.MarkPublished(clock.Now.AddSeconds(2));
-        db.Outbox.AddRange(originals);
-        db.Outbox.Add(existingInternal);
-        await db.SaveChangesAsync();
+        await LegacyOutboxTestData.InsertAsync(db, "sessions", [.. originals, existingInternal]);
         const string traceParent = "00-11111111111111111111111111111111-2222222222222222-01";
         await db.Database.ExecuteSqlInterpolatedAsync($"""
             UPDATE sessions.outbox SET "TraceParent" = {traceParent}, "TraceState" = 'vendor=value'
@@ -750,7 +749,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(2, payload.Generation);
         Assert.Equal(clock.Now, payload.UpdatedAtUtc);
         Assert.Null(payload.PreviousGeneration);
-        Assert.Equal(payload.EventId, deleted.MessageId);
+        Assert.Equal(payload.EventId, deleted.CausationId);
         Assert.Equal(MessageRoutes.Sessions, deleted.ExchangeName);
         Assert.Equal(MessageRoutes.SessionUpdated, deleted.RoutingKey);
         Assert.Null(deleted.PublishedAtUtc);
@@ -826,7 +825,7 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         await unitOfWork.SaveChangesAsync();
         Assert.Empty(session.GetDomainEvents());
         Assert.Empty(await db.Sessions.ToArrayAsync());
-        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).MessageId);
+        Assert.Equal(domainEvent.Id, (await db.Outbox.SingleAsync(message => message.RoutingKey == MessageRoutes.SessionUpdated)).CausationId);
     }
 
     [PostgresFact]

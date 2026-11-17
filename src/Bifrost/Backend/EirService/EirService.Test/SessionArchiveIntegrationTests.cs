@@ -67,9 +67,9 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(SessionUpdateType.Archived, update.EventType);
         Assert.Equal(1, update.PreviousGeneration);
         Assert.Equal(2, update.Generation);
-        Assert.Equal(message.MessageId, update.EventId);
+        Assert.Equal(message.CausationId, update.EventId);
         Assert.Equal(clock.Now, update.UpdatedAtUtc);
-        var internalMessage = await db.Outbox.SingleAsync(message => message.RoutingKey == EirModuleRoutes.SessionChanged);
+        var internalMessage = await db.Outbox.SingleAsync(message => message.RoutingKey == EirModuleRoutes.SessionUpdated);
         Assert.Equal(Shared.Application.Messaging.Outbox.InternalMessageRoutes.Exchange, internalMessage.ExchangeName);
         var command = JsonSerializer.Deserialize<HandleSessionChangeCommand>(internalMessage.Payload,
             new JsonSerializerOptions(JsonSerializerDefaults.Web))!;

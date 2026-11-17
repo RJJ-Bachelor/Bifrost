@@ -24,7 +24,7 @@ public sealed class OutboxDispatcher<TDbContext>(
             try
             {
                 // A full successful page may leave more work; only wait when idle or after failure.
-                if (await PublishPageAsync(stoppingToken)) continue;
+                if (await PublishPageAsync(stoppingToken, false)) continue;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception exception)
@@ -40,12 +40,13 @@ public sealed class OutboxDispatcher<TDbContext>(
     public Task PublishPendingAsync(CancellationToken cancellationToken)
         => PublishPageAsync(cancellationToken);
 
-    private async Task<bool> PublishPageAsync(CancellationToken cancellationToken)
+    private async Task<bool> PublishPageAsync(CancellationToken cancellationToken, bool ignoreBackoff = true)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<TDbContext>();
         var pending = await dbContext.Set<OutboxMessage>().Where(message => message.PublishedAtUtc == null &&
-                message.ExchangeName != InternalMessageRoutes.Exchange)
+                message.ExchangeName != InternalMessageRoutes.Exchange && message.DeadLetteredAtUtc == null &&
+                (ignoreBackoff || message.NextAttemptAtUtc == null || message.NextAttemptAtUtc <= timeProvider.GetUtcNow()))
             .OrderBy(message => message.LastAttemptAtUtc ?? message.CreatedAtUtc).ThenBy(message => message.Id)
             .Take(PageSize).ToListAsync(cancellationToken);
         var published = 0;
@@ -58,8 +59,8 @@ public sealed class OutboxDispatcher<TDbContext>(
             {
                 using var activity = MessageBusTelemetry.StartOutboxActivity(message.TraceParent, message.TraceState);
                 var payload = JsonSerializer.Deserialize<JsonElement>(message.Payload);
-                await messageBus.PublishAsync(message.MessageId, payload, message.ExchangeName, message.RoutingKey,
-                    cancellationToken, message.MessageType);
+                await messageBus.PublishEnvelopeAsync(new(message.MessageId, payload, message.Metadata),
+                    message.ExchangeName, message.RoutingKey, cancellationToken);
                 message.MarkPublished(timeProvider.GetUtcNow());
                 published++;
             }
@@ -67,9 +68,9 @@ public sealed class OutboxDispatcher<TDbContext>(
             catch (Exception exception)
             {
                 // Failed rows move behind unattempted work; one bad route cannot starve the queue.
-                message.MarkFailed(timeProvider.GetUtcNow());
-                logger.LogError(exception, "Outbox message {MessageId} to {RoutingKey} failed; it will be retried.",
-                    message.MessageId, message.RoutingKey);
+                message.ScheduleRetry(timeProvider.GetUtcNow(), exception, exception is JsonException or InvalidDataException);
+                logger.LogError(exception, "Outbox message {MessageId} to {RoutingKey} failed; parked: {Parked}.",
+                    message.MessageId, message.RoutingKey, message.DeadLetteredAtUtc is not null);
             }
             finally { Activity.Current = previousActivity; }
 

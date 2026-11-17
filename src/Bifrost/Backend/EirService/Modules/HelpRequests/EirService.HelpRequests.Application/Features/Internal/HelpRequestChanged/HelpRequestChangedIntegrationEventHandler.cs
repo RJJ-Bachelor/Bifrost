@@ -22,18 +22,18 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
     {
         var change = notification.DomainEvent;
         var request = change.Request;
-        notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+        notification.EnqueueIntegrationEvent(OutgoingMessage.Event(change.Id,
             new HelpRequestUpdatedIntegrationEvent(change.Id, request.Id, request.SessionId, request.Generation,
                 request.StudentId, change.Change, request.Status.ToString(), request.HelpType.ToString(),
                 request.AssignedTeacherId, request.QueuedAt, change.OccurredAt),
-            MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated));
+            MessageRoutes.Requests, MessageRoutes.HelpRequestUpdated, change.OccurredAt));
         if (change.Change == "Created")
         {
             // Both help types contribute their original question. Follow-ups only update the queue.
             var text = request.Messages.Single(message => message.MessageType == HelpRequestMessageType.StudentQuestion).Text.Value;
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(request.Id,
+            notification.EnqueueIntegrationEvent(OutgoingMessage.Event(change.Id,
                 new HelpRequestCreatedMessage(request.Id, request.SessionId, request.Generation, text),
-                MessageRoutes.Requests, MessageRoutes.HelpRequestCreated));
+                MessageRoutes.Requests, MessageRoutes.HelpRequestCreated, change.OccurredAt));
         }
 
         if (change.Change == "Answered")
@@ -41,16 +41,16 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             var messages = request.Messages.OrderBy(message => message.SequenceNumber).ToArray();
             var answer = messages.Last(message => message.MessageType is HelpRequestMessageType.TeacherAnswer or HelpRequestMessageType.FaqAnswer);
             if (request.IsFaq)
-                notification.EnqueueInternalCommand(change.Id,
-                    new RecordFaqAnswerCommand(request.Id, request.SessionId, request.Generation,
+                notification.EnqueueModuleEvent(
+                    new FaqAnsweredIntegrationEvent(request.Id, request.SessionId, request.Generation,
                         answer.Text.Value, request.AssignedTeacherId!, change.OccurredAt,
                         messages.Single(message => message.MessageType == HelpRequestMessageType.FaqQuestion).Text.Value),
-                    EirModuleRoutes.FaqAnswered);
-            else notification.EnqueueIntegrationEvent(new OutgoingMessage(change.Id,
+                    EirModuleRoutes.FaqAnswerRecorded, change.OccurredAt);
+            else notification.EnqueueIntegrationEvent(OutgoingMessage.Event(change.Id,
                 new HelpRequestAnsweredMessage(request.Id, request.SessionId, request.Generation,
                     messages.Last(message => message.MessageType is HelpRequestMessageType.StudentQuestion or HelpRequestMessageType.FollowUpQuestion).Text.Value,
                     answer.Text.Value),
-                MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered));
+                MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered, change.OccurredAt));
         }
 
         // Wait for KnowledgeBase's canonical FAQ answer before notifying any recipient.
@@ -106,10 +106,10 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
         // Personal recipients already reload from their private notification.
         var audience = recipients.Distinct(StringComparer.Ordinal).Except(personalRecipients, StringComparer.Ordinal).ToArray();
         if (audience.Length > 0)
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
+            notification.EnqueueIntegrationEvent(OutgoingMessage.Event(change.Id,
                 new SessionChangedMessage(audience, request.SessionId, request.Generation,
                     change.Change == "Cancelled" && request.FaqAnswerId is not null ? "FaqCancelled" : change.Change),
-                MessageRoutes.Notifications, MessageRoutes.SessionChanged));
+                MessageRoutes.Notifications, MessageRoutes.SessionChanged, change.OccurredAt));
 
         void Notify(string? userId, NotificationEventType eventType, string message)
         {
@@ -117,11 +117,11 @@ public sealed class HelpRequestChangedIntegrationEventHandler(IServiceScopeFacto
             personalRecipients.Add(userId);
             // Only the owner and session teachers may receive private request details.
             var canReadRequest = userId == request.StudentId || session.TeacherIds.Contains(userId, StringComparer.Ordinal);
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(),
+            notification.EnqueueIntegrationEvent(OutgoingMessage.Event(change.Id,
                 new NotificationCreatedMessage(userId, message, request.SessionId, request.Generation,
                     canReadRequest ? request.Id : null, change.Change,
                     canReadRequest ? request.Status.ToString() : null, eventType),
-                MessageRoutes.Notifications, MessageRoutes.NotificationCreated,
+                MessageRoutes.Notifications, MessageRoutes.NotificationCreated, change.OccurredAt,
                 CoalescingKey: $"session-notification:{request.SessionId}:{userId}", Priority: 1));
         }
     }

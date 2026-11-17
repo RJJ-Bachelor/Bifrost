@@ -318,6 +318,9 @@ public sealed partial class CommandBusTests : IAsyncLifetime
         Assert.Equal(1, result.Generation);
         Assert.Equal("Please help", Assert.Single(result.Messages).Text);
         Assert.Equal((result.Id, "Please help"), Assert.Single(_requests.RequestMessages));
+        var createdMessage = Assert.Single(_requests.Outgoing, outgoing => outgoing.Payload is HelpRequestCreatedMessage);
+        Assert.NotEqual(result.Id, createdMessage.Id);
+        Assert.Equal("request.created", createdMessage.Metadata!.Type);
         var notification = Assert.Single(_requests.Notifications,
             item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush);
         Assert.Equal(new NotificationCreatedMessage("teacher-123", "Køen er startet. Der er en ny hjælpeanmodning.",
@@ -579,7 +582,7 @@ public sealed partial class CommandBusTests : IAsyncLifetime
             foreach (var message in OutgoingMessage.Coalesce(outgoing))
             {
                 Outgoing.Add(message);
-                if (message.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((message.Id, help.Message));
+                if (message.Payload is HelpRequestCreatedMessage help) RequestMessages.Add((help.HelpRequestId, help.Message));
                 if (message.Payload is NotificationCreatedMessage notification) Notifications.Add((message.Id, notification));
                 if (message.Payload is SessionChangedMessage changed)
                     Notifications.AddRange(SessionNotificationTestProjection.Expand(message.Id, changed));

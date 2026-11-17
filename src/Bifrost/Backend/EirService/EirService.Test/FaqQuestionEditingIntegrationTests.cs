@@ -7,6 +7,7 @@ using EirService.HelpRequests.Application.Features.Common;
 using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Infrastructure.Persistence;
 using EirService.KnowledgeBase.Application.Features.Common;
+using EirService.KnowledgeBase.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Messaging;
@@ -46,7 +47,7 @@ public sealed partial class SessionIntegrationTests
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var outgoing = Assert.Single(await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-                .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync());
+                .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswerRecorded).ToArrayAsync());
             Assert.Equal(InternalMessageRoutes.Exchange, outgoing.ExchangeName);
             var payload = JsonSerializer.Deserialize<RecordFaqAnswerCommand>(outgoing.Payload,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
@@ -56,6 +57,24 @@ public sealed partial class SessionIntegrationTests
         }
 
         await PersistFaqAnswerFromOutboxAsync();
+
+        await using (var scope = app.Services.CreateAsyncScope())
+        {
+            var outgoing = Assert.Single(await scope.ServiceProvider.GetRequiredService<EirKnowledgeBaseDbContext>().Outbox
+                .Where(message => message.RoutingKey == MessageRoutes.FaqQuestionChanged).ToArrayAsync());
+            Assert.Equal(MessageRoutes.Requests, outgoing.ExchangeName);
+            Assert.Equal("faq.question-changed", outgoing.MessageType);
+            var payload = JsonSerializer.Deserialize<FaqQuestionChangedIntegrationEvent>(outgoing.Payload,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+            Assert.Equal(generalized.GeneralizationId, payload.FaqId);
+            Assert.Equal(session.Id, payload.SessionId);
+            Assert.Equal(1, payload.Generation);
+            Assert.Equal(generalized.Question, payload.PreviousQuestion);
+            Assert.Equal("Revised shared question", payload.Question);
+            Assert.Equal("Shared answer", payload.Answer);
+            Assert.Equal("provider|opaque-teacher", payload.TeacherId);
+            Assert.Equal(clock.Now, payload.ChangedAtUtc);
+        }
 
         var faq = Assert.Single((await student.GetFromJsonAsync<FaqResult[]>($"/api/students/sessions/{session.Id}/faqs"))!);
         Assert.Equal("Revised shared question", faq.Question);

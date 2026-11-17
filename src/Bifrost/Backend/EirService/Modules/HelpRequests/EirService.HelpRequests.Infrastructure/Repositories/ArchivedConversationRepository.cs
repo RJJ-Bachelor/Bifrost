@@ -13,7 +13,8 @@ public sealed class ArchivedConversationRepository(EirRequestDbContext dbContext
 
     public async Task ArchiveQueueAsync(Guid sessionId, int generation, CancellationToken cancellationToken)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var queueKey = $"helprequests:{sessionId}:{generation}";
         await dbContext.Database.ExecuteSqlInterpolatedAsync(
             $"SELECT pg_advisory_xact_lock(hashtextextended({queueKey}, 0))", cancellationToken);
@@ -34,7 +35,7 @@ public sealed class ArchivedConversationRepository(EirRequestDbContext dbContext
         // Copying conversations and deleting the queue are committed together. Redelivery finds an empty queue.
         dbContext.Requests.RemoveRange(requests);
         await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ArchivedConversation>> GetForGenerationAsync(

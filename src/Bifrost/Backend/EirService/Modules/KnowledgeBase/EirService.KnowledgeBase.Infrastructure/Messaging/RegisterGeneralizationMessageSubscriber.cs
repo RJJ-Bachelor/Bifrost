@@ -4,6 +4,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
+using Shared.Infrastructure.Persistence.Messaging;
+using System.Text.Json;
 
 namespace EirService.KnowledgeBase.Infrastructure.Messaging;
 
@@ -16,7 +18,7 @@ internal sealed class RegisterGeneralizationMessageSubscriber(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await using var subscription = await messageBus.SubscribeAsync<GeneralizedCreatedMessage>(
+        await using var subscription = await messageBus.SubscribeAsync<JsonElement>(
             QueueName, MessageRoutes.Requests, MessageRoutes.GeneralizedCreated, HandleMessageAsync, stoppingToken);
 
         logger.LogInformation("KnowledgeBase subscribed to {ExchangeName} with queue {QueueName} using {RoutingKey}.",
@@ -25,10 +27,10 @@ internal sealed class RegisterGeneralizationMessageSubscriber(
         await Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
-    private async Task HandleMessageAsync(MessageEnvelope<GeneralizedCreatedMessage> message, CancellationToken cancellationToken)
+    private async Task HandleMessageAsync(MessageEnvelope<JsonElement> message, CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var handler = scope.ServiceProvider.GetRequiredService<RegisterGeneralizationMessageHandler>();
-        await handler.HandleAsync(message, cancellationToken);
+        var receiver = scope.ServiceProvider.GetRequiredService<IRawMessageReceiver<GeneralizedCreatedMessage>>();
+        await receiver.ReceiveAsync(message, cancellationToken);
     }
 }

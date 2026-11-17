@@ -14,6 +14,6 @@ public sealed class SessionRenamedNotificationHandler(IServiceScopeFactory scope
         cancellationToken.ThrowIfCancellationRequested();
         var domainEvent = notification.DomainEvent;
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.Generation,
-            "Renamed", notification.EnqueueIntegrationEvent, cancellationToken);
+            "Renamed", notification.EnqueueIntegrationEvent, cancellationToken, domainEvent.Id);
     }
 }

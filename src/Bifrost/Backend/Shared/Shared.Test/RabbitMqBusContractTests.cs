@@ -68,6 +68,40 @@ public sealed class RabbitMqBusContractTests
         Assert.False(transport.Connection.Disposed);
     }
 
+    [Fact]
+    public async Task RichEnvelopeMetadataSurvivesConfirmedPublication()
+    {
+        await using var transport = new TransportDouble();
+        var channel = transport.AddChannel();
+        var metadata = new MessageMetadata("notification.created", 1, DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid());
+        var envelope = new MessageEnvelope<object>(Guid.NewGuid(), new NotificationPayload("Answer", 3), metadata);
+        await transport.Bus.PublishEnvelopeAsync(envelope, "notifications", "created");
+        var publication = Assert.Single(channel.Publications);
+        var received = JsonSerializer.Deserialize<MessageEnvelope<NotificationPayload>>(publication.Body,
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(envelope.Id, received.Id);
+        Assert.Equal(metadata, received.Metadata);
+        Assert.Equal("notification.created", publication.Properties.Type);
+    }
+
+    [Fact]
+    public async Task RawConsumerReceivesMalformedBytesForDurableQuarantineBeforeAck()
+    {
+        await using var transport = new TransportDouble();
+        var channel = transport.AddChannel();
+        MessageEnvelope<JsonElement>? received = null;
+        await using var subscription = await transport.Bus.SubscribeAsync<JsonElement>("eir", "requests", "created",
+            (message, _) => { received = message; return Task.CompletedTask; });
+        var id = Guid.NewGuid();
+        await channel.Consumer!.HandleBasicDeliverAsync("consumer-1", 42, false, "requests", "created",
+            new BasicProperties { MessageId = id.ToString() }, Encoding.UTF8.GetBytes("{broken"));
+        Assert.Equal(id, received!.Id);
+        Assert.Equal("$invalid-json", received.Metadata!.Type);
+        Assert.Equal(Convert.ToBase64String(Encoding.UTF8.GetBytes("{broken")), received.Payload.GetProperty("rawBody").GetString());
+        Assert.Equal(42UL, channel.AcknowledgedDeliveryTag);
+        Assert.Null(channel.RejectedDeliveryTag);
+    }
+
     [Theory]
     [InlineData("ExchangeDeclareAsync")]
     [InlineData("BasicPublishAsync")]

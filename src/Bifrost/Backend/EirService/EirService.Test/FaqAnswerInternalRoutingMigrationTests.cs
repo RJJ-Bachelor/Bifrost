@@ -31,15 +31,14 @@ public sealed partial class SessionIntegrationTests
         brokerPublished.MarkPublished(now.AddMinutes(2));
         var unrelated = LegacyAnswer(MessageRoutes.HelpRequestAnswered);
         unrelated.MarkPublished(now.AddMinutes(3));
-        db.Outbox.AddRange(pending, brokerPublished, unrelated);
-        await db.SaveChangesAsync();
+        await LegacyOutboxTestData.InsertAsync(db, "helprequests", pending, brokerPublished, unrelated);
         await db.Database.ExecuteSqlRawAsync("""
             UPDATE helprequests.outbox
             SET "MessageType" = 'Shared.Application.Messaging.Contracts.FaqAnsweredMessage'
             WHERE "ExchangeName" = 'requests' AND "RoutingKey" = 'faq.answered';
             """);
         db.ChangeTracker.Clear();
-        var before = await db.Outbox.AsNoTracking().ToDictionaryAsync(message => message.Id);
+        var before = await LegacyOutboxTestData.ReadAsync(db, "helprequests");
 
         await db.Database.MigrateAsync();
         db.ChangeTracker.Clear();
@@ -71,7 +70,7 @@ public sealed partial class SessionIntegrationTests
 
         await migrator.MigrateAsync(previousMigration);
         db.ChangeTracker.Clear();
-        var reverted = await db.Outbox.AsNoTracking().ToDictionaryAsync(message => message.Id);
+        var reverted = await LegacyOutboxTestData.ReadAsync(db, "helprequests");
         foreach (var id in new[] { pending.Id, brokerPublished.Id })
         {
             Assert.Equal(MessageRoutes.Requests, reverted[id].ExchangeName);

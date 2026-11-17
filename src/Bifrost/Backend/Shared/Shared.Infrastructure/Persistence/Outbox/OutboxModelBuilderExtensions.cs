@@ -9,6 +9,9 @@ public static class OutboxModelBuilderExtensions
         modelBuilder.Entity<OutboxMessage>(entity =>
         {
             entity.ToTable("outbox", schema);
+            entity.Ignore(message => message.Metadata);
+            entity.Property(message => message.SchemaVersion).HasDefaultValue(1);
+            entity.Property(message => message.LastError).HasMaxLength(2000);
             entity.HasKey(message => message.Id);
             entity.Property(message => message.Id).ValueGeneratedNever();
             entity.Property(message => message.MessageId).IsRequired();

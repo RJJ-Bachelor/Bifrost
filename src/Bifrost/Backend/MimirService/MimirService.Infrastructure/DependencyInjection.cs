@@ -30,7 +30,8 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<MimirRequestDbContext>(options =>
-            options.UseNpgsql(connectionString));
+            options.UseNpgsql(connectionString, postgres => postgres.EnableRetryOnFailure(
+                maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorCodesToAdd: null)));
         services.AddRabbitMqMessageBus(configuration);
         services.AddRabbitMqQueue("mimir-request-answered", MessageRoutes.Requests, MessageRoutes.HelpRequestAnswered);
         services.AddOutbox<MimirRequestDbContext>();
@@ -41,6 +42,8 @@ public static class DependencyInjection
         services.AddHostedService<HelpRequestMessageSubscriber>();
         services.AddScoped<ISessionUpdatedMessageHandler, SessionUpdatedMessageHandler>();
         services.AddHostedService<SessionUpdatedMessageSubscriber>();
+        services.AddScoped<IFaqQuestionChangedMessageHandler, FaqQuestionChangedMessageHandler>();
+        services.AddHostedService<FaqQuestionChangedMessageSubscriber>();
         services.AddGeminiLlmClient(configuration);
 
         return services;

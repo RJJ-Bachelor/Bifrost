@@ -20,12 +20,10 @@ public sealed class SessionClearedIntegrationEventUpgradeHandler(IServiceScopeFa
         var domainEvent = notification.DomainEvent;
         var integrationEvent = new SessionUpdatedIntegrationEvent(domainEvent.Id, domainEvent.SessionId,
             domainEvent.CurrentGeneration, SessionUpdateType.Cleared, domainEvent.ClearedAtUtc, domainEvent.PreviousGeneration);
-        notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
-            MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
-        notification.EnqueueInternalCommand(domainEvent.Id,
-            new HandleSessionChangeCommand(domainEvent.Id, domainEvent.SessionId, domainEvent.CurrentGeneration,
-                SessionChangeType.Cleared, domainEvent.ClearedAtUtc, domainEvent.PreviousGeneration), EirModuleRoutes.SessionChanged);
+        notification.EnqueueIntegrationEvent(OutgoingMessage.Event(domainEvent.Id, integrationEvent,
+            MessageRoutes.Sessions, MessageRoutes.SessionUpdated, domainEvent.ClearedAtUtc));
+        notification.EnqueueModuleEvent(integrationEvent, EirModuleRoutes.SessionUpdated, domainEvent.ClearedAtUtc);
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.CurrentGeneration,
-            "Cleared", notification.EnqueueIntegrationEvent, cancellationToken);
+            "Cleared", notification.EnqueueIntegrationEvent, cancellationToken, domainEvent.Id, domainEvent.ClearedAtUtc);
     }
 }

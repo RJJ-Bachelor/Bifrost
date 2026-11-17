@@ -314,3 +314,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - `PushNotificationSender` automatically removes expired or inactive subscriptions upon receiving HTTP `404` or `410` responses from push services.
 - Aspire orchestration (`YggdrasilService`) automatically provisions stable local VAPID keys and push configuration parameters.
 - The test frontend provides PWA capabilities and subscription management via `PushNotificationService` and a dedicated service worker.
+
+---
+
+## Update 2026-11-17
+
+- Backend services introduce a unified transactional `inbox` table supporting idempotent processing, retry budgets, and dead-lettering for incoming messages.
+- Outbox and inbox messaging components incorporate explicit versioned contract metadata (`MessageMetadata`), causation/correlation tracking, and backoff scheduling.
+- Module message routing abstracts transport selection per route, allowing transparent switching between local in-process delivery and RabbitMQ.
+- PostgreSQL execution resilience with automatic connection retry is configured for database contexts across distributed services.
+- KnowledgeBase supports FAQ question updates through `FaqQuestionChangedIntegrationEvent` to propagate revised generalization text.

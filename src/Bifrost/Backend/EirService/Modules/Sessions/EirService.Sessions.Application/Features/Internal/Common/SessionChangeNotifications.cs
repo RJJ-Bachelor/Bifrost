@@ -11,7 +11,8 @@ namespace EirService.Sessions.Application.Features.Internal.Common;
 internal static class SessionChangeNotifications
 {
     public static async Task EnqueueAsync(IServiceScopeFactory scopeFactory, Guid sessionId, int generation,
-        string change, Action<OutgoingMessage> enqueue, CancellationToken cancellationToken)
+        string change, Action<OutgoingMessage> enqueue, CancellationToken cancellationToken,
+        Guid? causationId = null, DateTimeOffset? occurredAt = null)
     {
         // Event handlers are singletons. Resolve scoped repositories before the lifecycle change commits.
         await using var scope = scopeFactory.CreateAsyncScope();
@@ -21,8 +22,9 @@ internal static class SessionChangeNotifications
         if (session is not null) recipientIds = [.. recipientIds, session.CreatedByTeacherId];
         var audience = recipientIds.Distinct(StringComparer.Ordinal).ToArray();
         if (audience.Length > 0)
-            enqueue(new OutgoingMessage(Guid.NewGuid(),
+            enqueue(OutgoingMessage.Event(causationId ?? Guid.NewGuid(),
                 new SessionChangedMessage(audience, sessionId, generation, change),
-                MessageRoutes.Notifications, MessageRoutes.SessionChanged));
+                MessageRoutes.Notifications, MessageRoutes.SessionChanged,
+                occurredAt ?? (scope.ServiceProvider.GetService<TimeProvider>() ?? TimeProvider.System).GetUtcNow()));
     }
 }

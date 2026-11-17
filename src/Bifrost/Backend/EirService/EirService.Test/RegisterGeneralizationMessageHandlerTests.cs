@@ -35,6 +35,18 @@ public sealed class RegisterGeneralizationMessageHandlerTests
         Assert.Equal(0, fixture.Faqs.Commits);
     }
 
+    [Fact]
+    public async Task TransportHandlerRejectsMalformedPayloadBeforeAnyModuleIsCalled()
+    {
+        var fixture = new HandlerFixture();
+        await Assert.ThrowsAsync<MessageRejectedException>(() => fixture.DeliverViaTransportAsync(
+            fixture.Payload with { Question = " " }));
+        Assert.Empty(fixture.Sessions.Commands);
+        Assert.Empty(fixture.Sources.Commands);
+        Assert.Empty(fixture.Apply.Commands);
+        Assert.Empty(fixture.Faqs.Saved);
+    }
+
     [Theory]
     [InlineData("empty generalization id")]
     [InlineData("empty session id")]
@@ -217,6 +229,9 @@ public sealed class RegisterGeneralizationMessageHandlerTests
             Handler = new(NullLogger<RegisterGeneralizationMessageHandler>.Instance, Faqs, Faqs, TimeProvider.System,
                 Sessions, Sources, Apply);
         }
+
+        public Task DeliverViaTransportAsync(GeneralizedCreatedMessage payload) =>
+            ((IMessageHandler<GeneralizedCreatedMessage>)Handler).HandleAsync(new(Guid.NewGuid(), payload), default);
 
         public Task DeliverAsync(GeneralizedCreatedMessage payload) =>
             Handler.HandleAsync(new MessageEnvelope<GeneralizedCreatedMessage>(Guid.NewGuid(), payload), CancellationToken.None);
