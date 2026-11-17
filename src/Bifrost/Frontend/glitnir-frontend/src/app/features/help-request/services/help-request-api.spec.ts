@@ -232,6 +232,7 @@ describe('HelpRequestApi', () => {
         waitingCount: 4,
         unreservedWaitingCount: 3,
         myReservedRequestId: null,
+        estimatedWaitMinutes: 12,
         requests: [
           { id: 'request-1', queuedAt: '2026-10-25T10:00:00Z', assignedTeacherId: null },
         ],
@@ -244,11 +245,12 @@ describe('HelpRequestApi', () => {
         unreservedWaitingCount: 3,
         generation: 8,
         frontQueuedAt: '2026-10-25T10:00:00Z',
+        estimatedWaitMinutes: 12,
         myReservedRequestId: null,
       });
     });
 
-    it('returns null frontQueuedAt when there are no waiting requests', async () => {
+    it('returns null frontQueuedAt and estimatedWaitMinutes when there are no waiting requests', async () => {
       const resource = TestBed.runInInjectionContext(() =>
         service.getTeacherQueue(() => 'session-1'),
       );
@@ -259,12 +261,14 @@ describe('HelpRequestApi', () => {
         waitingCount: 0,
         unreservedWaitingCount: 0,
         myReservedRequestId: null,
+        estimatedWaitMinutes: null,
         requests: [],
       });
 
       await TestBed.inject(ApplicationRef).whenStable();
 
       expect(resource.value().frontQueuedAt).toBeNull();
+      expect(resource.value().estimatedWaitMinutes).toBeNull();
     });
 
     it('tolerates a payload without a requests field', async () => {
@@ -278,11 +282,13 @@ describe('HelpRequestApi', () => {
         waitingCount: 0,
         unreservedWaitingCount: 0,
         myReservedRequestId: null,
+        estimatedWaitMinutes: null,
       });
 
       await TestBed.inject(ApplicationRef).whenStable();
 
       expect(resource.value().frontQueuedAt).toBeNull();
+      expect(resource.value().estimatedWaitMinutes).toBeNull();
     });
   });
 

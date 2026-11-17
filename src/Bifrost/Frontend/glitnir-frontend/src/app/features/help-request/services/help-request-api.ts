@@ -93,6 +93,7 @@ interface TeacherQueueDto {
   myReservedRequestId: string | null;
   requests: TeacherQueueEntryDto[];
   activeRequests: TeacherQueueEntryDto[];
+  estimatedWaitMinutes: number | null;
 }
 
 export function normalizeStatus(raw: string): HelpRequestStatus {
@@ -283,6 +284,7 @@ export class HelpRequestApi {
           unreservedWaitingCount: 0,
           generation: 0,
           frontQueuedAt: null,
+          estimatedWaitMinutes: null,
           myReservedRequestId: null,
         },
         parse: (raw) => {
@@ -292,7 +294,8 @@ export class HelpRequestApi {
             waitingCount: dto.waitingCount,
             unreservedWaitingCount: dto.unreservedWaitingCount,
             generation: dto.generation,
-            frontQueuedAt: requests[0]?.queuedAt ?? null,
+            frontQueuedAt: requests.at(0)?.queuedAt ?? null,
+            estimatedWaitMinutes: dto.estimatedWaitMinutes ?? null,
             myReservedRequestId: dto.myReservedRequestId,
           };
         },
