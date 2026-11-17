@@ -1,6 +1,5 @@
-import {Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, signal, viewChild,} from '@angular/core';
-import { takeUntilDestroyed, toObservable, toSignal } from '@angular/core/rxjs-interop';
-import { map, of, switchMap, timer } from 'rxjs';
+import { Component, DestroyRef, ElementRef, afterRenderEffect, computed, inject, input, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
 import { RealtimeHub } from '../../../../core/realtime/services/realtime-hub';
 import { Card } from '../../../../shared/components/card/card';
@@ -29,28 +28,7 @@ export class Dashboard {
   protected readonly statistics = this.sessionApi.getTeacherStatistics(() => this.id());
   protected readonly faqs = this.faqApi.getTeacherFaqs(() => this.id());
 
-  private readonly now = toSignal(
-    toObservable(this.queue.value).pipe(
-      switchMap(() => {
-        const queuedAt = this.queue.value().frontQueuedAt;
-        const queuedAtMs = queuedAt === null ? null : new Date(queuedAt).getTime();
-        if (queuedAtMs === null || Number.isNaN(queuedAtMs)) {
-          return of(Date.now());
-        }
-        const msToNextMinute = 60000 - ((Date.now() - queuedAtMs) % 60000);
-        return timer(msToNextMinute, 60000).pipe(map(() => Date.now()));
-      }),
-    ),
-    { initialValue: Date.now() },
-  );
-
-  protected readonly frontWaitMinutes = computed(() => {
-    const queuedAt = this.queue.value().frontQueuedAt;
-    if (queuedAt === null) return null;
-    const queuedAtMs = new Date(queuedAt).getTime();
-    if (Number.isNaN(queuedAtMs)) return null;
-    return Math.max(0, Math.floor((this.now() - queuedAtMs) / 60_000));
-  });
+  protected readonly estimatedWaitMinutes = computed(() => this.queue.value().estimatedWaitMinutes);
 
   protected readonly averageWaitLabel = computed(() => {
     const minutes = this.statistics.value().averageWaitMinutes;

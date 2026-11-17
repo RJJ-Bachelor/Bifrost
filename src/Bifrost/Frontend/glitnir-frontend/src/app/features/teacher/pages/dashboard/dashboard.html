@@ -11,15 +11,15 @@
 <!-- AI-generated: #mainRef, #queueRef and #faqList are measurement targets for the viewport-fit system. -->
 <div class="dashboard">
   <div #mainRef class="dashboard__main">
-    <div #queueRef class="dashboard__queue" [class.dashboard__queue--single]="frontWaitMinutes() === null">
+    <div #queueRef class="dashboard__queue" [class.dashboard__queue--single]="estimatedWaitMinutes() === null">
       <bifrost-stat-tile
         class="surface-box"
         [items]="[{ value: queue.value().waitingCount, label: 'I kø' }]"
       />
-      @if (frontWaitMinutes() !== null) {
+      @if (estimatedWaitMinutes() !== null) {
         <bifrost-stat-tile
           class="surface-box"
-          [items]="[{ value: frontWaitMinutes() + ' min', label: 'Forreste ventetid' }]"
+          [items]="[{ value: estimatedWaitMinutes() + ' min', label: 'Forventet ventetid' }]"
         />
       }
     </div>

@@ -73,5 +73,6 @@ export interface TeacherQueue {
   unreservedWaitingCount: number;
   generation: number;
   frontQueuedAt: string | null;
+  estimatedWaitMinutes: number | null;
   myReservedRequestId: string | null;
 }
