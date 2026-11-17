@@ -56,4 +56,29 @@ describe('AuthApi', () => {
 
     expect(await promise).toEqual(student);
   });
+
+  it('creates an identity transfer code from the student endpoint', async () => {
+    const transfer = { code: 'ABCD2345', expiresAtUtc: '2026-11-17T15:00:00Z' };
+    const promise = firstValueFrom(service.createIdentityTransferCode());
+
+    const request = http.expectOne('/api/students/identity-transfer-codes');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+    expect(request.request.withCredentials).toBe(true);
+    request.flush(transfer);
+
+    expect(await promise).toEqual(transfer);
+  });
+
+  it('redeems an identity transfer code at the student endpoint', async () => {
+    const promise = firstValueFrom(service.redeemIdentityTransferCode('ABCD2345'));
+
+    const request = http.expectOne('/api/students/identity-transfer-codes/redeem');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ code: 'ABCD2345' });
+    expect(request.request.withCredentials).toBe(true);
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    await promise;
+  });
 });
