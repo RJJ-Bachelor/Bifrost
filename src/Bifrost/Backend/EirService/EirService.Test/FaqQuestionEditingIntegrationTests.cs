@@ -46,7 +46,7 @@ public sealed partial class SessionIntegrationTests
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var outgoing = Assert.Single(await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox
-                .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswered).ToArrayAsync());
+                .Where(message => message.RoutingKey == EirModuleRoutes.FaqAnswerRecorded).ToArrayAsync());
             Assert.Equal(InternalMessageRoutes.Exchange, outgoing.ExchangeName);
             var payload = JsonSerializer.Deserialize<RecordFaqAnswerCommand>(outgoing.Payload,
                 new JsonSerializerOptions(JsonSerializerDefaults.Web))!;

@@ -42,8 +42,8 @@ public sealed class FaqAnswerRecordedIntegrationEventHandler(IServiceScopeFactor
                 NotificationDeliveryType.RealtimeOrPush), priority: 1);
 
         void Notify(NotificationCreatedMessage message, int priority) =>
-            notification.EnqueueIntegrationEvent(new OutgoingMessage(Guid.NewGuid(), message,
-                MessageRoutes.Notifications, MessageRoutes.NotificationCreated,
+            notification.EnqueueIntegrationEvent(OutgoingMessage.Event(notification.DomainEvent.Id, message,
+                MessageRoutes.Notifications, MessageRoutes.NotificationCreated, faq.AnsweredAt ?? DateTimeOffset.UtcNow,
                 CoalescingKey: $"session-notification:{faq.SessionId}:{message.UserId}", Priority: priority));
     }
 }

@@ -20,12 +20,10 @@ public sealed class SessionArchivedIntegrationEventUpgradeHandler(IServiceScopeF
         var domainEvent = notification.DomainEvent;
         var integrationEvent = new SessionUpdatedIntegrationEvent(domainEvent.Id, domainEvent.SessionId,
             domainEvent.CurrentGeneration, SessionUpdateType.Archived, domainEvent.ArchivedAtUtc, domainEvent.PreviousGeneration);
-        notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
-            MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
-        notification.EnqueueInternalCommand(domainEvent.Id,
-            new HandleSessionChangeCommand(domainEvent.Id, domainEvent.SessionId, domainEvent.CurrentGeneration,
-                SessionChangeType.Archived, domainEvent.ArchivedAtUtc, domainEvent.PreviousGeneration), EirModuleRoutes.SessionChanged);
+        notification.EnqueueIntegrationEvent(OutgoingMessage.Event(domainEvent.Id, integrationEvent,
+            MessageRoutes.Sessions, MessageRoutes.SessionUpdated, domainEvent.ArchivedAtUtc));
+        notification.EnqueueModuleEvent(integrationEvent, EirModuleRoutes.SessionUpdated, domainEvent.ArchivedAtUtc);
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.CurrentGeneration,
-            "Archived", notification.EnqueueIntegrationEvent, cancellationToken);
+            "Archived", notification.EnqueueIntegrationEvent, cancellationToken, domainEvent.Id, domainEvent.ArchivedAtUtc);
     }
 }

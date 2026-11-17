@@ -71,8 +71,35 @@ namespace EirService.KnowledgeBase.Infrastructure.Persistence.Migrations
                     b.ToTable("FaqAnswer", "knowledgebase");
                 });
 
+            modelBuilder.Entity("Shared.Infrastructure.Persistence.Messaging.InboxMessage", b =>
+                {
+                    b.Property<string>("Consumer").HasMaxLength(200).HasColumnType("character varying(200)");
+                    b.Property<string>("MessageType").HasMaxLength(1000).HasColumnType("character varying(1000)");
+                    b.Property<Guid>("MessageId").HasColumnType("uuid");
+                    b.Property<string>("Envelope").IsRequired().HasColumnType("text");
+                    b.Property<int>("Attempts").IsConcurrencyToken().HasColumnType("integer");
+                    b.Property<DateTimeOffset>("ReceivedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("ReplayRequestedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("CompletedAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("DeadLetteredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("LastError").HasMaxLength(2000).HasColumnType("character varying(2000)");
+                    b.HasKey("Consumer", "MessageType", "MessageId");
+                    b.HasIndex("DeadLetteredAtUtc");
+                    b.ToTable("inbox", "knowledgebase");
+                });
+
             modelBuilder.Entity("Shared.Infrastructure.Persistence.Outbox.OutboxMessage", b =>
                 {
+                    b.Property<int>("SchemaVersion").ValueGeneratedOnAdd().HasColumnType("integer").HasDefaultValue(1);
+                    b.Property<DateTimeOffset?>("OccurredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<Guid?>("CorrelationId").HasColumnType("uuid");
+                    b.Property<Guid?>("CausationId").HasColumnType("uuid");
+                    b.Property<int>("FailureCount").HasColumnType("integer");
+                    b.Property<DateTimeOffset?>("NextAttemptAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<DateTimeOffset?>("DeadLetteredAtUtc").HasColumnType("timestamp with time zone");
+                    b.Property<string>("LastError").HasMaxLength(2000).HasColumnType("character varying(2000)");
+
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 

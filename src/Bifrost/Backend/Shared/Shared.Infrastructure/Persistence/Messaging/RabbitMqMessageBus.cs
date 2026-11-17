@@ -27,13 +27,21 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
                 "The 'rabbitmq' connection string is not configured.");
     }
 
-    public async Task PublishAsync(
+    public Task PublishEnvelopeAsync(MessageEnvelope<object> message, string exchangeName, string routingKey,
+        CancellationToken cancellationToken = default) => PublishCoreAsync(message.Id, message.Payload,
+            exchangeName, routingKey, cancellationToken, message.Metadata?.Type, message.Metadata);
+
+    public Task PublishAsync(Guid id, object payload, string exchangeName, string routingKey,
+        CancellationToken cancellationToken = default, string? messageType = null) =>
+        PublishCoreAsync(id, payload, exchangeName, routingKey, cancellationToken, messageType, null);
+
+    private async Task PublishCoreAsync(
         Guid id,
         object payload,
         string exchangeName,
         string routingKey,
         CancellationToken cancellationToken = default,
-        string? messageType = null)
+        string? messageType = null, MessageMetadata? metadata = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("A message id is required.", nameof(id));
         ArgumentNullException.ThrowIfNull(payload);
@@ -43,11 +51,7 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
         using var activity = MessageBusTelemetry.StartPublishActivity(exchangeName, routingKey, id.ToString());
         try
         {
-            var message = new
-            {
-                id,
-                payload
-            };
+            var message = new MessageEnvelope<object>(id, payload, metadata);
             var body = JsonSerializer.SerializeToUtf8Bytes(message, SerializerOptions);
             var properties = new BasicProperties
             {
@@ -186,12 +190,27 @@ internal sealed class RabbitMqMessageBus : IMessageBus, IAsyncDisposable
             using var activity = MessageBusTelemetry.StartConsumerActivity(queueName, eventArgs);
             try
             {
-                var message = JsonSerializer.Deserialize<MessageEnvelope<T>>(
-                    eventArgs.Body.Span, SerializerOptions)
-                    ?? throw new InvalidOperationException(
-                        $"RabbitMQ message for '{typeof(T).FullName}' was empty or invalid.");
+                MessageEnvelope<T> message;
+                try
+                {
+                    message = JsonSerializer.Deserialize<MessageEnvelope<T>>(eventArgs.Body.Span, SerializerOptions)
+                        ?? throw new JsonException("The message envelope is empty.");
+                }
+                catch (JsonException error) when (typeof(T) == typeof(JsonElement))
+                {
+                    // Raw consumers can durably quarantine malformed bytes before acknowledging them.
+                    // Legacy typed subscriptions retain their existing failure behavior.
+                    var hash = System.Security.Cryptography.SHA256.HashData(eventArgs.Body.Span);
+                    var id = Guid.TryParse(eventArgs.BasicProperties.MessageId, out var supplied)
+                        ? supplied : new Guid(hash.AsSpan(0, 16));
+                    var malformed = new MessageEnvelope<JsonElement>(id,
+                        JsonSerializer.SerializeToElement(new { rawBody = Convert.ToBase64String(eventArgs.Body.Span), error = error.Message }),
+                        new("$invalid-json", 0, DateTimeOffset.UnixEpoch));
+                    message = (MessageEnvelope<T>)(object)malformed;
+                }
 
                 activity?.SetTag("messaging.message.id", message.Id.ToString());
+                using var context = MessageContext.Begin(message.Id, message.Metadata);
                 await handler(message, cancellationToken);
                 await CompleteDeliveryAsync(channel, eventArgs.DeliveryTag, acknowledge: true,
                     cancellationToken, acknowledgementGate);

@@ -3,6 +3,7 @@ using Shared.Domain.Notifications;
 
 namespace Shared.Application.Messaging.Contracts;
 
+[MessageContract("notification.delivery-requested")]
 public sealed record NotificationDeliveryRequestedMessage(
     Guid NotificationId,
     string UserId,

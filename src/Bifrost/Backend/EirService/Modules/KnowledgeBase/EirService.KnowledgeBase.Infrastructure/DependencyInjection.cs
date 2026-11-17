@@ -10,6 +10,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Shared.Application.Persistence;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Application.Messaging.Contracts;
+using EirService.KnowledgeBase.Application.Features.Internal.RecordFaqAnswer;
+using EirService.KnowledgeBase.Application.Features.Internal.RegisterGeneralization;
 using Shared.Infrastructure.Persistence.UnitOfWork;
 using Npgsql;
 using Shared.Infrastructure.Persistence;
@@ -32,7 +35,18 @@ public static class DependencyInjection
         services.AddRabbitMqMessageBus(configuration);
         services.AddOutbox<EirKnowledgeBaseDbContext>(TimeSpan.FromMilliseconds(500));
         services.AddHostedService<RegisterGeneralizationMessageSubscriber>();
-        services.AddInternalCommand<RecordFaqAnswerCommand>(EirModuleRoutes.FaqAnswered);
+        services.AddModuleMessageRoute<FaqAnsweredIntegrationEvent>(EirModuleRoutes.FaqAnswerRecorded,
+            "eir-knowledgebase-faq-answered", "eir.modules", "faq.answered", configuration);
+        var maximumAttempts = configuration.GetValue("Messaging:Delivery:MaximumAttempts", 8);
+        services.AddMessageReceiver<FaqAnsweredIntegrationEvent, EirKnowledgeBaseDbContext, FaqAnsweredMessageHandler>(
+            "eir.knowledgebase.faq-answered", maximumAttempts: maximumAttempts);
+        // This existing workflow commits KnowledgeBase before HelpRequests. Completion is recorded only after both steps.
+        services.AddMessageReceiver<GeneralizedCreatedMessage, EirKnowledgeBaseDbContext, RegisterGeneralizationMessageHandler>(
+            "eir.knowledgebase.generalized-created", transactional: false, maximumAttempts: maximumAttempts);
+        services.AddModuleMessageSubscriber<FaqAnsweredIntegrationEvent>(EirModuleRoutes.FaqAnswerRecorded);
+        services.AddLegacyModuleCommand<RecordFaqAnswerCommand, FaqAnsweredIntegrationEvent>(
+            EirModuleRoutes.FaqAnswered, command => new(command.FaqId, command.SessionId, command.Generation,
+                command.Answer, command.TeacherId, command.AnsweredAt, command.Question));
         return services;
     }
 }

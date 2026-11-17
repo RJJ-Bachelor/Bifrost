@@ -2,6 +2,7 @@ using EirService.HelpRequests.Domain.Entities;
 using EirService.HelpRequests.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.Messaging;
 
 namespace EirService.HelpRequests.Infrastructure.Persistence;
 
@@ -15,6 +16,7 @@ public sealed class EirRequestDbContext(DbContextOptions<EirRequestDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("helprequests");
+        modelBuilder.AddInbox("helprequests");
         modelBuilder.AddOutbox("helprequests");
         modelBuilder.Entity<ArchivedConversationSnapshot>(entity =>
         {

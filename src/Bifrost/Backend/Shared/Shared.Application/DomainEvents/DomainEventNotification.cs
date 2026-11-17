@@ -12,6 +12,9 @@ public sealed class DomainEventNotification<TDomainEvent>(
 
     public void EnqueueIntegrationEvent(OutgoingMessage message) => enqueueIntegrationEvent(message);
 
+    public void EnqueueModuleEvent(object payload, string routingKey, DateTimeOffset occurredAt) =>
+        enqueueIntegrationEvent(OutgoingMessage.ModuleEvent(DomainEvent.Id, payload, routingKey, occurredAt));
+
     public void EnqueueInternalCommand(Guid id, ICommand command, string routingKey) =>
         enqueueIntegrationEvent(OutgoingMessage.Internal(id, command, routingKey));
 }

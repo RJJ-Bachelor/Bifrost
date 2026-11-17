@@ -123,7 +123,7 @@ public sealed partial class SessionIntegrationTests
         Assert.Equal(generation, integrationEvent.Generation);
         var internalCommands = (await db.Outbox.AsNoTracking()
             .Where(message => message.ExchangeName == InternalMessageRoutes.Exchange &&
-                message.RoutingKey == EirModuleRoutes.SessionChanged).ToArrayAsync())
+                message.RoutingKey == EirModuleRoutes.SessionUpdated).ToArrayAsync())
             .Select(message => JsonSerializer.Deserialize<HandleSessionChangeCommand>(message.Payload, options)!)
             .Where(command => command.EventId == integrationEvent.EventId).ToArray();
         Assert.Equal(new HandleSessionChangeCommand(integrationEvent.EventId, sessionId, generation,

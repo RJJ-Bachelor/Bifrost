@@ -20,12 +20,10 @@ public sealed class SessionDeletedIntegrationEventUpgradeHandler(IServiceScopeFa
         var domainEvent = notification.DomainEvent;
         var integrationEvent = new SessionUpdatedIntegrationEvent(domainEvent.Id, domainEvent.SessionId,
             domainEvent.Generation, SessionUpdateType.Deleted, domainEvent.DeletedAtUtc);
-        notification.EnqueueIntegrationEvent(new OutgoingMessage(domainEvent.Id, integrationEvent,
-            MessageRoutes.Sessions, MessageRoutes.SessionUpdated));
-        notification.EnqueueInternalCommand(domainEvent.Id,
-            new HandleSessionChangeCommand(domainEvent.Id, domainEvent.SessionId, domainEvent.Generation,
-                SessionChangeType.Deleted, domainEvent.DeletedAtUtc), EirModuleRoutes.SessionChanged);
+        notification.EnqueueIntegrationEvent(OutgoingMessage.Event(domainEvent.Id, integrationEvent,
+            MessageRoutes.Sessions, MessageRoutes.SessionUpdated, domainEvent.DeletedAtUtc));
+        notification.EnqueueModuleEvent(integrationEvent, EirModuleRoutes.SessionUpdated, domainEvent.DeletedAtUtc);
         await SessionChangeNotifications.EnqueueAsync(scopeFactory, domainEvent.SessionId, domainEvent.Generation,
-            "Deleted", notification.EnqueueIntegrationEvent, cancellationToken);
+            "Deleted", notification.EnqueueIntegrationEvent, cancellationToken, domainEvent.Id, domainEvent.DeletedAtUtc);
     }
 }

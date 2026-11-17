@@ -1,6 +1,7 @@
 using EirService.KnowledgeBase.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.Messaging;
 
 namespace EirService.KnowledgeBase.Infrastructure.Persistence;
 
@@ -12,6 +13,7 @@ public sealed class EirKnowledgeBaseDbContext(DbContextOptions<EirKnowledgeBaseD
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema("knowledgebase");
+        modelBuilder.AddInbox("knowledgebase");
         modelBuilder.AddOutbox("knowledgebase");
         modelBuilder.Entity<FaqAnswer>(entity =>
         {

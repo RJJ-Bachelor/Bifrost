@@ -36,6 +36,8 @@ using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
 using Shared.Application.Persistence;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Infrastructure.Persistence.Messaging;
+using Microsoft.Extensions.Configuration;
 using Shared.Infrastructure.Persistence.UnitOfWork;
 
 namespace Backend.IntegrationTests.Eir;
@@ -287,9 +289,10 @@ public sealed class EirInternalModuleTests
                 .HandleAsync(new(domainEvent, outgoing.Add), default);
         }
         var localMessage = Assert.Single(outgoing, message => message.ExchangeName == InternalMessageRoutes.Exchange);
-        Assert.Equal(EirModuleRoutes.SessionChanged, localMessage.RoutingKey);
+        Assert.Equal(EirModuleRoutes.SessionUpdated, localMessage.RoutingKey);
         var externalMessage = Assert.Single(outgoing, message => message.RoutingKey == MessageRoutes.SessionUpdated);
-        Assert.Equal(eventId, externalMessage.Id);
+        Assert.NotEqual(localMessage.Id, externalMessage.Id);
+        Assert.Equal(eventId, externalMessage.Metadata!.CausationId);
         Assert.IsType<SessionUpdatedIntegrationEvent>(externalMessage.Payload);
         await using (var scope = fixture.Services.CreateAsyncScope())
         {
@@ -356,6 +359,15 @@ public sealed class EirInternalModuleTests
                 services.AddScoped<ICommandHandler<HandleSessionChangeCommand>, SessionChangeRecorder>();
                 services.AddInternalCommand<RecordFaqAnswerCommand>(EirModuleRoutes.FaqAnswered);
                 services.AddInternalCommand<HandleSessionChangeCommand>(EirModuleRoutes.SessionChanged);
+                var config = new ConfigurationBuilder().Build();
+                services.AddModuleMessageRoute<SessionUpdatedIntegrationEvent>(EirModuleRoutes.SessionUpdated,
+                    "eir-session", "eir.modules", "session.updated", config);
+                services.AddModuleMessageRoute<FaqAnsweredIntegrationEvent>(EirModuleRoutes.FaqAnswerRecorded,
+                    "eir-faq", "eir.modules", "faq.answered", config);
+                services.AddMessageReceiver<SessionUpdatedIntegrationEvent, EirRequestDbContext,
+                    EirService.HelpRequests.Application.Features.Internal.HandleSessionChange.SessionUpdatedMessageHandler>("eir.session");
+                services.AddMessageReceiver<FaqAnsweredIntegrationEvent, EirKnowledgeBaseDbContext,
+                    FaqAnsweredMessageHandler>("eir.faq");
                 services.AddMessaging(new List<Type>
                 {
                     typeof(HelpRequestChangedIntegrationEventHandler), typeof(FaqAnswerRecordedIntegrationEventHandler)
@@ -399,7 +411,7 @@ public sealed class EirInternalModuleTests
             var student = await db.Requests.Include(value => value.Messages).SingleAsync(value => value.Id == StudentRequestId);
             student.SuggestFaq(FaqId, "teacher", new("Answer"), Now.AddMinutes(1));
             await scope.ServiceProvider.GetRequiredService<IUnitOfWork<IHelpRequestRepository>>().SaveChangesAsync();
-            var row = await db.Outbox.SingleAsync(value => value.RoutingKey == EirModuleRoutes.FaqAnswered);
+            var row = await db.Outbox.SingleAsync(value => value.RoutingKey == EirModuleRoutes.FaqAnswerRecorded);
             return JsonSerializer.Deserialize<RecordFaqAnswerCommand>(row.Payload, JsonOptions)!;
         }
 
@@ -416,7 +428,7 @@ public sealed class EirInternalModuleTests
         {
             await using var scope = Services.CreateAsyncScope();
             return await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.AsNoTracking()
-                .SingleAsync(row => row.RoutingKey == EirModuleRoutes.FaqAnswered);
+                .SingleAsync(row => row.RoutingKey == EirModuleRoutes.FaqAnswerRecorded);
         }
 
         public async Task<OutboxMessage[]> ReadNotificationsAsync()

@@ -18,8 +18,21 @@ public sealed class RegisterGeneralizationMessageHandler(
     TimeProvider clock,
     ICommandHandler<GetSessionGenerationsQuery, IReadOnlyDictionary<Guid, int>> sessions,
     ICommandHandler<CanApplyGeneralizationQuery, bool> sourceRequests,
-    ICommandHandler<ApplyGeneralizationCommand, bool> helpRequests)
+    ICommandHandler<ApplyGeneralizationCommand, bool> helpRequests) : IMessageHandler<GeneralizedCreatedMessage>
 {
+    Task IMessageHandler<GeneralizedCreatedMessage>.HandleAsync(MessageEnvelope<GeneralizedCreatedMessage> message,
+        CancellationToken cancellationToken)
+    {
+        var payload = message.Payload;
+        var ids = payload?.HelpRequestIds?.Distinct().ToArray() ?? [];
+        if (payload is null || payload.GeneralizationId == Guid.Empty || payload.SessionId == Guid.Empty ||
+            payload.Generation < 1 || ids.Length < FaqAnswer.MinSourceCount || ids.Length > FaqAnswer.MaxSourceCount ||
+            ids.Contains(Guid.Empty) || ids.Contains(payload.GeneralizationId) ||
+            string.IsNullOrWhiteSpace(payload.Question) || payload.Question.Trim().Length > FaqAnswer.MaxTextLength)
+            throw new MessageRejectedException("The generalization payload is malformed.");
+        return HandleAsync(message, cancellationToken);
+    }
+
     public async Task HandleAsync(MessageEnvelope<GeneralizedCreatedMessage> message, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

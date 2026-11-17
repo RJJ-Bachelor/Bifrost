@@ -14,6 +14,8 @@ using Shared.Infrastructure.Persistence;
 using System.Data.Common;
 using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Application.Messaging.Contracts;
+using Shared.Application.Messaging;
 
 namespace EirService.HelpRequests.Infrastructure;
 
@@ -44,7 +46,16 @@ public static class DependencyInjection
         services.AddScoped<IArchivedConversationRepository, ArchivedConversationRepository>();
         services.AddScoped<IUnitOfWork<IHelpRequestRepository>, HelpRequestUnitOfWork>();
         services.AddScoped<ICommandHandler<HandleSessionChangeCommand>, HandleSessionChangeCommandHandler>();
-        services.AddInternalCommand<HandleSessionChangeCommand>(EirModuleRoutes.SessionChanged);
+        services.AddModuleMessageRoute<SessionUpdatedIntegrationEvent>(EirModuleRoutes.SessionUpdated,
+            "eir-helprequests-session-updated", "eir.modules", "session.updated", configuration);
+        services.AddModuleMessageRoute<FaqAnsweredIntegrationEvent>(EirModuleRoutes.FaqAnswerRecorded,
+            "eir-knowledgebase-faq-answered", "eir.modules", "faq.answered", configuration);
+        services.AddMessageReceiver<SessionUpdatedIntegrationEvent, EirRequestDbContext, SessionUpdatedMessageHandler>(
+            "eir.helprequests.session-updated", maximumAttempts: configuration.GetValue("Messaging:Delivery:MaximumAttempts", 8));
+        services.AddModuleMessageSubscriber<SessionUpdatedIntegrationEvent>(EirModuleRoutes.SessionUpdated);
+        services.AddLegacyModuleCommand<HandleSessionChangeCommand, SessionUpdatedIntegrationEvent>(
+            EirModuleRoutes.SessionChanged, command => new(command.EventId, command.SessionId, command.Generation,
+                (SessionUpdateType)command.EventType, command.UpdatedAtUtc, command.PreviousGeneration));
 
         return services;
     }

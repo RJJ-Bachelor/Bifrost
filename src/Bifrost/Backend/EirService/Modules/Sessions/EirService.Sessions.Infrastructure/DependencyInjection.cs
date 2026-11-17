@@ -16,6 +16,8 @@ using Shared.Infrastructure.Persistence.Messaging;
 using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Application.Persistence;
 using Shared.Application.Messaging;
+using Shared.Application.Messaging.Contracts;
+using EirService.Contracts.Messaging;
 using Npgsql;
 using Shared.Infrastructure.Persistence;
 using System.Data.Common;
@@ -41,6 +43,8 @@ public static class DependencyInjection
         services.AddRabbitMqQueue("mimir-session-updated", MessageRoutes.Sessions, MessageRoutes.SessionUpdated);
         services.AddOutbox<EirSessionDbContext>();
         services.AddInternalOutbox<EirSessionDbContext>();
+        services.AddModuleMessageRoute<SessionUpdatedIntegrationEvent>(EirModuleRoutes.SessionUpdated,
+            "eir-helprequests-session-updated", "eir.modules", "session.updated", configuration);
         return services;
     }
 }
