@@ -1,0 +1,129 @@
+.transfer-choose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.transfer-choose__intro {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: 1.5;
+  color: var(--color-grey-800);
+}
+
+.transfer-choose__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.transfer-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-4);
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+
+  &:hover {
+    border-color: var(--color-primary);
+    background-color: var(--color-white);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+.transfer-option__title {
+  font-size: var(--font-size-body);
+  font-weight: 700;
+  color: var(--color-primary-dark);
+}
+
+.transfer-option__desc {
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  color: var(--color-grey-800);
+}
+
+.transfer-share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.transfer-code-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+}
+
+.transfer-code-box__label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.transfer-code-box__value {
+  font-size: var(--font-size-h2);
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--color-primary-dark);
+  user-select: all;
+}
+
+.transfer-code-box__value--pending {
+  letter-spacing: normal;
+  color: var(--color-muted);
+}
+
+.transfer-share__hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-grey-800);
+}
+
+.transfer-import {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.transfer-import__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary-dark);
+}
+
+.transfer-import__input {
+  width: 100%;
+  font-family: inherit;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.transfer-warning {
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--color-grey-800);
+
+  strong {
+    color: var(--color-primary-dark);
+  }
+}
