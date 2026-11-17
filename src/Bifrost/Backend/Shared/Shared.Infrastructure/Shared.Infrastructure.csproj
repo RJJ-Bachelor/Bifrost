@@ -18,7 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FastEndpoints.Messaging" Version="8.3.0" />
+    <PackageReference Include="FastEndpoints.Messaging" Version="9.0.0" />
   </ItemGroup>
 
 </Project>
