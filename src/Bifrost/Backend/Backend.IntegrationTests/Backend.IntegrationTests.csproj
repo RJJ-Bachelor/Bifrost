@@ -17,5 +17,6 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <ProjectReference Include="../EirService/EirService.Api/EirService.Api.csproj" />
     <ProjectReference Include="../GnaService/GnaService.Api/GnaService.Api.csproj" />
+    <ProjectReference Include="../MimirService/MimirService.Infrastructure/MimirService.Infrastructure.csproj" />
   </ItemGroup>
 </Project>

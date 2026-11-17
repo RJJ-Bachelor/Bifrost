@@ -40,7 +40,8 @@ public static class DependencyInjection
             MaxPoolSize = maximumPoolSize
         }.ConnectionString;
         services.AddDbContext<GnaNotificationDbContext>(options =>
-            options.UseNpgsql(databaseConnection));
+            options.UseNpgsql(databaseConnection, postgres => postgres.EnableRetryOnFailure(
+                maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(2), errorCodesToAdd: null)));
         services.AddRabbitMqMessageBus(configuration);
         services.AddRabbitMqQueue(MessageRoutes.NotificationCreated, MessageRoutes.Notifications, MessageRoutes.NotificationCreated);
         services.AddRabbitMqQueue(MessageRoutes.SessionChanged, MessageRoutes.Notifications, MessageRoutes.SessionChanged);
