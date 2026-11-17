@@ -5,3 +5,8 @@ export interface Identity {
   name?: string | null;
   roles: string[];
 }
+
+export interface IdentityTransferCode {
+  code: string;
+  expiresAtUtc: string;
+}
