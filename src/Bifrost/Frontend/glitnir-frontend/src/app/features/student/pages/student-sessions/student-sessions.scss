@@ -1,3 +1,23 @@
+.transfer-button {
+  gap: var(--space-2);
+
+  @media (max-width: 600px) {
+    padding: var(--space-2);
+  }
+}
+
+.transfer-button__icon {
+  --icon-size: 1.25rem;
+  mask-image: url('/device-transfer.svg');
+  -webkit-mask-image: url('/device-transfer.svg');
+}
+
+.transfer-button__label {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}
+
 .join-area {
   display: flex;
   flex-direction: column;

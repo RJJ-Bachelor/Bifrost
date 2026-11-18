@@ -1,4 +1,15 @@
-<bifrost-topbar />
+<bifrost-topbar>
+  <button
+    topbar-right
+    type="button"
+    class="topbar-btn transfer-button"
+    aria-label="Overfør brugerdata"
+    (click)="openTransferDialog()"
+  >
+    <span class="icon-mask transfer-button__icon" aria-hidden="true"></span>
+    <span class="transfer-button__label">Overfør brugerdata</span>
+  </button>
+</bifrost-topbar>
 <div class="page-container">
   <bifrost-card title="Dine sessioner">
     @if (!sessions.isLoading() && !sessions.error() && !isEmpty()) {
@@ -45,3 +56,15 @@
     (cancelled)="closeDialog()"
   />
 </bifrost-dialog>
+
+<bifrost-identity-transfer-dialog
+  [open]="transferDialogOpen()"
+  (transferred)="refreshAfterTransfer()"
+  (closed)="closeTransferDialog()"
+/>
+
+<bifrost-status-dialog
+  [open]="transferSuccess()"
+  message="Dine data er nu overført til denne enhed."
+  (closed)="closeTransferSuccess()"
+/>
