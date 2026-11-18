@@ -23,12 +23,20 @@ public sealed class UnitOfWorkEventBusTests
         db.Add(aggregate);
         aggregate.AddEvent(new GatedDomainEvent());
         var unitOfWork = new UnitOfWork<UnitOfWorkEventBusTests, RecordingDbContext>(db, TimeProvider.System);
-        var commit = unitOfWork.SaveChangesAsync();
-        await gate.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(0, db.SaveCalls);
-        Assert.Single(aggregate.GetDomainEvents());
-        gate.Release.SetResult();
-        await commit;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var commit = unitOfWork.SaveChangesAsync(deadline.Token);
+        try
+        {
+            await gate.Started.Task.WaitAsync(deadline.Token);
+            Assert.Equal(0, db.SaveCalls);
+            Assert.Single(aggregate.GetDomainEvents());
+        }
+        finally
+        {
+            // A failed assertion must not leave a handler running against disposed services.
+            gate.Release.TrySetResult();
+            await commit;
+        }
         Assert.Equal(1, db.SaveCalls);
         Assert.Empty(aggregate.GetDomainEvents());
         Assert.Single(db.ChangeTracker.Entries<OutboxMessage>());
