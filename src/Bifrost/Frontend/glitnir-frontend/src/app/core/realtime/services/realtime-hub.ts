@@ -13,6 +13,7 @@ import { NotificationMessage } from '../notification.model';
 export class RealtimeHub {
   private connection: HubConnection | null = null;
   private connectionRole: UserRole | null = null;
+  private connectionUserId: string | null = null;
 
   private readonly _status = signal<HubConnectionState>(HubConnectionState.Disconnected);
   readonly status = this._status.asReadonly();
@@ -20,8 +21,12 @@ export class RealtimeHub {
   private readonly _notifications = new Subject<NotificationMessage>();
   readonly notifications$ = this._notifications.asObservable();
 
-  async connect(role: UserRole): Promise<void> {
-    if (this.connection && this.connectionRole === role) {
+  async connect(role: UserRole, userId: string): Promise<void> {
+    if (
+      this.connection &&
+      this.connectionRole === role &&
+      this.connectionUserId === userId
+    ) {
       return;
     }
 
@@ -29,6 +34,7 @@ export class RealtimeHub {
 
     const path = role === 'teacher' ? '/api/teachers/notifications' : '/api/students/notifications';
     this.connectionRole = role;
+    this.connectionUserId = userId;
 
     const connection = new HubConnectionBuilder()
       .withUrl(path, { withCredentials: true })
@@ -47,6 +53,7 @@ export class RealtimeHub {
       if (this.connection === connection) {
         this.connection = null;
         this.connectionRole = null;
+        this.connectionUserId = null;
         this._status.set(HubConnectionState.Disconnected);
       }
     });
@@ -63,6 +70,7 @@ export class RealtimeHub {
       if (this.connection === connection) {
         this.connection = null;
         this.connectionRole = null;
+        this.connectionUserId = null;
         this._status.set(HubConnectionState.Disconnected);
       }
     }
@@ -74,6 +82,7 @@ export class RealtimeHub {
 
     this.connection = null;
     this.connectionRole = null;
+    this.connectionUserId = null;
     this._status.set(HubConnectionState.Disconnected);
 
     try {

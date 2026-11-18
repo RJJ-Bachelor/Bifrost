@@ -1,4 +1,4 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, computed, effect, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthStore } from './core/auth/services/auth-store';
 import { RealtimeHub } from './core/realtime/services/realtime-hub';
@@ -16,6 +16,12 @@ export class App {
   protected readonly authStore = inject(AuthStore);
   private readonly realtime = inject(RealtimeHub);
 
+  // Derived so the effect only re-runs when the userId actually changes,
+  // not every time loadIdentity() replaces the user object reference.
+  private readonly userId = computed(
+    () => this.authStore.user()?.userId ?? null,
+  );
+
   constructor() {
     effect(() => {
       const href = this.authStore.isTeacher() ? 'favicon-uv.svg' : 'favicon.svg';
@@ -31,10 +37,11 @@ export class App {
 
     effect(() => {
       const role = this.authStore.role();
-      if (role === null) {
+      const userId = this.userId();
+      if (role === null || userId === null) {
         void this.realtime.disconnect();
       } else {
-        void this.realtime.connect(role);
+        void this.realtime.connect(role, userId);
       }
     });
   }
