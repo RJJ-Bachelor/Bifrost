@@ -26,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../Shared/Shared.Testing/Shared.Testing.csproj" />
     <ProjectReference Include="..\EirService.Api\EirService.Api.csproj" />
     <ProjectReference Include="..\..\MimirService\MimirService.Infrastructure\MimirService.Infrastructure.csproj" />
     <ProjectReference Include="..\..\GnaService\GnaService.Infrastructure\GnaService.Infrastructure.csproj" />
