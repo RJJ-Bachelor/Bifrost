@@ -122,7 +122,7 @@ public sealed partial class SessionIntegrationTests
     }
 
     [PostgresFact]
-    public async Task GeneralizedAnswerWaitsForCanonicalFaqBeforeNotifyingEveryParticipantExactlyOnce()
+    public async Task GeneralizedAnswerWaitsForCanonicalFaqBeforeCreatingEachPersonalNotificationOnce()
     {
         var session = await CreateAsync();
         await JoinAsync(session.Code);
@@ -141,13 +141,26 @@ public sealed partial class SessionIntegrationTests
 
         await DeliverGeneralizationAsync(generalized);
 
-        AssertSessionBroadcast(await NotificationsSinceAsync(before), session.Id, recipients,
+        var created = await NotificationsSinceAsync(before);
+        AssertSessionBroadcast(created.Where(item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOrPush).ToArray(),
+            session.Id, ["provider|opaque-teacher", "colleague", physicalUser, digitalUser],
             new Dictionary<string, (NotificationEventType, Guid)>
             {
                 ["provider|opaque-teacher"] = (NotificationEventType.FaqCreated, generalized.GeneralizationId),
                 ["colleague"] = (NotificationEventType.FaqCreated, generalized.GeneralizationId),
                 [physicalUser] = (NotificationEventType.FaqCreated, physicalId),
                 [digitalUser] = (NotificationEventType.FaqCreated, digitalId)
+            });
+        // Linking two sources and creating the FAQ are three separate public changes.
+        // Each excludes its own personal recipients; other changes can refresh the same user.
+        AssertPublicRefreshes(created.Where(item => item.Message.DeliveryType == NotificationDeliveryType.RealtimeOnly).ToArray(),
+            session.Id, new Dictionary<string, string[]>
+            {
+                ["provider|opaque-teacher"] = ["FaqLinked", "FaqLinked"],
+                ["colleague"] = ["FaqLinked", "FaqLinked"],
+                [physicalUser] = ["FaqLinked", "FaqCreated"],
+                [digitalUser] = ["FaqLinked", "FaqCreated"],
+                [observerUser] = ["FaqLinked", "FaqLinked", "FaqCreated"]
             });
         before = await NotificationCursorAsync();
         await DeliverGeneralizationAsync(generalized);
@@ -194,6 +207,19 @@ public sealed partial class SessionIntegrationTests
 
     private async Task<(Guid Id, NotificationCreatedMessage Message)[]> NotificationsSinceAsync(HashSet<Guid> cursor) =>
         (await ReadNotificationsAsync(null)).Where(item => !cursor.Contains(item.Id)).ToArray();
+
+    private static void AssertPublicRefreshes((Guid Id, NotificationCreatedMessage Message)[] refreshes,
+        Guid sessionId, IReadOnlyDictionary<string, string[]> expectedChanges)
+    {
+        Assert.Equal(refreshes.Length, refreshes.Select(item => item.Id).Distinct().Count());
+        foreach (var (user, changes) in expectedChanges)
+            Assert.Equal(changes.Order(), refreshes.Where(item => item.Message.UserId == user).Select(item => item.Message.Change).Order());
+        foreach (var refresh in refreshes)
+        {
+            Assert.Contains(refresh.Message.UserId, expectedChanges.Keys);
+            AssertSessionBroadcast([refresh], sessionId, [refresh.Message.UserId]);
+        }
+    }
 
     private static void AssertSessionBroadcast(
         (Guid Id, NotificationCreatedMessage Message)[] notifications, Guid sessionId, string[] recipients,

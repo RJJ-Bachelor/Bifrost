@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <ProjectReference Include="..\..\Shared\Shared.Testing\Shared.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -17,6 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GnaService.Test" />
     <ProjectReference Include="..\GnaService.Application\GnaService.Application.csproj" />
     <ProjectReference Include="..\GnaService.Domain\GnaService.Domain.csproj" />
     <ProjectReference Include="..\..\Shared\Shared.Application\Shared.Application.csproj" />

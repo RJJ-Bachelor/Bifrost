@@ -1,10 +1,8 @@
 using System.Net.WebSockets;
 using System.Text.Json;
 using GnaService.Application.Notifications;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Shared.Api.Authentication;
 using Shared.Application.Messaging.Contracts;
 using Shared.Domain.Notifications;
 
@@ -22,7 +20,6 @@ public sealed partial class NotificationHubTests
         using var otherStudent = await ConnectStudentAsync(secondStudent);
         using var secondTab = await ConnectStudentAsync(Student);
         string[] users = ["first-teacher", "second-teacher", Student, secondStudent];
-        foreach (var user in users) await WaitForConnectionAsync(user);
         (string User, WebSocket Socket)[] recipients =
         [
             (users[0], firstTeacher), (users[1], secondTeacher),
@@ -48,11 +45,7 @@ public sealed partial class NotificationHubTests
                 Assert.Equal(notifications[user], await ReadNotificationAsync(socket));
         }
 
-        foreach (var (_, socket) in recipients)
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ReadAsync(socket, deadline.Token));
-        }
+        await AssertNoPendingNotificationsAsync(users, recipients.Select(recipient => recipient.Socket).ToArray());
         Assert.Equal(0, push.Calls);
     }
 
@@ -61,8 +54,7 @@ public sealed partial class NotificationHubTests
     {
         using var firstTab = await ConnectStudentAsync(Student);
         using var secondTab = await ConnectStudentAsync(Student);
-        await WaitForConnectionAsync(Student);
-        await firstTab.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing one tab", default);
+        await DisconnectAsync(firstTab);
         using var scope = app.Services.CreateScope();
         var notification = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, "Session updated",
             DateTimeOffset.UtcNow, Guid.NewGuid(), EventType: NotificationEventType.SessionChanged,
@@ -74,15 +66,6 @@ public sealed partial class NotificationHubTests
         Assert.True(sent);
         Assert.True(app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(Student));
         Assert.Equal(notification, await ReadNotificationAsync(secondTab));
-    }
-
-    private async Task<WebSocket> ConnectTeacherAsync(string userId)
-    {
-        var socketClient = app.GetTestServer().CreateWebSocketClient();
-        var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.TeacherPath +
-            "?access_token=" + Token(subject: userId)), default);
-        await HandshakeAsync(socket);
-        return socket;
     }
 
     private static async Task<NotificationDeliveryRequestedMessage> ReadNotificationAsync(WebSocket socket)

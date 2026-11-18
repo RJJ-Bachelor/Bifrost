@@ -326,10 +326,11 @@ public sealed partial class SessionIntegrationTests
         var outgoing = await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.AsNoTracking()
             .Where(message => message.RoutingKey == MessageRoutes.HelpRequestCreated).ToArrayAsync();
         Assert.Equal(2, outgoing.Length);
+        Assert.Equal(2, outgoing.Select(message => message.MessageId).Distinct().Count());
+        var questions = outgoing.Select(message => JsonSerializer.Deserialize<HelpRequestCreatedMessage>(message.Payload, FaqJsonOptions)!).ToArray();
         foreach (var id in new[] { physicalId, digitalId })
         {
-            var message = Assert.Single(outgoing, item => item.MessageId == id);
-            var payload = JsonSerializer.Deserialize<HelpRequestCreatedMessage>(message.Payload, FaqJsonOptions)!;
+            var payload = Assert.Single(questions, question => question.HelpRequestId == id);
             Assert.Equal(id, payload.HelpRequestId);
             Assert.Equal(session.Id, payload.SessionId);
             Assert.Equal(1, payload.Generation);

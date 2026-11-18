@@ -15,12 +15,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
-using Npgsql;
 using Shared.Api.Authentication;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
 using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 using GnaService.Application.Notifications;
 using Microsoft.AspNetCore.DataProtection;
@@ -29,23 +27,22 @@ using Shared.Domain.Notifications;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Shared.Application.Messaging.Outbox;
+using Shared.Testing;
+using GnaService.Infrastructure.Messaging;
 
 namespace GnaService.Test;
 
 public sealed partial class NotificationPersistenceTests : IAsyncLifetime
 {
-    private readonly string database = "gna_tests_" + Guid.NewGuid().ToString("N");
-    private string connectionString = "";
+    private readonly PostgresTestDatabase database = new("gna_tests");
+    private string connectionString => database.ConnectionString;
     private WebApplication app = null!;
 
     public async Task InitializeAsync()
     {
-        if (Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES") is not { } admin) return;
-        await using var connection = new NpgsqlConnection(admin);
-        await connection.OpenAsync();
-        await using var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", connection);
-        await create.ExecuteNonQueryAsync();
-        connectionString = new NpgsqlConnectionStringBuilder(admin) { Database = database }.ConnectionString;
+        var admin = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES");
+        if (string.IsNullOrWhiteSpace(admin)) return;
+        await database.InitializeAsync(admin);
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = Environments.Development });
         builder.Logging.ClearProviders();
         builder.WebHost.UseTestServer();
@@ -188,20 +185,15 @@ public sealed partial class NotificationPersistenceTests : IAsyncLifetime
         var socketClient = app.GetTestServer().CreateWebSocketClient();
         socketClient.ConfigureRequest = request => request.Headers.Cookie = StudentCookieHandler.CookieName + "=" + cookie;
         using var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.StudentPath), token);
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"), WebSocketMessageType.Text, true, token);
-        var buffer = new byte[8192];
-        await socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
+        await SignalRTestClient.HandshakeAsync(socket, token);
         while (!app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(student)) await Task.Delay(10, token);
-        var assembly = typeof(GnaNotificationDbContext).Assembly;
-        var subscribers = new[] { "NotificationMessageSubscriber" }
-            .Select(name => (IHostedService)ActivatorUtilities.CreateInstance(app.Services,
-                assembly.GetType("GnaService.Infrastructure.Messaging." + name)!)).ToArray();
-        foreach (var subscriber in subscribers) await subscriber.StartAsync(token);
+        using var subscriber = ActivatorUtilities.CreateInstance<NotificationMessageSubscriber>(app.Services);
         using var dispatcher = ActivatorUtilities.CreateInstance<NotificationOutboxDispatcher>(
             app.Services, TimeSpan.FromMilliseconds(500));
-        await dispatcher.StartAsync(token);
         try
         {
+            await subscriber.StartAsync(token);
+            await dispatcher.StartAsync(token);
             var messageId = Guid.NewGuid();
             var bus = app.Services.GetRequiredService<IMessageBus>();
             while (true)
@@ -212,9 +204,7 @@ public sealed partial class NotificationPersistenceTests : IAsyncLifetime
                     MessageRoutes.Notifications, MessageRoutes.NotificationCreated, token); break; }
                 catch (Exception) when (!token.IsCancellationRequested) { await Task.Delay(100, token); }
             }
-            var receive = socket.ReceiveAsync(new ArraySegment<byte>(buffer), token);
-            var received = await receive;
-            using var frame = JsonDocument.Parse(Encoding.UTF8.GetString(buffer, 0, received.Count).TrimEnd('\u001e'));
+            using var frame = JsonDocument.Parse((await SignalRTestClient.ReadAsync(socket, token)).TrimEnd('\u001e'));
             Assert.Equal("NotificationReceived", frame.RootElement.GetProperty("target").GetString());
             var payload = frame.RootElement.GetProperty("arguments")[0];
             Assert.Equal(messageId, payload.GetProperty("notificationId").GetGuid());
@@ -227,20 +217,16 @@ public sealed partial class NotificationPersistenceTests : IAsyncLifetime
         }
         finally
         {
-            await dispatcher.StopAsync(default);
-            foreach (var subscriber in subscribers) { await subscriber.StopAsync(default); (subscriber as IDisposable)?.Dispose(); }
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try { await dispatcher.StopAsync(shutdown.Token); }
+            finally { await subscriber.StopAsync(shutdown.Token); }
         }
     }
 
     public async Task DisposeAsync()
     {
-        if (app is not null) await app.DisposeAsync();
-        if (Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES") is not { } admin) return;
-        NpgsqlConnection.ClearAllPools();
-        await using var connection = new NpgsqlConnection(admin);
-        await connection.OpenAsync();
-        await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)", connection);
-        await drop.ExecuteNonQueryAsync();
+        try { if (app is not null) await app.DisposeAsync(); }
+        finally { await database.DisposeAsync(); }
     }
 }
 
@@ -248,7 +234,7 @@ public sealed class GnaPostgresFactAttribute : FactAttribute
 {
     public GnaPostgresFactAttribute()
     {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES")))
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES")))
             Skip = "Set BIFROST_TEST_POSTGRES to an isolated PostgreSQL test server.";
     }
 }
@@ -257,8 +243,8 @@ public sealed class GnaBrokerFactAttribute : FactAttribute
 {
     public GnaBrokerFactAttribute()
     {
-        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES")) ||
-            string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")))
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES")) ||
+            string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")))
             Skip = "Set BIFROST_TEST_POSTGRES and BIFROST_TEST_RABBITMQ to isolated test servers.";
     }
 }

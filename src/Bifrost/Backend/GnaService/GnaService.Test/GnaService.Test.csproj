@@ -23,6 +23,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <ProjectReference Include="..\..\Shared\Shared.Testing\Shared.Testing.csproj" />
+    <ProjectReference Include="..\..\Shared\Shared.Testing\Shared.Testing.csproj" />
     <ProjectReference Include="..\GnaService.Api\GnaService.Api.csproj" />
   </ItemGroup>
 

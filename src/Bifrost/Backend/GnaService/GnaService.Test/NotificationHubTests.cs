@@ -1,16 +1,12 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using GnaService.Api.Hubs;
 using GnaService.Application.Notifications;
-using GnaService.Infrastructure.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
@@ -22,6 +18,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Api.Authentication;
 using Shared.Application.Messaging.Contracts;
+using Shared.Testing;
+using GnaService.Test.Infrastructure;
 
 namespace GnaService.Test;
 
@@ -31,7 +29,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
     private WebApplication app = null!;
     private HttpClient client = null!;
     private const string Student = "11111111111111111111111111111111";
-    private static readonly ConditionalWeakTable<WebSocket, BufferedFrames> ReceivedFrames = new();
+    private readonly ObservedConnectionRegistry connections = new();
 
     public async Task InitializeAsync()
     {
@@ -51,7 +49,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
                 NameClaimType = "sub", RoleClaimType = "role"
             };
         });
-        builder.Services.AddSingleton<IConnectionRegistry, ConnectionRegistry>();
+        builder.Services.AddSingleton<IConnectionRegistry>(connections);
         builder.Services.AddNotificationRealtime();
         app = builder.Build();
         app.UseAuthentication();
@@ -93,7 +91,6 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
     {
         using var socket = await ConnectStudentAsync(Student, "?userId=someone-else");
         var registry = app.Services.GetRequiredService<IConnectionRegistry>();
-        await WaitForConnectionAsync(Student);
         Assert.True(registry.IsConnected(Student));
         Assert.False(registry.IsConnected("someone-else"));
         using var scope = app.Services.CreateScope();
@@ -111,9 +108,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         Assert.Equal("FaqAnswered", payload.GetProperty("eventType").GetString());
         var received = payload.Deserialize<NotificationDeliveryRequestedMessage>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Equal(notification, received);
-        using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", shutdown.Token);
-        await WaitUntilAsync(() => !registry.IsConnected(Student), "The student connection was not removed.");
+        await DisconnectAsync(socket);
         Assert.False(registry.IsConnected(Student));
     }
 
@@ -135,10 +130,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
     [Fact]
     public async Task TeacherWebSocketCanAuthenticateWithQueryToken()
     {
-        var socketClient = app.GetTestServer().CreateWebSocketClient();
-        using var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.TeacherPath + "?access_token=" + Token()), default);
-        await HandshakeAsync(socket);
-        await WaitForConnectionAsync("teacher");
+        using var socket = await ConnectTeacherAsync("teacher");
         Assert.True(app.Services.GetRequiredService<IConnectionRegistry>().IsConnected("teacher"));
     }
 
@@ -147,11 +139,22 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         var cookie = app.Services.GetRequiredService<StudentIdentityCookie>().Protect(userId);
         var socketClient = app.GetTestServer().CreateWebSocketClient();
         socketClient.ConfigureRequest = request => request.Headers.Cookie = StudentCookieHandler.CookieName + "=" + cookie;
-        var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.StudentPath + query), default);
+        return await ConnectAsync(socketClient, NotificationHubAuthentication.StudentPath + query, userId);
+    }
+
+    private Task<WebSocket> ConnectTeacherAsync(string userId) => ConnectAsync(
+        app.GetTestServer().CreateWebSocketClient(), NotificationHubAuthentication.TeacherPath +
+        "?access_token=" + Token(subject: userId), userId);
+
+    private async Task<WebSocket> ConnectAsync(WebSocketClient client, string path, string userId)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var registered = connections.ExpectConnection(userId);
+        var socket = await client.ConnectAsync(new Uri("ws://localhost" + path), deadline.Token);
         try
         {
-            await HandshakeAsync(socket);
-            await WaitForConnectionAsync(userId);
+            await SignalRTestClient.HandshakeAsync(socket, deadline.Token);
+            await registered.WaitAsync(deadline.Token);
             return socket;
         }
         catch
@@ -161,54 +164,26 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         }
     }
 
-    private static async Task HandshakeAsync(WebSocket socket)
+    private async Task DisconnectAsync(WebSocket socket)
     {
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"), WebSocketMessageType.Text, true, default);
-        Assert.Equal("{}\u001e", await ReadAsync(socket));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var removed = connections.ExpectDisconnection();
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", deadline.Token);
+        await removed.WaitAsync(deadline.Token);
     }
 
-    private async Task WaitForConnectionAsync(string userId)
-    {
-        var registry = app.Services.GetRequiredService<IConnectionRegistry>();
-        await WaitUntilAsync(() => registry.IsConnected(userId), $"User '{userId}' was not registered as connected.");
-    }
+    private static Task<string> ReadAsync(WebSocket socket, CancellationToken cancellationToken = default) =>
+        SignalRTestClient.ReadAsync(socket, cancellationToken);
 
-    private static async Task WaitUntilAsync(Func<bool> condition, string failureMessage)
+    private async Task AssertNoPendingNotificationsAsync(string[] users, WebSocket[] sockets)
     {
-        var elapsed = Stopwatch.StartNew();
-        while (!condition())
-        {
-            Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(10), failureMessage);
-            await Task.Delay(10);
-        }
-    }
-
-    private static async Task<string> ReadAsync(WebSocket socket, CancellationToken cancellationToken = default)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        var frames = ReceivedFrames.GetValue(socket, _ => new BufferedFrames());
-        while (true)
-        {
-            timeout.Token.ThrowIfCancellationRequested();
-            var separator = frames.Pending.IndexOf(0x1e);
-            if (separator >= 0)
-            {
-                var frame = frames.Pending.GetRange(0, separator + 1).ToArray();
-                frames.Pending.RemoveRange(0, separator + 1);
-                return Encoding.UTF8.GetString(frame);
-            }
-            var result = await socket.ReceiveAsync(new ArraySegment<byte>(frames.ReadBuffer), timeout.Token);
-            if (result.MessageType == WebSocketMessageType.Close)
-                throw new WebSocketException("The SignalR connection closed before a complete frame was received.");
-            frames.Pending.AddRange(frames.ReadBuffer.AsSpan(0, result.Count).ToArray());
-        }
-    }
-
-    private sealed class BufferedFrames
-    {
-        public byte[] ReadBuffer { get; } = new byte[8192];
-        public List<byte> Pending { get; } = [];
+        // All earlier sends have completed. A marker must be next on every tab, including outsiders.
+        using var scope = app.Services.CreateScope();
+        var marker = Guid.NewGuid();
+        await scope.ServiceProvider.GetRequiredService<IRealtimeSessionChangeSender>().SendAsync(marker,
+            new(users, Guid.NewGuid(), 1, "TestBarrier"), default);
+        foreach (var socket in sockets)
+            Assert.Equal(marker, (await ReadNotificationAsync(socket)).NotificationId);
     }
 
     private string Token(string role = "Teacher", string scope = "Bifrost", string subject = "teacher") => new JwtSecurityTokenHandler().WriteToken(
@@ -217,7 +192,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        client.Dispose();
-        await app.DisposeAsync();
+        client?.Dispose();
+        if (app is not null) await app.DisposeAsync();
     }
 }
