@@ -58,12 +58,10 @@ vi.mock('@microsoft/signalr', () => {
     on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
       this.handlers.set(event, cb);
     });
-    onreconnecting = vi.fn((cb: () => void) => {
-      this.handlers.set('__reconnecting', cb);
-    });
-    onreconnected = vi.fn((cb: () => void) => {
-      this.handlers.set('__reconnected', cb);
-    });
+    // connect() calls these to wire SignalR's automatic reconnection hooks.
+    // They are stubs only — no test exercises reconnection behaviour here.
+    onreconnecting = vi.fn();
+    onreconnected = vi.fn();
     onclose = vi.fn((cb: () => void) => {
       this.handlers.set('__close', cb);
     });
@@ -132,7 +130,7 @@ describe('RealtimeHub', () => {
     });
 
     it('connects to the student hub and moves to Connected', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
 
       expect(fakeUrls).toEqual(['/api/students/notifications']);
       expect(fakeConnections).toHaveLength(1);
@@ -141,22 +139,22 @@ describe('RealtimeHub', () => {
     });
 
     it('connects to the teacher hub for the teacher role', async () => {
-      await hub.connect('teacher');
+      await hub.connect('teacher', 'user-a');
 
       expect(fakeUrls).toEqual(['/api/teachers/notifications']);
     });
 
     it('keeps a single connection when the same role is requested twice', async () => {
-      await hub.connect('student');
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
+      await hub.connect('student', 'user-a');
 
       expect(fakeConnections).toHaveLength(1);
       expect(fakeConnections[0].stop).not.toHaveBeenCalled();
     });
 
     it('replaces the connection when the role changes', async () => {
-      await hub.connect('student');
-      await hub.connect('teacher');
+      await hub.connect('student', 'user-a');
+      await hub.connect('teacher', 'user-a');
 
       expect(fakeConnections).toHaveLength(2);
       expect(fakeConnections[0].stop).toHaveBeenCalledTimes(1);
@@ -167,19 +165,38 @@ describe('RealtimeHub', () => {
       expect(hub.status()).toBe(HubConnectionState.Connected);
     });
 
+    it('replaces the connection when the userId changes but the role stays the same', async () => {
+      await hub.connect('student', 'user-a');
+      await hub.connect('student', 'user-b');
+
+      expect(fakeConnections).toHaveLength(2);
+      expect(fakeConnections[0].stop).toHaveBeenCalledTimes(1);
+      expect(hub.status()).toBe(HubConnectionState.Connected);
+    });
+
     it('disconnect() stops the connection and resets status', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
 
       await hub.disconnect();
 
       expect(fakeConnections[0].stop).toHaveBeenCalledTimes(1);
       expect(hub.status()).toBe(HubConnectionState.Disconnected);
     });
+
+    it('reconnects after disconnect() even for the same role and user', async () => {
+      await hub.connect('student', 'user-a');
+      await hub.disconnect();
+      await hub.connect('student', 'user-a');
+
+      expect(fakeConnections).toHaveLength(2);
+      expect(fakeConnections[0].stop).toHaveBeenCalledTimes(1);
+      expect(hub.status()).toBe(HubConnectionState.Connected);
+    });
   });
 
   describe('notifications', () => {
     it('forwards NotificationReceived events to notifications$', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
       const received: NotificationMessage[] = [];
       const subscription = hub.notifications$.subscribe((n) => received.push(n));
 
@@ -195,38 +212,38 @@ describe('RealtimeHub', () => {
     it('reports Disconnected when start() fails', async () => {
       control.failNextStart = true;
 
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
 
       expect(hub.status()).toBe(HubConnectionState.Disconnected);
     });
 
     it('retries the same role after a failed start', async () => {
       control.failNextStart = true;
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
       expect(fakeConnections).toHaveLength(1);
 
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
 
       expect(fakeConnections).toHaveLength(2);
       expect(hub.status()).toBe(HubConnectionState.Connected);
     });
 
     it('reports Disconnected when the hub closes and allows reconnecting', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
       fakeConnections[0].handlers.get('__close')?.();
       expect(hub.status()).toBe(HubConnectionState.Disconnected);
 
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
 
       expect(fakeConnections).toHaveLength(2);
       expect(hub.status()).toBe(HubConnectionState.Connected);
     });
 
     it('ignores close events from superseded connections', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
       const first = fakeConnections[0];
 
-      await hub.connect('teacher');
+      await hub.connect('teacher', 'user-a');
       expect(hub.status()).toBe(HubConnectionState.Connected);
 
       first.handlers.get('__close')?.();
@@ -236,7 +253,7 @@ describe('RealtimeHub', () => {
     });
 
     it('does not throw when stop() fails during disconnect', async () => {
-      await hub.connect('student');
+      await hub.connect('student', 'user-a');
       control.failNextStop = true;
 
       await expect(hub.disconnect()).resolves.toBeUndefined();
@@ -250,7 +267,7 @@ describe('RealtimeHub', () => {
         releaseStart = resolve;
       });
 
-      const connectPromise = hub.connect('student');
+      const connectPromise = hub.connect('student', 'user-a');
       await vi.waitFor(() => {
         expect(fakeConnections).toHaveLength(1);
         expect(fakeConnections[0].start).toHaveBeenCalled();
