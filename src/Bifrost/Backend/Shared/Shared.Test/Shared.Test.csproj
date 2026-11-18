@@ -26,7 +26,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shared.Api\Shared.Api.csproj" />
-    <ProjectReference Include="..\Shared.Testing\Shared.Testing.csproj" />
     <ProjectReference Include="..\Shared.Infrastructure\Shared.Infrastructure.csproj" />
     <ProjectReference Include="..\..\..\Orchestration\YggdrasilService\YggdrasilService.ServiceDefaults\YggdrasilService.ServiceDefaults.csproj" />
   </ItemGroup>
