@@ -155,19 +155,19 @@ describe('IdentityTransferDialog', () => {
   });
 
   describe('import flow', () => {
-    it('is invalid when the code is empty or not exactly 8 characters', () => {
+    it('is invalid when the code is empty or only whitespace', () => {
       const { fixture, component } = setup();
       component.startImport();
       fixture.detectChanges();
 
       expect(component.importForm().invalid()).toBe(true);
 
-      component.model.set({ code: 'ABC123' });
+      component.model.set({ code: '   ' });
       fixture.detectChanges();
       expect(component.importForm().invalid()).toBe(true);
     });
 
-    it('is valid when the trimmed code is exactly 8 characters', () => {
+    it('is valid when a non-empty code is entered', () => {
       const { fixture, component } = setup();
       component.startImport();
       component.model.set({ code: '  abcd1234  ' });

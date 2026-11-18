@@ -73,11 +73,12 @@
         <input
           type="text"
           class="input-field transfer-import__input"
-          placeholder="F.eks. A1B2C3D4"
+          placeholder="Indtast kode her"
           autocomplete="off"
           autocapitalize="characters"
           spellcheck="false"
           [formField]="importForm.code"
+          (input)="importError.set(null)"
         />
       </label>
 

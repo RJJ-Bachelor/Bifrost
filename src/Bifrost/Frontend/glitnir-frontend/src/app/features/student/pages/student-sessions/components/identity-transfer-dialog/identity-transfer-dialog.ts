@@ -38,7 +38,7 @@ export class IdentityTransferDialog {
   protected readonly importForm = form(this.model, (path) => {
     required(path.code);
     validate(path.code, ({ value }) =>
-      value().trim().length === 8 ? null : { kind: 'length' },
+      value().trim().length > 0 ? null : { kind: 'required' },
     );
   });
 
