@@ -36,11 +36,7 @@ export class RealtimeHub {
     this.connectionRole = role;
     this.connectionUserId = userId;
 
-    const connection = new HubConnectionBuilder()
-      .withUrl(path, { withCredentials: true })
-      .withAutomaticReconnect()
-      .configureLogging(LogLevel.Warning)
-      .build();
+    const connection = this.createConnection(path);
 
     connection.on('NotificationReceived', (notification: NotificationMessage) => {
       this._notifications.next(notification);
@@ -90,5 +86,13 @@ export class RealtimeHub {
     } catch {
       // stop() may throw; state is already reset above.
     }
+  }
+
+  protected createConnection(path: string): HubConnection {
+    return new HubConnectionBuilder()
+      .withUrl(path, { withCredentials: true })
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Warning)
+      .build();
   }
 }

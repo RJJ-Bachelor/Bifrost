@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { HubConnectionState } from '@microsoft/signalr';
+import { HubConnection, HubConnectionState } from '@microsoft/signalr';
 import { NotificationEventType, type NotificationMessage } from '../notification.model';
 import { RealtimeHub } from './realtime-hub';
 
@@ -7,86 +7,11 @@ interface FakeHubConnection {
   handlers: Map<string, (...args: unknown[]) => void>;
   start: ReturnType<typeof vi.fn>;
   stop: ReturnType<typeof vi.fn>;
+  on: ReturnType<typeof vi.fn>;
+  onreconnecting: ReturnType<typeof vi.fn>;
+  onreconnected: ReturnType<typeof vi.fn>;
+  onclose: ReturnType<typeof vi.fn>;
 }
-
-const { fakeConnections, fakeUrls, control } = vi.hoisted(() => ({
-  fakeConnections: [] as FakeHubConnection[],
-  fakeUrls: [] as string[],
-  control: {
-    failNextStart: false,
-    failNextStop: false,
-    pendingStart: null as Promise<void> | null,
-  },
-}));
-
-vi.mock('@microsoft/signalr', () => {
-  const HubConnectionState = {
-    Disconnected: 'Disconnected',
-    Connecting: 'Connecting',
-    Connected: 'Connected',
-    Disconnecting: 'Disconnecting',
-    Reconnecting: 'Reconnecting',
-  } as const;
-
-  const LogLevel = {
-    Trace: 0,
-    Debug: 1,
-    Information: 2,
-    Warning: 3,
-    Error: 4,
-    Critical: 5,
-    None: 6,
-  } as const;
-
-  class FakeConnection implements FakeHubConnection {
-    handlers = new Map<string, (...args: unknown[]) => void>();
-    start = vi.fn(async () => {
-      if (control.failNextStart) {
-        control.failNextStart = false;
-        throw new Error('start failed');
-      }
-      if (control.pendingStart) {
-        await control.pendingStart;
-      }
-    });
-    stop = vi.fn(async () => {
-      if (control.failNextStop) {
-        control.failNextStop = false;
-        throw new Error('stop failed');
-      }
-    });
-    on = vi.fn((event: string, cb: (...args: unknown[]) => void) => {
-      this.handlers.set(event, cb);
-    });
-    // connect() calls these to wire SignalR's automatic reconnection hooks.
-    // They are stubs only — no test exercises reconnection behaviour here.
-    onreconnecting = vi.fn();
-    onreconnected = vi.fn();
-    onclose = vi.fn((cb: () => void) => {
-      this.handlers.set('__close', cb);
-    });
-  }
-
-  class FakeBuilder {
-    withUrl(url: string) {
-      fakeUrls.push(url);
-      return this;
-    }
-    withAutomaticReconnect() {
-      return this;
-    }
-    configureLogging() {
-      return this;
-    }
-    build() {
-      const connection = new FakeConnection();
-      fakeConnections.push(connection);
-      return connection;
-    }
-  }
-
-  return { HubConnectionBuilder: FakeBuilder, HubConnectionState, LogLevel };
-});
 
 function makeNotification(overrides: Partial<NotificationMessage> = {}): NotificationMessage {
   return {
@@ -107,19 +32,63 @@ function makeNotification(overrides: Partial<NotificationMessage> = {}): Notific
 
 describe('RealtimeHub', () => {
   let hub: RealtimeHub;
+  let fakeConnections: FakeHubConnection[];
+  let fakeUrls: string[];
+  let failNextStart: boolean;
+  let failNextStop: boolean;
+  let pendingStart: Promise<void> | null;
+
+  function buildFakeConnection(): FakeHubConnection {
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    return {
+      handlers,
+      start: vi.fn(async () => {
+        if (failNextStart) {
+          failNextStart = false;
+          throw new Error('start failed');
+        }
+        if (pendingStart) {
+          await pendingStart;
+        }
+      }),
+      stop: vi.fn(async () => {
+        if (failNextStop) {
+          failNextStop = false;
+          throw new Error('stop failed');
+        }
+      }),
+      on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
+        handlers.set(event, cb);
+      }),
+      onreconnecting: vi.fn(),
+      onreconnected: vi.fn(),
+      onclose: vi.fn((cb: () => void) => {
+        handlers.set('__close', cb);
+      }),
+    };
+  }
 
   beforeEach(() => {
-    fakeConnections.length = 0;
-    fakeUrls.length = 0;
-    control.failNextStart = false;
-    control.failNextStop = false;
-    control.pendingStart = null;
+    fakeConnections = [];
+    fakeUrls = [];
+    failNextStart = false;
+    failNextStop = false;
+    pendingStart = null;
+
     TestBed.configureTestingModule({});
     hub = TestBed.inject(RealtimeHub);
+
+    vi.spyOn(hub as unknown as { createConnection: (path: string) => HubConnection }, 'createConnection')
+      .mockImplementation((path: string) => {
+        fakeUrls.push(path);
+        const connection = buildFakeConnection();
+        fakeConnections.push(connection);
+        return connection as unknown as HubConnection;
+      });
   });
 
   afterEach(async () => {
-    control.pendingStart = null;
+    pendingStart = null;
     await hub.disconnect();
   });
 
@@ -210,7 +179,7 @@ describe('RealtimeHub', () => {
 
   describe('failure handling', () => {
     it('reports Disconnected when start() fails', async () => {
-      control.failNextStart = true;
+      failNextStart = true;
 
       await hub.connect('student', 'user-a');
 
@@ -218,7 +187,7 @@ describe('RealtimeHub', () => {
     });
 
     it('retries the same role after a failed start', async () => {
-      control.failNextStart = true;
+      failNextStart = true;
       await hub.connect('student', 'user-a');
       expect(fakeConnections).toHaveLength(1);
 
@@ -254,7 +223,7 @@ describe('RealtimeHub', () => {
 
     it('does not throw when stop() fails during disconnect', async () => {
       await hub.connect('student', 'user-a');
-      control.failNextStop = true;
+      failNextStop = true;
 
       await expect(hub.disconnect()).resolves.toBeUndefined();
 
@@ -263,7 +232,7 @@ describe('RealtimeHub', () => {
 
     it('does not set Connected when disconnect() runs during a pending start()', async () => {
       let releaseStart!: () => void;
-      control.pendingStart = new Promise<void>((resolve) => {
+      pendingStart = new Promise<void>((resolve) => {
         releaseStart = resolve;
       });
 
