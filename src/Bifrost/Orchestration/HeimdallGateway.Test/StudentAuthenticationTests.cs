@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Api.Authentication;
@@ -101,6 +102,7 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
                 new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "teacher|opaque-id"), new Claim("role", "Teacher")],
                     CookieAuthenticationDefaults.AuthenticationScheme, "sub", "role")), properties);
         }).AllowAnonymous();
+        gateway.MapGet("/test/teacher-page", () => "Teacher page").RequireAuthorization("Teacher");
         gateway.MapReverseProxy();
         await gateway.StartAsync();
         client = gateway.GetTestClient();
@@ -398,6 +400,39 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("missing")]
+    [InlineData("malformed")]
+    [InlineData("expired")]
+    public async Task TeacherApiRejectsMissingMalformedOrExpiredTokensWithoutOidcDiscovery(string kind)
+    {
+        var discovery = new RejectingOidcConfigurationManager();
+        var oidc = gateway.Services.GetRequiredService<IOptionsMonitor<OpenIdConnectOptions>>()
+            .Get(OpenIdConnectDefaults.AuthenticationScheme);
+        oidc.Configuration = null;
+        oidc.ConfigurationManager = discovery;
+        if (kind != "missing")
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
+                kind == "malformed" ? "invalid-token" : TeacherToken(expires: DateTime.UtcNow.AddMinutes(-10)));
+
+        using var response = await client.GetAsync("/api/teachers/sessions/11111111-1111-1111-1111-111111111111");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Null(response.Headers.Location);
+        Assert.Empty(await response.Content.ReadAsStringAsync());
+        Assert.Equal(0, discovery.Requests);
+    }
+
+    [Fact]
+    public async Task TeacherPageStillRedirectsToCookieLogin()
+    {
+        using var response = await client.GetAsync("/test/teacher-page");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Account/Login", response.Headers.Location!.AbsolutePath);
+        Assert.Contains("ReturnUrl=%2Ftest%2Fteacher-page", response.Headers.Location.Query);
+    }
+
+    [Theory]
     [InlineData(false, HttpStatusCode.OK)]
     [InlineData(true, HttpStatusCode.Unauthorized)]
     public async Task TeacherCookieStillForwardsValidAccessToken(bool expired, HttpStatusCode expected)
@@ -600,11 +635,22 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             options.TokenValidationParameters.IssuerSigningKey = teacherKey;
         });
 
-    private string TeacherToken(string scope = "Bifrost", bool includeStudentRole = false) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
+    private string TeacherToken(string scope = "Bifrost", bool includeStudentRole = false, DateTime? expires = null) => new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
         issuer: "https://test-identity", audience: "Bifrost",
         claims: new[] { new Claim("sub", "teacher|opaque-id"), new Claim("role", "Teacher"), new Claim("scope", scope) }
             .Concat(includeStudentRole ? [new Claim("role", "Student")] : []),
-        expires: DateTime.UtcNow.AddMinutes(10), signingCredentials: new SigningCredentials(teacherKey, SecurityAlgorithms.HmacSha256)));
+        expires: expires ?? DateTime.UtcNow.AddMinutes(10), signingCredentials: new SigningCredentials(teacherKey, SecurityAlgorithms.HmacSha256)));
+
+    private sealed class RejectingOidcConfigurationManager : IConfigurationManager<OpenIdConnectConfiguration>
+    {
+        public int Requests { get; private set; }
+        public Task<OpenIdConnectConfiguration> GetConfigurationAsync(CancellationToken cancellationToken)
+        {
+            Requests++;
+            throw new InvalidOperationException("A rejected API call must not request identity-provider discovery.");
+        }
+        public void RequestRefresh() { }
+    }
 
     private static string StudentCookie(HttpResponseMessage response) => Assert.Single(response.Headers.GetValues("Set-Cookie"),
         value => value.StartsWith(StudentCookieHandler.CookieName + "=") && value.Contains("max-age=31536000")).Split(';')[0];

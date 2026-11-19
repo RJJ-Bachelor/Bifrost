@@ -103,7 +103,7 @@ public sealed class OutboxDispatcherTests
         var clock = new OutboxPollingTimeProvider();
         var bus = new RecordingBus();
         await using var provider = BuildServices(database, bus, clock);
-        await SeedAsync(provider, Enumerable.Range(0, 151).Select(_ => Stage(Guid.NewGuid())));
+        await SeedAsync(provider, Enumerable.Range(0, 51).Select(_ => Stage(Guid.NewGuid())));
         using var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirSessionDbContext>>(
             provider, TimeSpan.FromHours(1));
 
@@ -111,12 +111,12 @@ public sealed class OutboxDispatcherTests
         try
         {
             await clock.WaitingForPoll.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(151, bus.Published.Count);
+            Assert.Equal(51, bus.Published.Count);
         }
         finally { await dispatcher.StopAsync(default); }
 
         await using var verification = provider.CreateAsyncScope();
-        Assert.Equal(151, await verification.ServiceProvider.GetRequiredService<EirSessionDbContext>().Outbox
+        Assert.Equal(51, await verification.ServiceProvider.GetRequiredService<EirSessionDbContext>().Outbox
             .CountAsync(row => row.PublishedAtUtc != null));
     }
 

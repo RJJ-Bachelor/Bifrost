@@ -39,6 +39,14 @@ public static class GatewayAuthenticationExtensions
             .AddCookie(options =>
             {
                 options.Cookie.Name = "bifrost-teacher";
+                options.Events.OnRedirectToLogin = context =>
+                {
+                    if (context.Request.Path.StartsWithSegments("/api"))
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    else
+                        context.Response.Redirect(context.RedirectUri);
+                    return Task.CompletedTask;
+                };
                 options.Events.OnRedirectToAccessDenied = context =>
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
@@ -104,6 +112,7 @@ public static class GatewayAuthenticationExtensions
                 .RequireClaim("sub")
                 .RequireRole("Student"));
             options.AddPolicy("Teacher", policy => policy
+                .AddAuthenticationSchemes("TeacherAuthentication")
                 .RequireAuthenticatedUser()
                 .RequireClaim("sub")
                 .RequireRole("Teacher"));
