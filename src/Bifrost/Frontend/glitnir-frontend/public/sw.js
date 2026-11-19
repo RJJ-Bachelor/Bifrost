@@ -34,9 +34,10 @@ self.addEventListener('push', (event) => {
 
 function getTargetPath(data) {
   const isTeacher =
-    data?.role === 'teacher' ||
-    data?.eventType === 'HelpRequestCreated' ||
-    data?.eventType === 'FaqCreated';
+    typeof data?.role === 'string'
+      ? data.role === 'teacher'
+      : data?.eventType === 'HelpRequestCreated' ||
+        data?.eventType === 'FaqCreated';
 
   const prefix = isTeacher ? '/teacher' : '';
   const sessionId = data?.sessionId;
