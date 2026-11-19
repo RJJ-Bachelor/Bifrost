@@ -106,6 +106,7 @@ describe('PushNotificationService', () => {
       configurable: true,
       value: {
         ready: Promise.resolve(fakeRegistration),
+        getRegistration: vi.fn(async () => fakeRegistration),
       },
     });
 
@@ -283,6 +284,21 @@ describe('PushNotificationService', () => {
     expect(service.isSubscribed()).toBe(false);
   });
 
+  it('resolves disable() immediately without hanging when no service worker registration exists', async () => {
+    registrationSignal.set(null);
+    (navigator.serviceWorker.getRegistration as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    Object.defineProperty(navigator.serviceWorker, 'ready', {
+      configurable: true,
+      value: new Promise(() => {}),
+    });
+
+    const service = TestBed.inject(PushNotificationService);
+    service.isSubscribed.set(true);
+
+    await service.disable();
+    expect(service.isSubscribed()).toBe(false);
+  });
+
   it('unsubscribes an existing browser subscription when the server VAPID public key has rotated', async () => {
     const staleSub = createFakeSubscription(
       'https://push.services.mozilla.com/wpush/v2/stale',
@@ -334,6 +350,7 @@ describe('PushNotificationService', () => {
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-96.png',
         data: {
+          role: 'student',
           notificationId: '11111111-2222-3333-4444-555555555555',
           sessionId: 'session-42',
           helpRequestId: 'hr-9',

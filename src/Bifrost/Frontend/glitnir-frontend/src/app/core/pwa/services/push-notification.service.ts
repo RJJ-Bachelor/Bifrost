@@ -97,8 +97,8 @@ export class PushNotificationService {
     this.isLoading.set(true);
     this.error.set(null);
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.getSubscription();
+      const registration = this.pwa.registration() ?? (await navigator.serviceWorker.getRegistration());
+      const subscription = await registration?.pushManager.getSubscription();
       if (!subscription) {
         this.isSubscribed.set(false);
         return;
@@ -162,6 +162,7 @@ export class PushNotificationService {
         icon: '/icons/icon-192.png',
         badge: '/icons/badge-96.png',
         data: {
+          role: this.authStore.role(),
           notificationId: notification.notificationId,
           sessionId: notification.sessionId,
           helpRequestId: notification.helpRequestId,
