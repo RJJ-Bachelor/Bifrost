@@ -10,6 +10,7 @@ using Shared.Infrastructure.Persistence.Messaging;
 
 namespace Shared.Test;
 
+[Collection("Messaging telemetry")]
 public sealed class MessagingTracingTests : IDisposable
 {
     private static readonly Guid FirstMessageId = Guid.Parse("11111111-1111-4111-8111-111111111111");
