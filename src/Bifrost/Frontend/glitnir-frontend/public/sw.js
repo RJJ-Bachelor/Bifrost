@@ -75,10 +75,10 @@ self.addEventListener('notificationclick', (event) => {
         }
         try {
           await client.focus();
-          return;
         } catch {
-          // A window may close between matching and focusing it.
+          // OS window managers (e.g. Wayland) may reject focus() from background workers.
         }
+        return;
       }
 
       await self.clients.openWindow(targetUrl);
