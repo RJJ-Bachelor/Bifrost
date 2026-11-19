@@ -89,6 +89,7 @@ export class SettingsDialog {
   }
 
   protected close(): void {
+    this.push.error.set(null);
     this.closed.emit();
   }
 

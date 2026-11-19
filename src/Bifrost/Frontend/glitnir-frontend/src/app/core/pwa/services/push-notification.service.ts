@@ -1,8 +1,11 @@
 import {HttpClient} from '@angular/common/http';
-import {Service, effect, inject, signal} from '@angular/core';
+import {DestroyRef, Service, effect, inject, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
 import {UserRole} from '../../auth/auth.model';
 import {AuthStore} from '../../auth/services/auth-store';
+import {NotificationMessage} from '../../realtime/notification.model';
+import {RealtimeHub} from '../../realtime/services/realtime-hub';
 import {PwaService} from './pwa.service';
 
 interface PublicKeyResponse {
@@ -14,6 +17,8 @@ export class PushNotificationService {
   private readonly http = inject(HttpClient);
   private readonly authStore = inject(AuthStore);
   private readonly pwa = inject(PwaService);
+  private readonly realtime = inject(RealtimeHub);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly isSupported = this.pwa.isSupported && 'PushManager' in window && 'Notification' in window;
 
@@ -22,6 +27,7 @@ export class PushNotificationService {
   );
   readonly isSubscribed = signal(false);
   readonly isLoading = signal(false);
+  readonly error = signal<string | null>(null);
 
   private lastSyncedUserId: string | null = null;
 
@@ -43,6 +49,12 @@ export class PushNotificationService {
 
       void this.syncExistingSubscription(role, registration);
     });
+
+    this.realtime.notifications$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((notification) => {
+        void this.showLocalNotification(notification);
+      });
   }
 
   async enable(): Promise<boolean> {
@@ -50,6 +62,7 @@ export class PushNotificationService {
     if (!this.isSupported || !role || this.isLoading()) return false;
 
     this.isLoading.set(true);
+    this.error.set(null);
     try {
       const permission = await Notification.requestPermission();
       this.permission.set(permission);
@@ -70,6 +83,7 @@ export class PushNotificationService {
       this.isSubscribed.set(true);
       return true;
     } catch {
+      this.error.set('Kunne ikke aktivere notifikationer. Prøv igen.');
       return false;
     } finally {
       this.isLoading.set(false);
@@ -81,6 +95,7 @@ export class PushNotificationService {
     if (!this.isSupported || this.isLoading()) return;
 
     this.isLoading.set(true);
+    this.error.set(null);
     try {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
@@ -100,6 +115,8 @@ export class PushNotificationService {
 
       await subscription.unsubscribe();
       this.isSubscribed.set(false);
+    } catch {
+      this.error.set('Kunne ikke deaktivere notifikationer. Prøv igen.');
     } finally {
       this.isLoading.set(false);
     }
@@ -125,6 +142,33 @@ export class PushNotificationService {
       this.isSubscribed.set(true);
     } catch {
 
+    }
+  }
+
+  private async showLocalNotification(notification: NotificationMessage): Promise<void> {
+    if (notification.deliveryType !== 'RealtimeOrPush') return;
+    if (!this.isSubscribed() || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification('Bifrost', {
+        body: notification.message,
+        tag: notification.notificationId.replace(/-/g, ''),
+        icon: '/icons/icon-192.png',
+        badge: '/icons/badge-96.png',
+        data: {
+          notificationId: notification.notificationId,
+          sessionId: notification.sessionId,
+          helpRequestId: notification.helpRequestId,
+          generation: notification.generation,
+          change: notification.change,
+          status: notification.status,
+          eventType: notification.eventType,
+        },
+      });
+    } catch {
+      // silent ignore errors because showing a notification can fail and we don't want to spam with errors
     }
   }
 

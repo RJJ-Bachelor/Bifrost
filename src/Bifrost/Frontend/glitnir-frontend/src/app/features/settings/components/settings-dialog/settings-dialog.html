@@ -32,6 +32,9 @@
             {{ push.isSubscribed() ? 'Slå fra' : 'Slå til' }}
           </button>
         </div>
+        @if (push.error()) {
+          <p class="form-error">{{ push.error() }}</p>
+        }
       }
     </section>
 
