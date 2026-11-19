@@ -1,0 +1,17 @@
+<bifrost-dialog
+  [open]="alertService.notification() !== null"
+  title="Ny notifikation"
+  (closed)="alertService.dismiss()"
+>
+  @if (alertService.notification(); as item) {
+    <p class="alert-dialog__text">{{ item.message }}</p>
+    <div class="alert-dialog__actions">
+      <button type="button" class="btn btn--secondary" (click)="alertService.dismiss()">
+        Luk
+      </button>
+      <button type="button" class="btn btn--primary" (click)="alertService.goToNotification()">
+        {{ alertService.getActionLabel(item) }}
+      </button>
+    </div>
+  }
+</bifrost-dialog>

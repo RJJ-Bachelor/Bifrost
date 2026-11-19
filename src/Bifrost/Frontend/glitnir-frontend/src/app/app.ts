@@ -1,11 +1,12 @@
-import { Component, computed, effect, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { AuthStore } from './core/auth/services/auth-store';
-import { RealtimeHub } from './core/realtime/services/realtime-hub';
+import {Component, computed, effect, inject} from '@angular/core';
+import {RouterOutlet} from '@angular/router';
+import {AuthStore} from './core/auth/services/auth-store';
+import {NotificationAlertDialog} from './core/realtime/components/notification-alert-dialog/notification-alert-dialog';
+import {RealtimeHub} from './core/realtime/services/realtime-hub';
 
 @Component({
   selector: 'bifrost-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, NotificationAlertDialog],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   host: {
