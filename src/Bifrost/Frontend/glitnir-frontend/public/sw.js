@@ -32,12 +32,29 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+function getTargetPath(data) {
+  const isTeacher =
+    data?.role === 'teacher' ||
+    data?.eventType === 'HelpRequestCreated' ||
+    data?.eventType === 'FaqCreated';
+
+  const prefix = isTeacher ? '/teacher' : '';
+  const sessionId = data?.sessionId;
+
+  if (typeof sessionId === 'string' && sessionId.trim().length > 0) {
+    return `${prefix}/sessions/${sessionId}`;
+  }
+
+  return isTeacher ? '/teacher' : '/';
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   event.waitUntil(
     (async () => {
       const scopeUrl = new URL(self.registration.scope);
+      const targetUrl = new URL(getTargetPath(event.notification.data), scopeUrl).href;
       const clients = await self.clients.matchAll({
         type: 'window',
         includeUncontrolled: true,
@@ -49,6 +66,9 @@ self.addEventListener('notificationclick', (event) => {
           continue;
         }
         try {
+          if (client.url !== targetUrl && 'navigate' in client) {
+            await client.navigate(targetUrl);
+          }
           await client.focus();
           return;
         } catch {
@@ -56,7 +76,7 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
 
-      await self.clients.openWindow(new URL('/', scopeUrl).href);
+      await self.clients.openWindow(targetUrl);
     })(),
   );
 });
