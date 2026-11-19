@@ -68,7 +68,12 @@ export class PushNotificationService {
       this.permission.set(permission);
       if (permission !== 'granted') return false;
 
-      const registration = await navigator.serviceWorker.ready;
+      const registration = this.pwa.registration() ?? (await navigator.serviceWorker.getRegistration());
+      if (!registration) {
+        this.error.set('Kunne ikke aktivere notifikationer. Prøv igen.');
+        return false;
+      }
+
       let subscription = await registration.pushManager.getSubscription();
 
       if (!subscription) {

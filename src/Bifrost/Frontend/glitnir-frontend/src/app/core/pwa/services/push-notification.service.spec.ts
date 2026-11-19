@@ -243,6 +243,23 @@ describe('PushNotificationService', () => {
     expect(service.error()).toBe('Kunne ikke aktivere notifikationer. Prøv igen.');
   });
 
+  it('returns false and unlocks loading when no service worker registration exists on enable()', async () => {
+    registrationSignal.set(null);
+    (navigator.serviceWorker.getRegistration as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
+    Object.defineProperty(navigator.serviceWorker, 'ready', {
+      configurable: true,
+      value: new Promise(() => {}),
+    });
+
+    const service = TestBed.inject(PushNotificationService);
+    const result = await service.enable();
+
+    expect(result).toBe(false);
+    expect(service.isLoading()).toBe(false);
+    expect(service.isSubscribed()).toBe(false);
+    expect(service.error()).toBe('Kunne ikke aktivere notifikationer. Prøv igen.');
+  });
+
   it('deletes subscription on backend and unsubscribes locally on disable()', async () => {
     const existingSub = createFakeSubscription();
     getSubscriptionMock.mockResolvedValue(existingSub);
