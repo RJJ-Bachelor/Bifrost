@@ -9,11 +9,11 @@ using Shared.Infrastructure.Persistence.Messaging;
 
 namespace Shared.Test;
 
-// Activity listeners are process-wide. Keep these tests separate from the existing trace tests.
-[CollectionDefinition("RabbitMQ transport contracts", DisableParallelization = true)]
-public sealed class RabbitMqTransportCollection;
+// Activity listeners are process-wide. Isolate their tests from all parallel message producers.
+[CollectionDefinition("Messaging telemetry", DisableParallelization = true)]
+public sealed class MessagingTelemetryCollection;
 
-[Collection("RabbitMQ transport contracts")]
+[Collection("Messaging telemetry")]
 public sealed class RabbitMqBusContractTests
 {
     [Theory]
