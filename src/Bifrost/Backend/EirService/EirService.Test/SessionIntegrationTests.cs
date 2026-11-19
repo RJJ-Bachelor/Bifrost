@@ -73,6 +73,7 @@ using Shared.Application.Messaging.Outbox;
 using Shared.Infrastructure.Persistence.Outbox;
 using Shared.Infrastructure.Persistence.Migrations;
 using EirService.HelpRequests.Infrastructure.Repositories;
+using Shared.Testing;
 
 namespace EirService.Test;
 
@@ -88,9 +89,8 @@ public sealed class PostgresFactAttribute : FactAttribute
 [Collection("FastEndpoints")]
 public sealed partial class SessionIntegrationTests : IAsyncLifetime
 {
-    private string? adminConnectionString;
-    private string databaseName = null!;
-    private string connectionString = null!;
+    private readonly PostgresTestDatabase database = new("bifrost_session_test");
+    private string connectionString => database.ConnectionString;
     private WebApplication app = null!;
     private HttpClient teacher = null!;
     private HttpClient student = null!;
@@ -100,16 +100,9 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        adminConnectionString = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES");
+        var adminConnectionString = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES");
         if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
-        databaseName = "bifrost_session_test_" + Guid.NewGuid().ToString("N");
-        await using (var admin = new NpgsqlConnection(adminConnectionString))
-        {
-            await admin.OpenAsync();
-            await using var create = new NpgsqlCommand($"CREATE DATABASE {databaseName}", admin);
-            await create.ExecuteNonQueryAsync();
-        }
-        connectionString = new NpgsqlConnectionStringBuilder(adminConnectionString) { Database = databaseName }.ConnectionString;
+        await database.InitializeAsync(adminConnectionString);
         // Every test also exercises adopting a database created by the old EnsureCreated setup.
         await using (var legacy = new NpgsqlConnection(connectionString))
         {
@@ -319,8 +312,10 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
         Assert.Equal(2, current[0].Generation);
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<EirRequestDbContext>();
-        var queued = await db.Outbox.SingleAsync(message => message.MessageId == createdRequestIds[TestIds.From("new-request")] && message.RoutingKey == MessageRoutes.HelpRequestCreated);
-        var payload = JsonSerializer.Deserialize<HelpRequestCreatedMessage>(queued.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        var queued = await db.Outbox.AsNoTracking().Where(message => message.RoutingKey == MessageRoutes.HelpRequestCreated).ToArrayAsync();
+        var payload = Assert.Single(queued.Select(message => JsonSerializer.Deserialize<HelpRequestCreatedMessage>(
+            message.Payload, new JsonSerializerOptions(JsonSerializerDefaults.Web))!),
+            message => message.HelpRequestId == createdRequestIds[TestIds.From("new-request")]);
         Assert.Equal(createdRequestIds[TestIds.From("new-request")], payload.HelpRequestId);
         Assert.Equal(session.Id, payload.SessionId);
         Assert.Equal(2, payload.Generation);
@@ -1375,15 +1370,10 @@ public sealed partial class SessionIntegrationTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
         teacher?.Dispose();
         student?.Dispose();
-        if (app is not null) await app.DisposeAsync();
-        NpgsqlConnection.ClearAllPools();
-        await using var admin = new NpgsqlConnection(adminConnectionString);
-        await admin.OpenAsync();
-        await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS {databaseName} WITH (FORCE)", admin);
-        await drop.ExecuteNonQueryAsync();
+        try { if (app is not null) await app.DisposeAsync(); }
+        finally { await database.DisposeAsync(); }
     }
 
     private sealed class TestClock : TimeProvider

@@ -36,15 +36,15 @@ using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using EirService.Participants.Infrastructure;
 using EirService.Participants.Infrastructure.Persistence;
+using Shared.Testing;
 
 namespace EirService.Test;
 
 [Collection("FastEndpoints")]
 public sealed partial class OutboxIntegrationTests : IAsyncLifetime
 {
-    private string? adminConnectionString;
-    private string databaseName = null!;
-    private string connectionString = null!;
+    private readonly PostgresTestDatabase database = new("bifrost_outbox_test");
+    private string connectionString => database.ConnectionString;
     private readonly RecordingBus bus = new();
     private readonly SessionUpdateLogger<SessionUpdatedMessageHandler> sessionUpdates = new();
     private readonly SessionUpdateLogger<EirSessionUpdatedMessageHandler> helpRequestSessionUpdates = new();
@@ -52,14 +52,9 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        adminConnectionString = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES");
+        var adminConnectionString = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES");
         if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
-        databaseName = "bifrost_outbox_test_" + Guid.NewGuid().ToString("N");
-        await using var admin = new NpgsqlConnection(adminConnectionString);
-        await admin.OpenAsync();
-        await using var create = new NpgsqlCommand($"CREATE DATABASE {databaseName}", admin);
-        await create.ExecuteNonQueryAsync();
-        connectionString = new NpgsqlConnectionStringBuilder(adminConnectionString) { Database = databaseName }.ConnectionString;
+        await database.InitializeAsync(adminConnectionString);
     }
 
     private ServiceProvider BuildServices(string service, bool realBroker = false, bool includeSessions = false)
@@ -343,7 +338,8 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         }
         interceptor.FailNext = true;
         var dispatcher = ActivatorUtilities.CreateInstance<OutboxDispatcher<EirRequestDbContext>>(services);
-        await dispatcher.PublishPendingAsync(CancellationToken.None);
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => dispatcher.PublishPendingAsync(CancellationToken.None));
+        Assert.Equal("Simulated failure after broker confirmation", failure.Message);
         await using (var scope = services.CreateAsyncScope())
             Assert.Null((await scope.ServiceProvider.GetRequiredService<EirRequestDbContext>().Outbox.SingleAsync()).PublishedAtUtc);
         await dispatcher.PublishPendingAsync(CancellationToken.None);
@@ -615,15 +611,7 @@ public sealed partial class OutboxIntegrationTests : IAsyncLifetime
         Assert.Empty(bus.Messages);
     }
 
-    public async Task DisposeAsync()
-    {
-        if (string.IsNullOrWhiteSpace(adminConnectionString)) return;
-        NpgsqlConnection.ClearAllPools();
-        await using var admin = new NpgsqlConnection(adminConnectionString);
-        await admin.OpenAsync();
-        await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS {databaseName} WITH (FORCE)", admin);
-        await drop.ExecuteNonQueryAsync();
-    }
+    public Task DisposeAsync() => database.DisposeAsync().AsTask();
 
     private sealed class SessionUpdateLogger<T> : ILogger<T>
     {

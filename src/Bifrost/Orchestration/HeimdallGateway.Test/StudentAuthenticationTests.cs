@@ -33,9 +33,24 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
     private readonly Dictionary<string, WebApplication> services = [];
     private WebApplication gateway = null!;
     private HttpClient client = null!;
+    private bool disposed;
     private const string RecoveredStudentId = "33333333333333333333333333333333";
 
     public async Task InitializeAsync()
+    {
+        try { await InitializeHostsAsync(); }
+        catch (Exception startupFailure)
+        {
+            try { await DisposeAsync(); }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException("Gateway test startup and cleanup both failed.", startupFailure, cleanupFailure);
+            }
+            throw;
+        }
+    }
+
+    private async Task InitializeHostsAsync()
     {
         services["eir"] = await StartServiceAsync("eir");
         services["gna"] = await StartServiceAsync("gna");
@@ -54,7 +69,6 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
                 ["ReverseProxy:Routes:mimir-test:AuthorizationPolicy"] = "Student",
                 ["ReverseProxy:Clusters:mimir:Destinations:mimir-api:Address"] = "http://mimir/"
             });
-        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         builder.Services.AddHeimdallAuthentication(builder.Configuration, builder.Environment);
         ConfigureStudentProtection(builder.Services);
         ConfigureTeacherValidation(builder.Services);
@@ -529,7 +543,6 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
         builder.WebHost.UseTestServer();
         builder.Configuration["Authentication:StudentCookie:KeyRingPath"] = keyRingPath;
         builder.Services.AddBifrostServiceAuthentication(builder.Configuration, builder.Environment);
-        builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
         ConfigureStudentProtection(builder.Services);
         ConfigureTeacherValidation(builder.Services);
         var app = builder.Build();
@@ -557,15 +570,27 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
             app.MapPost("/api/test/generalizations/from-help-requests", Identity).RequireAuthorization("Teacher");
         }
         app.MapGet("/api/monitoring/alive", () => "Alive").AllowAnonymous();
-        await app.StartAsync();
-        return app;
+        try
+        {
+            await app.StartAsync();
+            return app;
+        }
+        catch
+        {
+            await app.DisposeAsync();
+            throw;
+        }
     }
 
-    // Test keys are isolated and do not depend on the Windows user's DPAPI profile.
-    private void ConfigureStudentProtection(IServiceCollection services) =>
+    private void ConfigureStudentProtection(IServiceCollection services)
+    {
+        // The host's default keys are ephemeral. Student keys live in the isolated directory
+        // so a new provider after a service restart must load the same keys from disk.
+        services.AddDataProtection().UseEphemeralDataProtectionProvider();
         services.PostConfigure<StudentCookieOptions>(StudentCookieHandler.SchemeName, options =>
             options.DataProtectionProvider = DataProtectionProvider.Create(new DirectoryInfo(keyRingPath),
                 protection => protection.SetApplicationName("Bifrost.StudentIdentity")));
+    }
 
     private void ConfigureTeacherValidation(IServiceCollection services) =>
         services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -591,10 +616,19 @@ public sealed class StudentAuthenticationTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        client.Dispose();
-        await gateway.DisposeAsync();
-        foreach (var service in services.Values) await service.DisposeAsync();
-        if (Directory.Exists(keyRingPath)) Directory.Delete(keyRingPath, recursive: true);
+        if (disposed) return;
+        disposed = true;
+        client?.Dispose();
+        var failures = new List<Exception>();
+        foreach (var host in services.Values.Prepend(gateway).Where(host => host is not null))
+        {
+            try { await host.DisposeAsync(); }
+            catch (Exception failure) { failures.Add(failure); }
+        }
+        services.Clear();
+        try { if (Directory.Exists(keyRingPath)) Directory.Delete(keyRingPath, recursive: true); }
+        catch (Exception failure) { failures.Add(failure); }
+        if (failures.Count > 0) throw new AggregateException("Could not clean up gateway test hosts and keys.", failures);
     }
 
     private sealed record ReceivedIdentity(string Service, string UserId, string[] Roles, string? Cookie,

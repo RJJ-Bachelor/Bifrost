@@ -1,7 +1,9 @@
+using System.Data.Common;
 using System.Text.Json;
 using Backend.IntegrationTests.Infrastructure;
 using FastEndpoints;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,22 +28,32 @@ public sealed class UnifiedMessageDeliveryTests
         var subscriber = fixture.Services.GetServices<IHostedService>()
             .Single(service => service.GetType().Name.StartsWith("ModuleMessageSubscriber"));
         await subscriber.StartAsync(default);
-        using var worker = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<DeliveryDb>>(fixture.Services);
-        await worker.DispatchPendingAsync(default);
-        if (transport == "RabbitMq")
+        try
         {
-            var sent = Assert.Single(fixture.Bus.Sent);
-            Assert.Equal(outgoing.Id, sent.Id);
-            Assert.Equal(outgoing.Metadata, sent.Metadata);
-            await fixture.Bus.DeliverAsync(sent);
-            await fixture.Bus.DeliverAsync(sent);
+            // StartAsync only schedules ExecuteAsync in .NET 10; wait for the actual subscription.
+            if (transport == "RabbitMq")
+                await fixture.Bus.Subscribed.WaitAsync(TimeSpan.FromSeconds(10));
+            using var worker = ActivatorUtilities.CreateInstance<InternalOutboxDispatcher<DeliveryDb>>(fixture.Services);
+            await worker.DispatchPendingAsync(default);
+            if (transport == "RabbitMq")
+            {
+                var sent = Assert.Single(fixture.Bus.Sent);
+                Assert.Equal(outgoing.Id, sent.Id);
+                Assert.Equal(outgoing.Metadata, sent.Metadata);
+                await fixture.Bus.DeliverAsync(sent);
+                await fixture.Bus.DeliverAsync(sent);
+            }
+            else
+            {
+                Assert.Empty(fixture.Bus.Sent);
+                await fixture.DeliverAsync(new(outgoing.Id, new(fixture.CounterId), outgoing.Metadata));
+            }
         }
-        else
+        finally
         {
-            Assert.Empty(fixture.Bus.Sent);
-            await fixture.DeliverAsync(new(outgoing.Id, new(fixture.CounterId), outgoing.Metadata));
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await subscriber.StopAsync(shutdown.Token);
         }
-        await subscriber.StopAsync(default);
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DeliveryDb>();
         Assert.Equal(1, (await db.Counters.SingleAsync()).Value);
@@ -138,15 +150,33 @@ public sealed class UnifiedMessageDeliveryTests
     [Fact]
     public async Task ConcurrentDuplicateDeliveriesCommitOneEffect()
     {
-        await using var fixture = await Fixture.CreateAsync();
+        var transactions = new DuplicateTransactionObserver();
+        await using var fixture = await Fixture.CreateAsync(transactions: transactions);
         fixture.State.Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         fixture.State.Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        transactions.Observe = true;
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         var message = new MessageEnvelope<Changed>(Guid.NewGuid(), new(fixture.CounterId));
-        var first = Task.Run(() => fixture.DeliverAsync(message));
-        await fixture.State.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        var second = Task.Run(() => fixture.DeliverAsync(message));
-        fixture.State.Release.SetResult();
-        await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(20));
+        var deliveries = new List<Task>();
+        try
+        {
+            // SQLite's async calls can block on locks, so each delivery needs its own thread.
+            deliveries.Add(Task.Run(() => fixture.DeliverAsync(message, deadline.Token)));
+            await fixture.State.Started.Task.WaitAsync(deadline.Token);
+            deliveries.Add(Task.Run(() => fixture.DeliverAsync(message, deadline.Token)));
+            // Keep the first transaction open until the duplicate has also attempted a claim.
+            await transactions.DuplicateStarting.Task.WaitAsync(deadline.Token);
+            fixture.State.Release.TrySetResult();
+            await Task.WhenAll(deliveries).WaitAsync(deadline.Token);
+        }
+        finally
+        {
+            fixture.State.Release.TrySetResult();
+            await deadline.CancelAsync();
+            // Observe both deliveries before disposing their database, including on timeout.
+            try { await Task.WhenAll(deliveries); }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested) { }
+        }
         await using var scope = fixture.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<DeliveryDb>();
         Assert.Equal(1, (await db.Counters.SingleAsync()).Value);
@@ -244,7 +274,8 @@ public sealed class UnifiedMessageDeliveryTests
         public State State { get; } = new();
         public Bus Bus { get; } = new();
         public ServiceProvider Services { get; private set; } = null!;
-        public static async Task<Fixture> CreateAsync(string transport = "Local", int maximumAttempts = 8, bool transactional = true)
+        public static async Task<Fixture> CreateAsync(string transport = "Local", int maximumAttempts = 8,
+            bool transactional = true, DbTransactionInterceptor? transactions = null)
         {
             var fixture = new Fixture();
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
@@ -255,7 +286,10 @@ public sealed class UnifiedMessageDeliveryTests
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton(fixture.State);
             services.AddSingleton<IMessageBus>(fixture.Bus);
-            fixture.database.Register<DeliveryDb>(services);
+            fixture.database.Register<DeliveryDb>(services, options =>
+            {
+                if (transactions is not null) options.AddInterceptors(transactions);
+            });
             services.AddMessageReceiver<Changed, DeliveryDb, Handler>("test-consumer", transactional, maximumAttempts);
             services.AddModuleMessageRoute<Changed>("test.changed", "test-queue", "test", "test.changed", config);
             services.AddModuleMessageSubscriber<Changed>("test.changed");
@@ -282,10 +316,26 @@ public sealed class UnifiedMessageDeliveryTests
         }
         public async ValueTask DisposeAsync() { await Services.DisposeAsync(); await database.DisposeAsync(); }
     }
+    private sealed class DuplicateTransactionObserver : DbTransactionInterceptor
+    {
+        private int starts;
+        public bool Observe { get; set; }
+        public TaskCompletionSource DuplicateStarting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ValueTask<InterceptionResult<DbTransaction>> TransactionStartingAsync(DbConnection connection,
+            TransactionStartingEventData eventData, InterceptionResult<DbTransaction> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Observe && Interlocked.Increment(ref starts) == 2) DuplicateStarting.TrySetResult();
+            return ValueTask.FromResult(result);
+        }
+    }
     private sealed class Bus : IMessageBus
     {
         public List<MessageEnvelope<object>> Sent { get; } = [];
-        private Func<MessageEnvelope<JsonElement>, CancellationToken, Task>? receive;
+        private readonly TaskCompletionSource<Func<MessageEnvelope<JsonElement>, CancellationToken, Task>> subscription =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Subscribed => subscription.Task;
         public Task PublishEnvelopeAsync(MessageEnvelope<object> message, string exchange, string route, CancellationToken token = default)
         { Sent.Add(message); return Task.CompletedTask; }
         public Task PublishAsync(Guid id, object payload, string exchange, string route, CancellationToken token = default, string? messageType = null) =>
@@ -293,12 +343,15 @@ public sealed class UnifiedMessageDeliveryTests
         public Task<IAsyncDisposable> SubscribeAsync<T>(string queue, string exchange, string route,
             Func<MessageEnvelope<T>, CancellationToken, Task> handler, CancellationToken token = default)
         {
-            receive = (message, cancellation) => handler(new(message.Id,
-                message.Payload.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!, message.Metadata), cancellation);
+            subscription.SetResult((message, cancellation) => handler(new(message.Id,
+                message.Payload.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web))!, message.Metadata), cancellation));
             return Task.FromResult<IAsyncDisposable>(new Subscription());
         }
-        public Task DeliverAsync(MessageEnvelope<object> message) => receive!(new(message.Id,
-            JsonSerializer.SerializeToElement(message.Payload), message.Metadata), default);
+        public async Task DeliverAsync(MessageEnvelope<object> message)
+        {
+            var receive = await subscription.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await receive(new(message.Id, JsonSerializer.SerializeToElement(message.Payload), message.Metadata), default);
+        }
         private sealed class Subscription : IAsyncDisposable { public ValueTask DisposeAsync() => ValueTask.CompletedTask; }
     }
 }

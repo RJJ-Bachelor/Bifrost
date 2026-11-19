@@ -4,11 +4,9 @@ using System.Net.Http.Headers;
 using System.Net.WebSockets;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using GnaService.Api.Hubs;
 using GnaService.Application.Notifications;
-using GnaService.Infrastructure.Notifications;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
@@ -20,6 +18,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using Shared.Api.Authentication;
 using Shared.Application.Messaging.Contracts;
+using Shared.Testing;
+using GnaService.Test.Infrastructure;
 
 namespace GnaService.Test;
 
@@ -29,6 +29,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
     private WebApplication app = null!;
     private HttpClient client = null!;
     private const string Student = "11111111111111111111111111111111";
+    private readonly ObservedConnectionRegistry connections = new();
 
     public async Task InitializeAsync()
     {
@@ -48,7 +49,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
                 NameClaimType = "sub", RoleClaimType = "role"
             };
         });
-        builder.Services.AddSingleton<IConnectionRegistry, ConnectionRegistry>();
+        builder.Services.AddSingleton<IConnectionRegistry>(connections);
         builder.Services.AddNotificationRealtime();
         app = builder.Build();
         app.UseAuthentication();
@@ -90,11 +91,11 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
     {
         using var socket = await ConnectStudentAsync(Student, "?userId=someone-else");
         var registry = app.Services.GetRequiredService<IConnectionRegistry>();
-        await WaitForConnectionAsync(Student);
         Assert.True(registry.IsConnected(Student));
         Assert.False(registry.IsConnected("someone-else"));
         using var scope = app.Services.CreateScope();
-        var notification = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, "Only this student", DateTimeOffset.UtcNow,
+        // Exercise frames larger than the receive buffer as well as the notification metadata.
+        var notification = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, new string('x', 20_000), DateTimeOffset.UtcNow,
             Guid.NewGuid(), Guid.NewGuid(), 2, "FaqSuggested", "AwaitingConfirmation",
             Shared.Domain.Notifications.NotificationEventType.FaqAnswered);
         Assert.True(await scope.ServiceProvider.GetRequiredService<IRealtimeNotificationSender>().TrySendAsync(notification, default));
@@ -107,8 +108,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         Assert.Equal("FaqAnswered", payload.GetProperty("eventType").GetString());
         var received = payload.Deserialize<NotificationDeliveryRequestedMessage>(new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Equal(notification, received);
-        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", CancellationToken.None);
-        for (var attempt = 0; attempt < 50 && registry.IsConnected(Student); attempt++) await Task.Delay(10);
+        await DisconnectAsync(socket);
         Assert.False(registry.IsConnected(Student));
     }
 
@@ -119,19 +119,18 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         using var other = await ConnectStudentAsync("22222222222222222222222222222222");
         using var scope = app.Services.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<IRealtimeNotificationSender>();
-        await sender.TrySendAsync(new(Guid.NewGuid(), Student, "Private", DateTimeOffset.UtcNow), default);
+        Assert.True(await sender.TrySendAsync(new(Guid.NewGuid(), Student, "Private", DateTimeOffset.UtcNow), default));
         Assert.Contains("Private", await ReadAsync(recipient));
-        using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ReadAsync(other, deadline.Token));
+        // A later message to the other student is a barrier: their first frame must be their own.
+        Assert.True(await sender.TrySendAsync(new(Guid.NewGuid(), "22222222222222222222222222222222",
+            "Other student", DateTimeOffset.UtcNow), default));
+        Assert.Contains("Other student", await ReadAsync(other));
     }
 
     [Fact]
     public async Task TeacherWebSocketCanAuthenticateWithQueryToken()
     {
-        var socketClient = app.GetTestServer().CreateWebSocketClient();
-        using var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.TeacherPath + "?access_token=" + Token()), default);
-        await HandshakeAsync(socket);
-        await WaitForConnectionAsync("teacher");
+        using var socket = await ConnectTeacherAsync("teacher");
         Assert.True(app.Services.GetRequiredService<IConnectionRegistry>().IsConnected("teacher"));
     }
 
@@ -140,31 +139,51 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
         var cookie = app.Services.GetRequiredService<StudentIdentityCookie>().Protect(userId);
         var socketClient = app.GetTestServer().CreateWebSocketClient();
         socketClient.ConfigureRequest = request => request.Headers.Cookie = StudentCookieHandler.CookieName + "=" + cookie;
-        var socket = await socketClient.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.StudentPath + query), default);
-        await HandshakeAsync(socket);
-        return socket;
+        return await ConnectAsync(socketClient, NotificationHubAuthentication.StudentPath + query, userId);
     }
 
-    private static async Task HandshakeAsync(WebSocket socket)
+    private Task<WebSocket> ConnectTeacherAsync(string userId) => ConnectAsync(
+        app.GetTestServer().CreateWebSocketClient(), NotificationHubAuthentication.TeacherPath +
+        "?access_token=" + Token(subject: userId), userId);
+
+    private async Task<WebSocket> ConnectAsync(WebSocketClient client, string path, string userId)
     {
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"), WebSocketMessageType.Text, true, default);
-        Assert.Equal("{}\u001e", await ReadAsync(socket));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var registered = connections.ExpectConnection(userId);
+        var socket = await client.ConnectAsync(new Uri("ws://localhost" + path), deadline.Token);
+        try
+        {
+            await SignalRTestClient.HandshakeAsync(socket, deadline.Token);
+            await registered.WaitAsync(deadline.Token);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
     }
 
-    private async Task WaitForConnectionAsync(string userId)
+    private async Task DisconnectAsync(WebSocket socket)
     {
-        var registry = app.Services.GetRequiredService<IConnectionRegistry>();
-        for (var attempt = 0; attempt < 100 && !registry.IsConnected(userId); attempt++) await Task.Delay(10);
-        Assert.True(registry.IsConnected(userId));
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var removed = connections.ExpectDisconnection();
+        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Done", deadline.Token);
+        await removed.WaitAsync(deadline.Token);
     }
 
-    private static async Task<string> ReadAsync(WebSocket socket, CancellationToken cancellationToken = default)
+    private static Task<string> ReadAsync(WebSocket socket, CancellationToken cancellationToken = default) =>
+        SignalRTestClient.ReadAsync(socket, cancellationToken);
+
+    private async Task AssertNoPendingNotificationsAsync(string[] users, WebSocket[] sockets)
     {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        var bytes = new byte[8192];
-        var result = await socket.ReceiveAsync(new ArraySegment<byte>(bytes), timeout.Token);
-        return Encoding.UTF8.GetString(bytes, 0, result.Count);
+        // All earlier sends have completed. A marker must be next on every tab, including outsiders.
+        using var scope = app.Services.CreateScope();
+        var marker = Guid.NewGuid();
+        await scope.ServiceProvider.GetRequiredService<IRealtimeSessionChangeSender>().SendAsync(marker,
+            new(users, Guid.NewGuid(), 1, "TestBarrier"), default);
+        foreach (var socket in sockets)
+            Assert.Equal(marker, (await ReadNotificationAsync(socket)).NotificationId);
     }
 
     private string Token(string role = "Teacher", string scope = "Bifrost", string subject = "teacher") => new JwtSecurityTokenHandler().WriteToken(
@@ -173,7 +192,7 @@ public sealed partial class NotificationHubTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        client.Dispose();
-        await app.DisposeAsync();
+        client?.Dispose();
+        if (app is not null) await app.DisposeAsync();
     }
 }

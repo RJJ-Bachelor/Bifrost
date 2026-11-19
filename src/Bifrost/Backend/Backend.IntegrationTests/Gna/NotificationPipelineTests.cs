@@ -1,7 +1,5 @@
 using System.Net;
 using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using Backend.IntegrationTests.Infrastructure;
 using FastEndpoints;
@@ -29,13 +27,13 @@ using Shared.Application.Messaging.Outbox;
 using Shared.Application.Persistence;
 using Shared.Domain.Notifications;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Testing;
 
 namespace Backend.IntegrationTests.Gna;
 
 [Collection("Backend hosts")]
 public sealed class NotificationPipelineTests : IAsyncLifetime
 {
-    private static readonly ConditionalWeakTable<WebSocket, BufferedFrames> ReceivedFrames = new();
     private readonly SqliteTestDatabase database = new();
     private readonly TestAuthentication authentication = new();
     private readonly RecordingPushSender push = new();
@@ -101,8 +99,10 @@ public sealed class NotificationPipelineTests : IAsyncLifetime
         await dispatcher.DispatchPendingAsync(token);
         await using var verification = app.Services.CreateAsyncScope();
         Assert.NotNull((await verification.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Outbox.SingleAsync(token)).PublishedAtUtc);
-        using var noDuplicate = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ReadFrameAsync(socket, noDuplicate.Token));
+        var marker = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), Student, "Test barrier", DateTimeOffset.UtcNow);
+        Assert.True(await verification.ServiceProvider.GetRequiredService<IRealtimeNotificationSender>().TrySendAsync(marker, token));
+        using var next = JsonDocument.Parse((await ReadFrameAsync(socket, token)).TrimEnd('\u001e'));
+        Assert.Equal(marker.NotificationId, next.RootElement.GetProperty("arguments")[0].GetProperty("notificationId").GetGuid());
     }
 
     [Fact]
@@ -226,43 +226,26 @@ public sealed class NotificationPipelineTests : IAsyncLifetime
         client.ConfigureRequest = request => request.Headers.Cookie = StudentCookieHandler.CookieName + "=" +
             app.Services.GetRequiredService<StudentIdentityCookie>().Protect(subject);
         var socket = await client.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.StudentPath), token);
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"), WebSocketMessageType.Text, true, token);
-        Assert.Equal("{}\u001e", await ReadFrameAsync(socket, token));
-        while (!app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(subject)) await Task.Delay(10, token);
-        return socket;
-    }
-
-    private static async Task<string> ReadFrameAsync(WebSocket socket, CancellationToken token)
-    {
-        var frames = ReceivedFrames.GetValue(socket, _ => new BufferedFrames());
-        while (true)
+        try
         {
-            token.ThrowIfCancellationRequested();
-            var separator = frames.Pending.IndexOf(0x1e);
-            if (separator >= 0)
-            {
-                var frame = frames.Pending.GetRange(0, separator + 1).ToArray();
-                frames.Pending.RemoveRange(0, separator + 1);
-                return Encoding.UTF8.GetString(frame);
-            }
-
-            var result = await socket.ReceiveAsync(new ArraySegment<byte>(frames.ReadBuffer), token);
-            if (result.MessageType == WebSocketMessageType.Close)
-                throw new WebSocketException("The SignalR connection closed before a complete frame was received.");
-            frames.Pending.AddRange(frames.ReadBuffer.AsSpan(0, result.Count).ToArray());
+            await SignalRTestClient.HandshakeAsync(socket, token);
+            while (!app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(subject)) await Task.Delay(10, token);
+            return socket;
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
         }
     }
 
-    private sealed class BufferedFrames
-    {
-        public byte[] ReadBuffer { get; } = new byte[8192];
-        public List<byte> Pending { get; } = [];
-    }
+    private static Task<string> ReadFrameAsync(WebSocket socket, CancellationToken token) =>
+        SignalRTestClient.ReadAsync(socket, token);
 
     public async Task DisposeAsync()
     {
-        if (app is not null) await app.DisposeAsync();
-        await database.DisposeAsync();
+        try { if (app is not null) await app.DisposeAsync(); }
+        finally { await database.DisposeAsync(); }
     }
 
     private sealed class RecordingPushSender : IPushNotificationSender

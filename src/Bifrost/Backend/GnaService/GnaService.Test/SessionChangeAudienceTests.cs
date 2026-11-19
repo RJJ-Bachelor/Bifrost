@@ -18,8 +18,6 @@ public sealed partial class NotificationHubTests
         using var secondTab = await ConnectStudentAsync(Student);
         using var otherStudent = await ConnectStudentAsync(otherStudentId);
         using var outsider = await ConnectStudentAsync(outsiderId);
-        foreach (var user in new[] { "session-teacher", Student, otherStudentId, outsiderId })
-            await WaitForConnectionAsync(user);
         using var scope = app.Services.CreateScope();
         var sender = scope.ServiceProvider.GetRequiredService<IRealtimeSessionChangeSender>();
         var id = Guid.NewGuid();
@@ -43,11 +41,8 @@ public sealed partial class NotificationHubTests
             Assert.Null(received.Status);
         }
         // Duplicate audience IDs do not duplicate a tab's refresh, and nonmembers receive nothing.
-        foreach (var socket in recipients.Append(outsider))
-        {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ReadAsync(socket, deadline.Token));
-        }
+        await AssertNoPendingNotificationsAsync(["session-teacher", Student, otherStudentId, outsiderId],
+            [.. recipients, outsider]);
     }
 
     [Fact]
@@ -55,8 +50,7 @@ public sealed partial class NotificationHubTests
     {
         using var firstTab = await ConnectStudentAsync(Student);
         using var secondTab = await ConnectStudentAsync(Student);
-        await WaitForConnectionAsync(Student);
-        await firstTab.CloseAsync(WebSocketCloseStatus.NormalClosure, "Closing one tab", default);
+        await DisconnectAsync(firstTab);
         using var scope = app.Services.CreateScope();
         var id = Guid.NewGuid();
 

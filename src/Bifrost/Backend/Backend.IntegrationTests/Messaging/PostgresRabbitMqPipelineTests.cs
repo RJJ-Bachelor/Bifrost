@@ -1,11 +1,5 @@
 using System.Text.Json;
-using EirService.Participants.Application.Features.Student.JoinSession;
-using EirService.Participants.Infrastructure;
-using EirService.Participants.Infrastructure.Persistence;
-using EirService.Sessions.Application.Features.Teacher.CreateSession;
 using EirService.Sessions.Application.Repositories;
-using EirService.Sessions.Domain.Entities;
-using EirService.Sessions.Domain.ValueObjects;
 using EirService.Sessions.Infrastructure;
 using EirService.Sessions.Infrastructure.Persistence;
 using FastEndpoints;
@@ -15,7 +9,6 @@ using GnaService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql;
 using RabbitMQ.Client;
 using Shared.Application.Messaging;
 using Shared.Application.Messaging.Contracts;
@@ -23,6 +16,8 @@ using Shared.Application.Persistence;
 using Shared.Domain.Notifications;
 using Shared.Infrastructure.Persistence.Migrations;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Application.Messaging.Outbox;
+using Shared.Testing;
 
 namespace Backend.IntegrationTests.Messaging;
 
@@ -32,45 +27,35 @@ public sealed class PostgresRabbitMqPipelineTests
 {
     [PostgresRabbitMqFact]
     [Trait("Category", "ExternalIntegration")]
-    public async Task CommittedSessionEventTravelsThroughRabbitMqAndCreatesOneGnaNotificationAndDeliveryOutbox()
+    public async Task CommittedOutboxNotificationTravelsThroughRabbitMqAndIsStoredOnceByGna()
     {
         var postgres = Environment.GetEnvironmentVariable("BIFROST_TEST_POSTGRES")!;
         var rabbit = Environment.GetEnvironmentVariable("BIFROST_TEST_RABBITMQ")!;
         var suffix = Guid.NewGuid().ToString("N");
-        var eirDatabase = "bifrost_integration_eir_" + suffix;
-        var gnaDatabase = "bifrost_integration_gna_" + suffix;
+        await using var eirDatabase = new PostgresTestDatabase("bifrost_integration_eir");
+        await using var gnaDatabase = new PostgresTestDatabase("bifrost_integration_gna");
         var queue = "bifrost-integration-" + suffix;
-        var createdDatabases = new List<string>();
         var queueAttempted = false;
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         var token = deadline.Token;
 
         try
         {
-            foreach (var database in new[] { eirDatabase, gnaDatabase })
-            {
-                await using var connection = new NpgsqlConnection(postgres);
-                await connection.OpenAsync(token);
-                // Both names consist solely of a fixed prefix and a locally generated GUID.
-                await using var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", connection);
-                await create.ExecuteNonQueryAsync(token);
-                createdDatabases.Add(database);
-            }
+            await eirDatabase.InitializeAsync(postgres, token);
+            await gnaDatabase.InitializeAsync(postgres, token);
 
             var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:eir"] = new NpgsqlConnectionStringBuilder(postgres) { Database = eirDatabase }.ConnectionString,
-                ["ConnectionStrings:gna"] = new NpgsqlConnectionStringBuilder(postgres) { Database = gnaDatabase }.ConnectionString,
+                ["ConnectionStrings:eir"] = eirDatabase.ConnectionString,
+                ["ConnectionStrings:gna"] = gnaDatabase.ConnectionString,
                 ["ConnectionStrings:rabbitmq"] = rabbit
             }).Build();
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddSingleton<IConfiguration>(configuration);
             services.AddSessionsInfrastructure(configuration);
-            services.AddParticipantsInfrastructure(configuration);
             services.AddGnaInfrastructure(configuration);
-            services.AddMessaging(typeof(CreateSessionCommandHandler).Assembly,
-                typeof(JoinSessionCommandHandler).Assembly, typeof(NotificationMessageHandler).Assembly);
+            services.AddMessaging(typeof(NotificationMessageHandler).Assembly);
             // No host is started: only the production workers explicitly invoked below execute.
             await using var provider = services.BuildServiceProvider();
             provider.UseMessaging();
@@ -78,28 +63,27 @@ public sealed class PostgresRabbitMqPipelineTests
             await using (var scope = provider.CreateAsyncScope())
             {
                 await scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Database.MigrateAtStartupAsync(token);
-                await scope.ServiceProvider.GetRequiredService<EirParticipantDbContext>().Database.MigrateAtStartupAsync(token);
                 await scope.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Database.MigrateAtStartupAsync(token);
             }
 
-            Guid sessionId;
+            var sessionId = Guid.NewGuid();
             Guid messageId;
             NotificationCreatedMessage payload;
             await using (var scope = provider.CreateAsyncScope())
             {
-                var repository = scope.ServiceProvider.GetRequiredService<ISessionRepository>();
-                var session = Session.Create("Before rename", new SessionCode("ABCDEFGH"), new SessionCode("JKLMNPQR"),
-                    "teacher-integration", "Integration Teacher", DateTimeOffset.UtcNow);
-                Assert.True(await repository.TryAddAsync(session, token));
-                sessionId = session.Id;
-                session.Rename("After rename");
+                // Start at the committed outbox boundary. Business-event mapping has separate tests;
+                // public session refreshes use SessionChangedMessage and do not create Gna history.
+                var outgoing = OutgoingMessage.Event(Guid.NewGuid(), new NotificationCreatedMessage(
+                    "teacher-integration", "An answer is available", sessionId, 1, Guid.NewGuid(), "Answered", "Completed",
+                    NotificationEventType.HelpRequestAnswered, NotificationDeliveryType.RealtimeOrPush),
+                    MessageRoutes.Notifications, MessageRoutes.NotificationCreated, DateTimeOffset.UtcNow);
+                scope.ServiceProvider.GetRequiredService<EirSessionDbContext>().Outbox.Add(
+                    OutboxMessage.Create(outgoing, DateTimeOffset.UtcNow));
                 await scope.ServiceProvider.GetRequiredService<IUnitOfWork<ISessionRepository>>().SaveChangesAsync(token);
-                Assert.Empty(session.GetDomainEvents());
             }
             await using (var verification = provider.CreateAsyncScope())
             {
                 var db = verification.ServiceProvider.GetRequiredService<EirSessionDbContext>();
-                Assert.Equal("After rename", (await db.Sessions.AsNoTracking().SingleAsync(token)).Title);
                 var pending = await db.Outbox.AsNoTracking().SingleAsync(token);
                 Assert.Null(pending.PublishedAtUtc);
                 messageId = pending.MessageId;
@@ -148,8 +132,8 @@ public sealed class PostgresRabbitMqPipelineTests
             Assert.Equal(messageId, notification.Id);
             Assert.Equal("teacher-integration", notification.UserId.Value);
             Assert.Equal(sessionId, notification.SessionId);
-            Assert.Equal(NotificationEventType.SessionChanged, notification.EventType);
-            Assert.Equal(NotificationDeliveryType.RealtimeOnly, notification.DeliveryType);
+            Assert.Equal(NotificationEventType.HelpRequestAnswered, notification.EventType);
+            Assert.Equal(NotificationDeliveryType.RealtimeOrPush, notification.DeliveryType);
             var delivery = Assert.Single(await gna.Outbox.AsNoTracking().ToArrayAsync(token));
             Assert.Equal(messageId, delivery.MessageId);
             Assert.Equal(MessageRoutes.NotificationDeliveryRequested, delivery.RoutingKey);
@@ -171,17 +155,6 @@ public sealed class PostgresRabbitMqPipelineTests
                     await using var connection = await new ConnectionFactory { Uri = new Uri(rabbit) }.CreateConnectionAsync(cleanup.Token);
                     await using var channel = await connection.CreateChannelAsync(cancellationToken: cleanup.Token);
                     await channel.QueueDeleteAsync(queue, ifUnused: false, ifEmpty: false, cancellationToken: cleanup.Token);
-                }
-                catch (Exception exception) { errors.Add(exception); }
-            }
-            foreach (var database in createdDatabases)
-            {
-                try
-                {
-                    await using var connection = new NpgsqlConnection(postgres);
-                    await connection.OpenAsync(cleanup.Token);
-                    await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{database}\" WITH (FORCE)", connection);
-                    await drop.ExecuteNonQueryAsync(cleanup.Token);
                 }
                 catch (Exception exception) { errors.Add(exception); }
             }

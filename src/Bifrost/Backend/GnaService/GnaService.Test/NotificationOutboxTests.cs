@@ -1,5 +1,4 @@
 using System.Net.WebSockets;
-using System.Text;
 using System.Text.Json;
 using GnaService.Api.Hubs;
 using GnaService.Application.Notifications;
@@ -18,6 +17,7 @@ using Shared.Application.Messaging.Contracts;
 using Shared.Application.Messaging.Outbox;
 using Shared.Domain.Notifications;
 using Shared.Infrastructure.Persistence.Outbox;
+using Shared.Testing;
 
 namespace GnaService.Test;
 
@@ -58,9 +58,7 @@ public sealed partial class NotificationPersistenceTests
         var client = app.GetTestServer().CreateWebSocketClient();
         client.ConfigureRequest = request => request.Headers.Cookie = StudentCookieHandler.CookieName + "=" + cookie;
         using var socket = await client.ConnectAsync(new Uri("ws://localhost" + NotificationHubAuthentication.StudentPath), token);
-        await socket.SendAsync(Encoding.UTF8.GetBytes("{\"protocol\":\"json\",\"version\":1}\u001e"),
-            WebSocketMessageType.Text, true, token);
-        Assert.Equal("{}\u001e", await ReadOutboxFrameAsync(socket, token));
+        await SignalRTestClient.HandshakeAsync(socket, token);
         while (!app.Services.GetRequiredService<IConnectionRegistry>().IsConnected(student))
             await Task.Delay(10, token);
 
@@ -88,8 +86,11 @@ public sealed partial class NotificationPersistenceTests
         }
 
         await worker.DispatchPendingAsync(token);
-        using var noDuplicate = new CancellationTokenSource(TimeSpan.FromMilliseconds(150));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ReadOutboxFrameAsync(socket, noDuplicate.Token));
+        await using var verification = app.Services.CreateAsyncScope();
+        var marker = new NotificationDeliveryRequestedMessage(Guid.NewGuid(), student, "Test barrier", DateTimeOffset.UtcNow);
+        Assert.True(await verification.ServiceProvider.GetRequiredService<IRealtimeNotificationSender>().TrySendAsync(marker, token));
+        using var next = JsonDocument.Parse((await ReadOutboxFrameAsync(socket, token)).TrimEnd('\u001e'));
+        Assert.Equal(marker.NotificationId, next.RootElement.GetProperty("arguments")[0].GetProperty("notificationId").GetGuid());
     }
 
     [GnaPostgresFact]
@@ -229,12 +230,8 @@ public sealed partial class NotificationPersistenceTests
         new OutgoingMessage(delivery.NotificationId, delivery, MessageRoutes.Notifications, MessageRoutes.NotificationDeliveryRequested),
         delivery.CreatedAt);
 
-    private static async Task<string> ReadOutboxFrameAsync(WebSocket socket, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[8192];
-        var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-        return Encoding.UTF8.GetString(buffer, 0, result.Count);
-    }
+    private static Task<string> ReadOutboxFrameAsync(WebSocket socket, CancellationToken cancellationToken) =>
+        SignalRTestClient.ReadAsync(socket, cancellationToken);
 
     private sealed class RecordingDeliverySender(bool online) : IRealtimeNotificationSender, IPushNotificationSender
     {

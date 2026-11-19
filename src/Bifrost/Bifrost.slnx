@@ -54,6 +54,7 @@
     <Project Path="Backend/Shared/Shared.Domain/Shared.Domain.csproj" Id="090c9118-29d8-4628-bccf-95beedf657e9" />
     <Project Path="Backend/Shared/Shared.Infrastructure/Shared.Infrastructure.csproj" Id="507a4888-ef24-42b0-81ca-3365b3a7216c" />
     <Project Path="Backend/Shared/Shared.Test/Shared.Test.csproj" Id="350d4778-c3dd-4f03-b324-457d7c2d540e" />
+    <Project Path="Backend/Shared/Shared.Testing/Shared.Testing.csproj" />
   </Folder>
   <Folder Name="/Frontend/">
     <Project Path="Frontend/glitnir-frontend/glitnir-frontend.esproj">

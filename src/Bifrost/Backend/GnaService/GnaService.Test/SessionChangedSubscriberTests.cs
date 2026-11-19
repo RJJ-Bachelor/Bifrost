@@ -1,5 +1,6 @@
 using GnaService.Application.Notifications;
-using GnaService.Infrastructure.Persistence;
+using GnaService.Infrastructure.Messaging;
+using GnaService.Test.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shared.Application.Messaging;
@@ -12,7 +13,7 @@ public sealed class SessionChangedSubscriberTests
     [Fact]
     public async Task RealtimeRefreshBypassesPersistenceAndFailedDeliveryRemainsRetryableWithTheSameId()
     {
-        var bus = new CapturingBus();
+        var bus = new CapturingMessageBus<SessionChangedMessage>();
         var observed = new ObservedDeliveries();
         var services = new ServiceCollection();
         services.AddLogging();
@@ -21,18 +22,22 @@ public sealed class SessionChangedSubscriberTests
         services.AddScoped<IRealtimeSessionChangeSender, ScopedSender>();
         // No notification repository or database is registered for public realtime refreshes.
         await using var provider = services.BuildServiceProvider();
-        using var worker = (BackgroundService)ActivatorUtilities.CreateInstance(provider,
-            typeof(GnaNotificationDbContext).Assembly.GetType(
-                "GnaService.Infrastructure.Messaging.SessionChangedSubscriber", throwOnError: true)!);
+        using var worker = ActivatorUtilities.CreateInstance<SessionChangedSubscriber>(provider);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await worker.StartAsync(deadline.Token);
-        await bus.Subscribed.Task.WaitAsync(deadline.Token);
         var incoming = new MessageEnvelope<SessionChangedMessage>(Guid.NewGuid(),
             new(["student", "teacher"], Guid.NewGuid(), 2, "Answered"));
-
-        await Assert.ThrowsAsync<IOException>(() => bus.DeliverAsync(incoming, deadline.Token));
-        await bus.DeliverAsync(incoming, deadline.Token);
-        await worker.StopAsync(deadline.Token);
+        try
+        {
+            await bus.Subscribed.WaitAsync(deadline.Token);
+            await Assert.ThrowsAsync<IOException>(() => bus.DeliverAsync(incoming, deadline.Token));
+            await bus.DeliverAsync(incoming, deadline.Token);
+        }
+        finally
+        {
+            using var shutdown = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            await worker.StopAsync(shutdown.Token);
+        }
 
         Assert.Equal(MessageRoutes.SessionChanged, bus.Queue);
         Assert.Equal(MessageRoutes.Notifications, bus.Exchange);
@@ -44,7 +49,7 @@ public sealed class SessionChangedSubscriberTests
             Assert.Equal(deadline.Token, delivery.Token);
         });
         Assert.Equal(2, observed.Disposals);
-        Assert.True(bus.Disposed);
+        Assert.True(bus.Subscription.Disposed);
     }
 
     private sealed class ObservedDeliveries
@@ -69,36 +74,4 @@ public sealed class SessionChangedSubscriberTests
         }
     }
 
-    private sealed class CapturingBus : IMessageBus, IAsyncDisposable
-    {
-        public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public string? Queue { get; private set; }
-        public string? Exchange { get; private set; }
-        public string? Route { get; private set; }
-        public bool Disposed { get; private set; }
-        private Func<MessageEnvelope<SessionChangedMessage>, CancellationToken, Task> handler = null!;
-
-        public Task<IAsyncDisposable> SubscribeAsync<T>(string queueName, string exchangeName, string routingKey,
-            Func<MessageEnvelope<T>, CancellationToken, Task> callback, CancellationToken cancellationToken = default)
-        {
-            Assert.Equal(typeof(SessionChangedMessage), typeof(T));
-            Queue = queueName;
-            Exchange = exchangeName;
-            Route = routingKey;
-            handler = (message, token) => callback((MessageEnvelope<T>)(object)message, token);
-            Subscribed.TrySetResult();
-            return Task.FromResult<IAsyncDisposable>(this);
-        }
-
-        public Task DeliverAsync(MessageEnvelope<SessionChangedMessage> message, CancellationToken token) => handler(message, token);
-
-        public Task PublishAsync(Guid id, object payload, string exchangeName, string routingKey,
-            CancellationToken cancellationToken = default, string? messageType = null) => throw new NotSupportedException();
-
-        public ValueTask DisposeAsync()
-        {
-            Disposed = true;
-            return ValueTask.CompletedTask;
-        }
-    }
 }
