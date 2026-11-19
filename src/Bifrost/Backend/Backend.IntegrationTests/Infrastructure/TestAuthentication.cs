@@ -15,10 +15,10 @@ namespace Backend.IntegrationTests.Infrastructure;
 internal sealed class TestAuthentication
 {
     private readonly SymmetricSecurityKey key = new(RandomNumberGenerator.GetBytes(32));
+    private readonly EphemeralDataProtectionProvider protection = new();
 
     public void Register(WebApplicationBuilder builder)
     {
-        var protection = new EphemeralDataProtectionProvider();
         // Run before the production configure callback so it never creates a disk key ring.
         builder.Services.Configure<StudentCookieOptions>(StudentCookieHandler.SchemeName,
             options => options.DataProtectionProvider = protection);

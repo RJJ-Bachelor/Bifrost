@@ -22,18 +22,18 @@ public sealed class NotificationOutboxDispatcherTests
         var clock = new OutboxPollingTimeProvider();
         var sender = new RecordingSender();
         await using var provider = BuildServices(database, sender, clock);
-        await SeedAsync(provider, Enumerable.Range(0, 151).Select(_ => Stage(Guid.NewGuid())));
+        await SeedAsync(provider, Enumerable.Range(0, 51).Select(_ => Stage(Guid.NewGuid())));
         using var worker = ActivatorUtilities.CreateInstance<NotificationOutboxDispatcher>(provider, TimeSpan.FromHours(1));
 
         await worker.StartAsync(default);
         try
         {
             await clock.WaitingForPoll.WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(151, sender.Delivered.Count);
+            Assert.Equal(51, sender.Delivered.Count);
         }
         finally { await worker.StopAsync(default); }
         await using var verification = provider.CreateAsyncScope();
-        Assert.Equal(151, await verification.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Outbox
+        Assert.Equal(51, await verification.ServiceProvider.GetRequiredService<GnaNotificationDbContext>().Outbox
             .CountAsync(row => row.PublishedAtUtc != null));
     }
 

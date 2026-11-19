@@ -1,0 +1,82 @@
+Integrationstestene undersøger samspillet mellem systemets API'er,
+beskedbehandling og persistens. Afhængigt af scenariet indgår rigtige HTTP-kald
+gennem Heimdall samt PostgreSQL, RabbitMQ og SignalR. I testopsætningen kører Heimdall
+og backendkomponenterne i to hosts i samme testproces; Eir, Gna og Mimir deler
+backendhost på grund af FastEndpoints' procesglobale registreringer. Disse
+scenarier har egne databaser og en isoleret RabbitMQ-vhost. IT-05 afprøver
+outbox og Gna direkte med egne databaser og en unik RabbitMQ-kø.
+
+Lærertokens signeres lokalt, og elevcookies bruger fælles, midlertidig
+databeskyttelse. Ved generalisering erstattes den eksterne Gemini-klient med en
+\texttt{ILlmClient}-stub med faste svar. Testene omfatter derfor ikke ekstern
+login, Geminis svarkvalitet, browseradfærd eller en deployment med selvstændige
+serviceprocesser. Brokerudfald fremkaldes ved at afbryde testens
+TCP-forbindelser til RabbitMQ; selve brokerprocessen fortsætter.
+
+\begin{table}[H]
+    \centering
+    \caption{Integrationstest og forventede resultater.}
+    \label{tab:integrationstest}
+    \small
+    \renewcommand{\arraystretch}{1.2}
+    \setlength{\tabcolsep}{6pt}
+    \begin{tabularx}{\linewidth}{|
+        >{\raggedright\arraybackslash}p{0.16\linewidth}|
+        >{\raggedright\arraybackslash}p{0.34\linewidth}|
+        >{\raggedright\arraybackslash}X|}
+        \hline
+        \rowcolor{aucyan}
+        \textcolor{white}{\textbf{Scenarie}} &
+        \textcolor{white}{\textbf{Testforløb}} &
+        \textcolor{white}{\textbf{Forventet resultat}} \\ \hline
+
+        \textbf{IT-01}\newline Hjælpeforløb &
+        Opret, reservér og besvar en digital anmodning via Heimdall og Eir.
+        Modtag SignalR-hændelser fra Gna. &
+        Anmodningen fremgår af køen efter oprettelse. API-svar og
+        svarhændelsen vedrører samme anmodning, session og generation.
+        Status bliver \texttt{CompletedByDigital}, og anmodningen forlader køen.
+        \\ \hline
+
+        \textbf{IT-02}\newline Generalisering &
+        Opret relaterede anmodninger i Eir med en fast
+        \texttt{ILlmClient}-stub. Afprøv også identiske spørgsmål på tværs
+        af sessioner og generationer. &
+        Mimir behandler beskederne asynkront via RabbitMQ. Eir gemmer én FAQ
+        med rette session, generation og kildeanmodninger. Anmodninger fra
+        forskellige sessioner eller generationer sammenblandes ikke.
+        \\ \hline
+
+        \textbf{IT-03}\newline Adgangskontrol &
+        Kald beskyttede session- og anmodningsendpoints i Eir via Heimdall.
+        Variér tokenets gyldighed, rolle, scope og sessionsmedlemskab. &
+        Autoriserede kald tillades. Ugyldigt eller udløbet token giver
+        HTTP~401, forkert rolle eller scope HTTP~403 og manglende
+        sessionsadgang HTTP~404. Afviste svar indeholder ingen private
+        titler, spørgsmål eller sessionskoder.
+        \\ \hline
+
+        \textbf{IT-04}\newline Brokerudfald &
+        Afbryd RabbitMQ-forbindelsen efter opstart. Opret en anmodning i
+        Eir under udfaldet, og genetablér forbindelsen. &
+        Anmodningen og outboxbeskeden gemmes i PostgreSQL, og leveringsfejlen
+        registreres. Efter genopkobling publiceres samme besked, og Mimir
+        gemmer anmodningen med det oprindelige indhold.
+        \\ \hline
+
+        \textbf{IT-05}\newline Genlevering &
+        Publicér en allerede behandlet notifikationsbesked igen via
+        RabbitMQ med samme besked-ID og indhold. &
+        Gnas behandling er idempotent. Der findes fortsat én notifikation
+        og én leveringspost i outbox for beskeden.
+        \\ \hline
+
+        \textbf{IT-06}\newline Genstart &
+        Genstart backendhosten med en gemt anmodning og en endnu ikke
+        publiceret outboxbesked fra et forbindelsesudfald. &
+        Anmodning og besked overlever genstarten. Efter genopkobling
+        leveres den eksisterende besked til Mimir uden et nyt
+        oprettelseskald fra klienten.
+        \\ \hline
+    \end{tabularx}
+\end{table}

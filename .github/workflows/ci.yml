@@ -14,6 +14,35 @@ jobs:
     name: Backend (.NET)
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:18.3
+        env:
+          POSTGRES_USER: bifrost_test
+          POSTGRES_PASSWORD: bifrost_test
+          POSTGRES_DB: bifrost_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bifrost_test -d bifrost_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      rabbitmq:
+        image: rabbitmq:4.3-management
+        env:
+          RABBITMQ_DEFAULT_USER: bifrost_test
+          RABBITMQ_DEFAULT_PASS: bifrost_test
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_port_connectivity"
+          --health-interval 5s --health-timeout 10s --health-retries 12
+
+    env:
+      BIFROST_TEST_POSTGRES: Host=localhost;Port=5432;Database=bifrost_test;Username=bifrost_test;Password=bifrost_test
+      BIFROST_TEST_RABBITMQ: amqp://bifrost_test:bifrost_test@localhost:5672/
+      BIFROST_TEST_RABBITMQ_MANAGEMENT: http://localhost:15672/
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

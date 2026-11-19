@@ -19,5 +19,7 @@
     <ProjectReference Include="../EirService/EirService.Api/EirService.Api.csproj" />
     <ProjectReference Include="../GnaService/GnaService.Api/GnaService.Api.csproj" />
     <ProjectReference Include="../MimirService/MimirService.Infrastructure/MimirService.Infrastructure.csproj" />
+    <ProjectReference Include="../../Orchestration/HeimdallGateway/HeimdallGateway.csproj" />
+    <Content Include="../../Orchestration/HeimdallGateway/appsettings.json" Link="report-gateway-appsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
