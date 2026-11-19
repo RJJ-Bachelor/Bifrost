@@ -105,12 +105,16 @@ export class PushNotificationService {
       }
 
       if (role) {
-        await firstValueFrom(
-          this.http.request('DELETE', `${this.apiUrl(role)}/subscriptions`, {
-            body: {endpoint: subscription.endpoint},
-            withCredentials: true,
-          }),
-        );
+        try {
+          await firstValueFrom(
+            this.http.request('DELETE', `${this.apiUrl(role)}/subscriptions`, {
+              body: {endpoint: subscription.endpoint},
+              withCredentials: true,
+            }),
+          );
+        } catch {
+          this.error.set('Kunne ikke fjerne tilmeldingen på serveren, men den er slået fra på denne enhed.');
+        }
       }
 
       await subscription.unsubscribe();

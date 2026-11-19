@@ -263,6 +263,26 @@ describe('PushNotificationService', () => {
     expect(service.isSubscribed()).toBe(false);
   });
 
+  it('still unsubscribes locally on disable() when backend DELETE fails', async () => {
+    const existingSub = createFakeSubscription();
+    getSubscriptionMock.mockResolvedValue(existingSub);
+
+    const service = TestBed.inject(PushNotificationService);
+    service.isSubscribed.set(true);
+
+    const disablePromise = service.disable();
+
+    await vi.waitFor(() => {
+      httpMock
+        .expectOne('/api/students/notifications/push/subscriptions')
+        .flush({ message: 'Server error' }, { status: 500, statusText: 'Internal Server Error' });
+    });
+
+    await disablePromise;
+    expect(existingSub.unsubscribe).toHaveBeenCalledTimes(1);
+    expect(service.isSubscribed()).toBe(false);
+  });
+
   it('unsubscribes an existing browser subscription when the server VAPID public key has rotated', async () => {
     const staleSub = createFakeSubscription(
       'https://push.services.mozilla.com/wpush/v2/stale',
