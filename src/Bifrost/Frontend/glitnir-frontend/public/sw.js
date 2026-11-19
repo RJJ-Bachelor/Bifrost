@@ -65,10 +65,15 @@ self.addEventListener('notificationclick', (event) => {
         if (clientUrl.origin !== scopeUrl.origin || !clientUrl.pathname.startsWith(scopeUrl.pathname)) {
           continue;
         }
+        const targetPathname = new URL(targetUrl).pathname;
+        const alreadyInTarget =
+          targetPathname === '/' || targetPathname === '/teacher'
+            ? clientUrl.pathname === targetPathname
+            : clientUrl.pathname.startsWith(targetPathname);
+        if (!alreadyInTarget) {
+          continue;
+        }
         try {
-          if (client.url !== targetUrl && 'navigate' in client) {
-            await client.navigate(targetUrl);
-          }
           await client.focus();
           return;
         } catch {
