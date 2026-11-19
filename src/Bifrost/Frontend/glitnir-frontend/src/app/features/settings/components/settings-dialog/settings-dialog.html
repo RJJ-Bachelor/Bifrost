@@ -1,0 +1,152 @@
+<bifrost-dialog [open]="open()" title="Indstillinger" (closed)="close()">
+  <div class="settings-sections">
+    <section class="settings-section">
+      <h3 class="settings-section__title">Notifikationer</h3>
+
+      @if (!push.isSupported) {
+        <p class="settings-section__desc">
+          Notifikationer er ikke understøttet i denne browser eller tilstand.
+        </p>
+      } @else if (push.permission() === 'denied') {
+        <p class="settings-section__desc">
+          Notifikationer er blokeret i din browser. Tillad dem i browserens sideindstillinger for at slå dem til.
+        </p>
+      } @else {
+        <div class="surface-box settings-notification-box">
+          <div class="settings-notification-box__text">
+            <span class="settings-notification-box__status">
+              {{ push.isSubscribed() ? 'Notifikationer er slået til' : 'Notifikationer er slået fra' }}
+            </span>
+            <span class="settings-notification-box__desc">
+              Få besked på denne enhed, når der sker noget nyt i dine sessioner.
+            </span>
+          </div>
+          <button
+            type="button"
+            class="btn"
+            [class.btn--primary]="!push.isSubscribed()"
+            [class.btn--outline-danger]="push.isSubscribed()"
+            [disabled]="push.isLoading()"
+            (click)="toggleNotifications()"
+          >
+            {{ push.isSubscribed() ? 'Slå fra' : 'Slå til' }}
+          </button>
+        </div>
+        @if (push.error()) {
+          <p class="form-error">{{ push.error() }}</p>
+        }
+      }
+    </section>
+
+    @if (showTransfer()) {
+      <section class="settings-section">
+        <h3 class="settings-section__title">Overfør brugerdata</h3>
+
+        @if (step() === 'choose') {
+          <div class="transfer-choose">
+            <p class="transfer-choose__intro">
+              Flyt dine aktive sessioner og spørgsmål mellem dine enheder med en engangskode.
+            </p>
+
+            <div class="transfer-choose__options">
+              <button type="button" class="surface-box transfer-option" (click)="share()">
+                <span class="transfer-option__title">Del fra denne enhed</span>
+                <span class="transfer-option__desc">
+                  Opret en engangskode på denne enhed, som du kan indtaste på en anden enhed.
+                </span>
+              </button>
+
+              <button type="button" class="surface-box transfer-option" (click)="startImport()">
+                <span class="transfer-option__title">Importer til denne enhed</span>
+                <span class="transfer-option__desc">
+                  Indtast en 8-tegn kode fra en anden enhed for at hente dine sessioner hertil.
+                </span>
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (step() === 'share') {
+          <div class="transfer-share">
+            <h4 class="transfer-subtitle">Del fra denne enhed</h4>
+
+            @if (shareError()) {
+              <p class="form-error">{{ shareError() }}</p>
+              <div class="form-actions">
+                <button type="button" class="btn btn--secondary" (click)="goBack()">Tilbage</button>
+                <button type="button" class="btn btn--primary" (click)="generateCode()">Prøv igen</button>
+              </div>
+            } @else {
+              <div class="surface-box transfer-code-box">
+                <span class="transfer-code-box__label">Din engangskode</span>
+                <span
+                  class="transfer-code-box__value"
+                  [class.transfer-code-box__value--pending]="shareLoading()"
+                >
+                  {{ shareLoading() ? '···' : transferCode()?.code }}
+                </span>
+                <button
+                  type="button"
+                  class="btn btn--primary"
+                  [disabled]="shareLoading() || !transferCode()"
+                  (click)="copyCode()"
+                >
+                  {{ copied() ? 'Kopieret!' : 'Kopiér kode' }}
+                </button>
+              </div>
+
+              <p class="transfer-share__hint">
+                Koden er gyldig i <strong>10 minutter</strong> og kan kun bruges <strong>én gang</strong>.
+                Indtast den på den enhed, du vil flytte dine sessioner til.
+              </p>
+
+              <div class="form-actions">
+                <button type="button" class="btn btn--secondary" (click)="goBack()">Tilbage</button>
+              </div>
+            }
+          </div>
+        }
+
+        @if (step() === 'import') {
+          <form class="transfer-import" (submit)="redeem($event)">
+            <h4 class="transfer-subtitle">Importer til denne enhed</h4>
+
+            <label class="transfer-import__field">
+              <span>Overførselskode (8 tegn)</span>
+              <input
+                type="text"
+                class="input-field transfer-import__input"
+                placeholder="Indtast kode her"
+                autocomplete="off"
+                autocapitalize="characters"
+                spellcheck="false"
+                [formField]="importForm.code"
+                (input)="importError.set(null)"
+              />
+            </label>
+
+            <div class="surface-box transfer-warning">
+              <strong>Bemærk:</strong> Hvis du importerer en kode, bliver den nuværende anonyme bruger og
+              eventuelle sessioner på denne enhed overskrevet.
+            </div>
+            @if (importError()) {
+              <p class="form-error">{{ importError() }}</p>
+            }
+            <div class="form-actions">
+              <button type="button" class="btn btn--secondary" [disabled]="importLoading()" (click)="goBack()">
+                Tilbage
+              </button>
+              <button
+                type="submit"
+                class="btn btn--primary"
+                [disabled]="importForm().invalid() || importLoading()"
+              >
+                {{ importLoading() ? 'Importerer...' : 'Importer' }}
+              </button>
+            </div>
+          </form>
+        }
+      </section>
+    }
+  </div>
+</bifrost-dialog>

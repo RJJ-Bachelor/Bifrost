@@ -2,8 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthStore } from '../../../../core/auth/services/auth-store';
 import { Topbar } from '../../../../core/layout/topbar/topbar';
+import { PushNotificationService } from '../../../../core/pwa/services/push-notification.service';
 import { Card } from '../../../../shared/components/card/card';
 import { Dialog } from '../../../../shared/components/dialog/dialog';
+import { SettingsDialog } from '../../../settings';
 import { StatusDialog } from '../../../../shared/components/status-dialog/status-dialog';
 import {
   SessionApi,
@@ -21,6 +23,7 @@ import {
     SessionList,
     SessionJoinForm,
     SessionCreateForm,
+    SettingsDialog,
     StatusDialog,
   ],
   selector: 'bifrost-teacher-sessions',
@@ -32,9 +35,11 @@ export class TeacherSessions {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly authStore = inject(AuthStore);
+  private readonly push = inject(PushNotificationService);
 
   protected readonly sessions = this.sessionApi.getTeacherSessions();
 
+  protected readonly settingsDialogOpen = signal(false);
   protected readonly joinDialogOpen = signal(false);
   protected readonly joinError = signal<string | null>(null);
   protected readonly createDialogOpen = signal(false);
@@ -78,7 +83,16 @@ export class TeacherSessions {
     });
   }
 
-  protected onLogout(): void {
+  protected openSettingsDialog(): void {
+    this.settingsDialogOpen.set(true);
+  }
+
+  protected closeSettingsDialog(): void {
+    this.settingsDialogOpen.set(false);
+  }
+
+  protected async onLogout(): Promise<void> {
+    await this.push.disable();
     this.authStore.logout('/teacher');
   }
 

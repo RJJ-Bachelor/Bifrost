@@ -99,6 +99,26 @@
   }
 }
 
+.settings-button {
+  gap: var(--space-2);
+
+  @media (max-width: 600px) {
+    padding: var(--space-2);
+  }
+}
+
+.settings-button__icon {
+  --icon-size: 1rem;
+  mask-image: url('/settings.svg');
+  -webkit-mask-image: url('/settings.svg');
+}
+
+.settings-button__label {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}
+
 .btn__label-short {
   display: none;
 }

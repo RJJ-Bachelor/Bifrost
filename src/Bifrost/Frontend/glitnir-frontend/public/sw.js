@@ -32,12 +32,30 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
+function getTargetPath(data) {
+  const isTeacher =
+    typeof data?.role === 'string'
+      ? data.role === 'teacher'
+      : data?.eventType === 'HelpRequestCreated' ||
+        data?.eventType === 'FaqCreated';
+
+  const prefix = isTeacher ? '/teacher' : '';
+  const sessionId = data?.sessionId;
+
+  if (typeof sessionId === 'string' && sessionId.trim().length > 0) {
+    return `${prefix}/sessions/${sessionId}`;
+  }
+
+  return isTeacher ? '/teacher' : '/';
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   event.waitUntil(
     (async () => {
       const scopeUrl = new URL(self.registration.scope);
+      const targetUrl = new URL(getTargetPath(event.notification.data), scopeUrl).href;
       const clients = await self.clients.matchAll({
         type: 'window',
         includeUncontrolled: true,
@@ -48,15 +66,23 @@ self.addEventListener('notificationclick', (event) => {
         if (clientUrl.origin !== scopeUrl.origin || !clientUrl.pathname.startsWith(scopeUrl.pathname)) {
           continue;
         }
+        const targetPathname = new URL(targetUrl).pathname;
+        const alreadyInTarget =
+          targetPathname === '/' || targetPathname === '/teacher'
+            ? clientUrl.pathname === targetPathname
+            : clientUrl.pathname.startsWith(targetPathname);
+        if (!alreadyInTarget) {
+          continue;
+        }
         try {
           await client.focus();
-          return;
         } catch {
-          // A window may close between matching and focusing it.
+          // OS window managers (e.g. Wayland) may reject focus() from background workers.
         }
+        return;
       }
 
-      await self.clients.openWindow(new URL('/', scopeUrl).href);
+      await self.clients.openWindow(targetUrl);
     })(),
   );
 });

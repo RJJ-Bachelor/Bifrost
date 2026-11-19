@@ -2,12 +2,12 @@
   <button
     topbar-right
     type="button"
-    class="topbar-btn transfer-button"
-    aria-label="Overfør brugerdata"
-    (click)="openTransferDialog()"
+    class="topbar-btn settings-button"
+    aria-label="Indstillinger"
+    (click)="openSettingsDialog()"
   >
-    <span class="icon-mask transfer-button__icon" aria-hidden="true"></span>
-    <span class="transfer-button__label">Overfør brugerdata</span>
+    <span class="icon-mask settings-button__icon" aria-hidden="true"></span>
+    <span class="settings-button__label">Indstillinger</span>
   </button>
 </bifrost-topbar>
 <div class="page-container">
@@ -57,10 +57,11 @@
   />
 </bifrost-dialog>
 
-<bifrost-identity-transfer-dialog
-  [open]="transferDialogOpen()"
+<bifrost-settings-dialog
+  [open]="settingsDialogOpen()"
+  [showTransfer]="true"
   (transferred)="refreshAfterTransfer()"
-  (closed)="closeTransferDialog()"
+  (closed)="closeSettingsDialog()"
 />
 
 <bifrost-status-dialog

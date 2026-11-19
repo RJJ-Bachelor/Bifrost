@@ -11,10 +11,10 @@ import {
   SessionList,
   type Session,
 } from '../../../session';
-import { IdentityTransferDialog } from './components/identity-transfer-dialog/identity-transfer-dialog';
+import { SettingsDialog } from '../../../settings';
 
 @Component({
-  imports: [Topbar, Card, Dialog, SessionList, SessionJoinForm, IdentityTransferDialog, StatusDialog],
+  imports: [Topbar, Card, Dialog, SessionList, SessionJoinForm, SettingsDialog, StatusDialog],
   selector: 'bifrost-student-sessions',
   styleUrl: './student-sessions.scss',
   templateUrl: './student-sessions.html',
@@ -27,7 +27,7 @@ export class StudentSessions {
 
   protected readonly sessions = this.sessionApi.getStudentSessions();
   protected readonly userOpenedJoin = signal(false);
-  protected readonly transferDialogOpen = signal(false);
+  protected readonly settingsDialogOpen = signal(false);
   protected readonly transferSuccess = signal(false);
   protected readonly submitting = signal(false);
   protected readonly joinError = signal<string | null>(null);
@@ -46,16 +46,16 @@ export class StudentSessions {
     this.joinError.set(null);
   }
 
-  protected openTransferDialog(): void {
-    this.transferDialogOpen.set(true);
+  protected openSettingsDialog(): void {
+    this.settingsDialogOpen.set(true);
   }
 
-  protected closeTransferDialog(): void {
-    this.transferDialogOpen.set(false);
+  protected closeSettingsDialog(): void {
+    this.settingsDialogOpen.set(false);
   }
 
   protected async refreshAfterTransfer(): Promise<void> {
-    this.transferDialogOpen.set(false);
+    this.settingsDialogOpen.set(false);
     await this.authStore.loadIdentity('student');
     this.transferSuccess.set(true);
     this.sessions.reload();

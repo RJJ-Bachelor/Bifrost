@@ -1,5 +1,16 @@
 <bifrost-topbar>
-  <button topbar-right class="topbar-btn" (click)="onLogout()">Log ud</button>
+  <div topbar-right class="teacher-topbar-actions">
+    <button
+      type="button"
+      class="topbar-btn settings-button"
+      aria-label="Indstillinger"
+      (click)="openSettingsDialog()"
+    >
+      <span class="icon-mask settings-button__icon" aria-hidden="true"></span>
+      <span class="settings-button__label">Indstillinger</span>
+    </button>
+    <button type="button" class="topbar-btn" (click)="onLogout()">Log ud</button>
+  </div>
 </bifrost-topbar>
 <div class="page-container">
   <bifrost-card title="Dine sessioner">
@@ -59,6 +70,11 @@
     (cancelled)="closeCreateDialog()"
   />
 </bifrost-dialog>
+
+<bifrost-settings-dialog
+  [open]="settingsDialogOpen()"
+  (closed)="closeSettingsDialog()"
+/>
 
 <bifrost-status-dialog
   [open]="createSuccess()"

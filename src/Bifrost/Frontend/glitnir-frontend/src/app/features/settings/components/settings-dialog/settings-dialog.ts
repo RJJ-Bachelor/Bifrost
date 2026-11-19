@@ -1,9 +1,10 @@
-import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject, input, linkedSignal, output, signal } from '@angular/core';
-import { FormField, form, required, validate } from '@angular/forms/signals';
-import { IdentityTransferCode } from '../../../../../../core/auth/auth.model';
-import { AuthApi } from '../../../../../../core/auth/services/auth-api';
-import { Dialog } from '../../../../../../shared/components/dialog/dialog';
+import {HttpErrorResponse} from '@angular/common/http';
+import {Component, inject, input, linkedSignal, output, signal} from '@angular/core';
+import {FormField, form, required, validate} from '@angular/forms/signals';
+import {IdentityTransferCode} from '../../../../core/auth/auth.model';
+import {AuthApi} from '../../../../core/auth/services/auth-api';
+import {PushNotificationService} from '../../../../core/pwa/services/push-notification.service';
+import {Dialog} from '../../../../shared/components/dialog/dialog';
 
 type TransferStep = 'choose' | 'share' | 'import';
 
@@ -12,19 +13,20 @@ interface ImportFormModel {
 }
 
 @Component({
-  selector: 'bifrost-identity-transfer-dialog',
+  selector: 'bifrost-settings-dialog',
   imports: [Dialog, FormField],
-  templateUrl: './identity-transfer-dialog.html',
-  styleUrl: './identity-transfer-dialog.scss',
+  templateUrl: './settings-dialog.html',
+  styleUrl: './settings-dialog.scss',
 })
-export class IdentityTransferDialog {
+export class SettingsDialog {
   private readonly authApi = inject(AuthApi);
+  protected readonly push = inject(PushNotificationService);
 
   readonly open = input.required<boolean>();
+  readonly showTransfer = input(false);
   readonly transferred = output<void>();
   readonly closed = output<void>();
 
-  // linkedSignal: step and form reset automatically whenever the dialog opens.
   protected readonly step = linkedSignal<boolean, TransferStep>({
     source: () => this.open(),
     computation: () => 'choose',
@@ -32,24 +34,44 @@ export class IdentityTransferDialog {
 
   protected readonly model = linkedSignal<boolean, ImportFormModel>({
     source: () => this.open(),
-    computation: () => ({ code: '' }),
+    computation: () => ({code: ''}),
   });
 
   protected readonly importForm = form(this.model, (path) => {
     required(path.code);
-    validate(path.code, ({ value }) =>
-      value().trim().length > 0 ? null : { kind: 'required' },
+    validate(path.code, ({value}) =>
+      value().trim().length > 0 ? null : {kind: 'required'},
     );
   });
 
-  protected readonly transferCode = signal<IdentityTransferCode | null>(null);
-  protected readonly copied = signal(false);
+  protected readonly transferCode = linkedSignal<boolean, IdentityTransferCode | null>({
+    source: () => this.open(),
+    computation: () => null,
+  });
+  protected readonly copied = linkedSignal<boolean, boolean>({
+    source: () => this.open(),
+    computation: () => false,
+  });
 
   protected readonly shareLoading = signal(false);
-  protected readonly shareError = signal<string | null>(null);
+  protected readonly shareError = linkedSignal<boolean, string | null>({
+    source: () => this.open(),
+    computation: () => null,
+  });
 
   protected readonly importLoading = signal(false);
-  protected readonly importError = signal<string | null>(null);
+  protected readonly importError = linkedSignal<boolean, string | null>({
+    source: () => this.open(),
+    computation: () => null,
+  });
+
+  protected async toggleNotifications(): Promise<void> {
+    if (this.push.isSubscribed()) {
+      await this.push.disable();
+    } else {
+      await this.push.enable();
+    }
+  }
 
   protected share(): void {
     this.step.set('share');
@@ -67,6 +89,7 @@ export class IdentityTransferDialog {
   }
 
   protected close(): void {
+    this.push.error.set(null);
     this.closed.emit();
   }
 
@@ -94,8 +117,12 @@ export class IdentityTransferDialog {
     const code = this.transferCode()?.code;
     if (!code) return;
 
-    await navigator.clipboard.writeText(code);
-    this.copied.set(true);
+    try {
+      await navigator.clipboard.writeText(code);
+      this.copied.set(true);
+    } catch {
+      // Clipboard access may be blocked in restricted contexts.
+    }
   }
 
   protected redeem(event: Event): void {
