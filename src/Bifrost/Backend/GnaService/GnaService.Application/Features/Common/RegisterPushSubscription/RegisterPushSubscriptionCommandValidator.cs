@@ -20,7 +20,7 @@ public sealed class RegisterPushSubscriptionCommandValidator : AbstractValidator
             !Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
             uri.Port != 443 || !string.IsNullOrEmpty(uri.UserInfo)) return false;
         // Push URLs are browser supplied. Restrict outbound requests to the standard browser push services.
-        string[] hosts = ["fcm.googleapis.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com"];
+        string[] hosts = ["fcm.googleapis.com", "jmt17.google.com", "push.services.mozilla.com", "push.apple.com", "notify.windows.com"];
         return hosts.Any(host => uri.Host.Equals(host, StringComparison.OrdinalIgnoreCase) ||
             uri.Host.EndsWith("." + host, StringComparison.OrdinalIgnoreCase));
     }
