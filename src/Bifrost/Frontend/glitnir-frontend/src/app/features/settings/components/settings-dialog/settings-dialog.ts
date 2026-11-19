@@ -117,8 +117,12 @@ export class SettingsDialog {
     const code = this.transferCode()?.code;
     if (!code) return;
 
-    await navigator.clipboard.writeText(code);
-    this.copied.set(true);
+    try {
+      await navigator.clipboard.writeText(code);
+      this.copied.set(true);
+    } catch {
+      // Clipboard access may be blocked in restricted contexts.
+    }
   }
 
   protected redeem(event: Event): void {
