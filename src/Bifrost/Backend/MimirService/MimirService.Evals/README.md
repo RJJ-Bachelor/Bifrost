@@ -66,6 +66,7 @@ En generalisering har kun sit FAQ-spørgsmål og ikke medlemmernes tekst, fordi 
 | `typos` | Stavefejl, slang, forkortelser og spørgsmål på engelsk. FAQ-spørgsmålet skal stadig være på dansk. |
 | `names` | Navne og personoplysninger, der ikke må komme med i FAQ-spørgsmålet. |
 | `injection` | Spørgsmål, der forsøger at styre modellen. De vurderes efter samme regel som alle andre. |
+| `off-topic` | Tekst, der ikke er et fagligt spørgsmål, fx drilleri. Den står alene, også når teksterne er næsten ens. |
 
 ## Vurdering
 
@@ -106,7 +107,7 @@ dotnet run --project src/Bifrost/Backend/MimirService/MimirService.Evals -- --Ge
 
 ## Nye cases
 
-- Spørgsmålene skal handle om software.
+- Spørgsmålene skal handle om software, undtagen i `off-topic`.
 - Skriv dem, som studerende skriver: små bogstaver, forkortelser og manglende tegnsætning.
 - Udfyld altid `note`.
 - Facit skal godkendes af gruppen.
