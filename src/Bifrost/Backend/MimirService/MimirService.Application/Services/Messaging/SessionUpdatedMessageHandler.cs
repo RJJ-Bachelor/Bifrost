@@ -15,8 +15,7 @@ public sealed class SessionUpdatedMessageHandler(ILogger<SessionUpdatedMessageHa
         switch (update.EventType)
         {
             case SessionUpdateType.Cleared:
-                logger.LogInformation("Mimir received Cleared for session {SessionId}: generation {PreviousGeneration} -> {Generation}, event {EventId} at {UpdatedAtUtc}",
-                    update.SessionId, update.PreviousGeneration, update.Generation, update.EventId, update.UpdatedAtUtc);
+                await ClearSessionAsync(update, cancellationToken);
                 break;
             case SessionUpdateType.Deleted:
                 await DeleteSessionAsync(update, cancellationToken);
@@ -28,6 +27,13 @@ public sealed class SessionUpdatedMessageHandler(ILogger<SessionUpdatedMessageHa
             default:
                 throw new ArgumentOutOfRangeException(nameof(update.EventType), update.EventType, "Unknown session update type.");
         }
+    }
+
+    private async Task ClearSessionAsync(SessionUpdatedIntegrationEvent update, CancellationToken cancellationToken)
+    {
+        var deleted = await requestRepository.DeleteSessionDataAsync(update.SessionId, update.Generation, cancellationToken);
+        logger.LogInformation("Mimir received Cleared for session {SessionId}: generation {PreviousGeneration} -> {Generation}, event {EventId} at {UpdatedAtUtc}: deleted {Requests} help requests and {Generalizations} generalizations",
+            update.SessionId, update.PreviousGeneration, update.Generation, update.EventId, update.UpdatedAtUtc, deleted.Requests, deleted.Generalizations);
     }
 
     private async Task DeleteSessionAsync(SessionUpdatedIntegrationEvent update, CancellationToken cancellationToken)

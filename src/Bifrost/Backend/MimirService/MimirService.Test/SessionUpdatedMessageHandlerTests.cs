@@ -40,6 +40,17 @@ public sealed class SessionUpdatedMessageHandlerTests
     }
 
     [Fact]
+    public async Task ClearedSessionDeletesOlderGenerations()
+    {
+        var repository = new RecordingRepository();
+        var handler = new SessionUpdatedMessageHandler(new RecordingLogger(), repository);
+        var update = new SessionUpdatedIntegrationEvent(Guid.NewGuid(), Guid.NewGuid(), 4,
+            SessionUpdateType.Cleared, DateTimeOffset.UtcNow, 3);
+        await handler.HandleAsync(new(update.EventId, update), CancellationToken.None);
+        Assert.Equal((update.SessionId, (int?)4), Assert.Single(repository.Deletes));
+    }
+
+    [Fact]
     public async Task ArchivedSessionKeepsItsData()
     {
         var repository = new RecordingRepository();
