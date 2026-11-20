@@ -1,0 +1,17 @@
+.welcome-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  p {
+    margin: 0;
+    line-height: 1.5;
+    color: var(--color-grey-800);
+  }
+}
+
+.welcome-dialog__icon {
+  display: inline-block;
+  vertical-align: middle;
+  color: var(--color-grey-800);
+}

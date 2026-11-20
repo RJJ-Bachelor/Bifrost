@@ -5,6 +5,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { IdentityTransferCode } from '../../../../core/auth/auth.model';
 import { AuthApi } from '../../../../core/auth/services/auth-api';
 import { PushNotificationService } from '../../../../core/pwa/services/push-notification.service';
+import { PwaService } from '../../../../core/pwa/services/pwa.service';
 import { SettingsDialog } from './settings-dialog';
 
 interface SettingsDialogInternals {
@@ -51,6 +52,11 @@ describe('SettingsDialog', () => {
     disable: ReturnType<typeof vi.fn>;
   };
 
+  let pwaMock: {
+    isIos: boolean;
+    isPwa: boolean;
+  };
+
   beforeAll(() => {
     HTMLDialogElement.prototype.showModal = vi.fn();
     HTMLDialogElement.prototype.close = vi.fn();
@@ -75,10 +81,16 @@ describe('SettingsDialog', () => {
       disable: vi.fn(async () => undefined),
     };
 
+    pwaMock = {
+      isIos: false,
+      isPwa: false,
+    };
+
     TestBed.configureTestingModule({
       providers: [
         { provide: AuthApi, useValue: authApiMock },
         { provide: PushNotificationService, useValue: pushMock },
+        { provide: PwaService, useValue: pwaMock },
       ],
     });
 
@@ -126,6 +138,18 @@ describe('SettingsDialog', () => {
 
       component.close();
       expect(pushMock.error()).toBeNull();
+    });
+
+    it('shows iOS PWA warning and guide instead of toggle on non-standalone iOS', () => {
+      const { fixture } = setup();
+      pwaMock.isIos = true;
+      pwaMock.isPwa = false;
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent ?? '').toContain('Føj til hjemmeskærm');
+      expect(el.querySelector('.settings-ios-warning')).not.toBeNull();
+      expect(el.querySelector('.settings-notification-box')).toBeNull();
     });
   });
 

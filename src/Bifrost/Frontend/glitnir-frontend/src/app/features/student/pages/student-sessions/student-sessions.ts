@@ -12,9 +12,10 @@ import {
   type Session,
 } from '../../../session';
 import { SettingsDialog } from '../../../settings';
+import { WelcomeDialog } from '../../components/welcome-dialog/welcome-dialog';
 
 @Component({
-  imports: [Topbar, Card, Dialog, SessionList, SessionJoinForm, SettingsDialog, StatusDialog],
+  imports: [Topbar, Card, Dialog, SessionList, SessionJoinForm, WelcomeDialog, SettingsDialog, StatusDialog],
   selector: 'bifrost-student-sessions',
   styleUrl: './student-sessions.scss',
   templateUrl: './student-sessions.html',

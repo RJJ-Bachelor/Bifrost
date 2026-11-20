@@ -2,6 +2,13 @@ import {TestBed} from '@angular/core/testing';
 import {PwaService} from './pwa.service';
 
 describe('PwaService', () => {
+  beforeAll(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      value: vi.fn(() => ({matches: false})),
+    });
+  });
+
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
   const originalIsSecureContext = Object.getOwnPropertyDescriptor(window, 'isSecureContext');
 
@@ -79,4 +86,5 @@ describe('PwaService', () => {
     expect(service.isSupported).toBe(false);
     expect(service.registration()).toBeNull();
   });
+
 });
