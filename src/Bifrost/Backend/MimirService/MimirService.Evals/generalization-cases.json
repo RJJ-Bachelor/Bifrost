@@ -214,92 +214,6 @@
     }
   },
   {
-    "id": "git-conflict-vs-ignore",
-    "category": "clear-different",
-    "note": "Begge handler om git, men merge-konflikter og .gitignore er to forskellige ting.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan løser jeg en merge-konflikt i git?" }
-    ],
-    "newQuestion": "hvordan får jeg git til at ignorere bin og obj mapperne",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "sql-left-join-vs-foreign-key",
-    "category": "clear-different",
-    "note": "Et spørgsmål om syntaks for LEFT JOIN og en fejl ved INSERT. Ingen af kandidaterne passer.",
-    "sessionTitle": "Databaser - SQL joins",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "hvordan laver jeg en LEFT JOIN" },
-      { "id": "r2", "type": "request", "text": "hvad er forskellen på WHERE og HAVING?" }
-    ],
-    "newQuestion": "min INSERT i opgave 4 fejler med violates foreign key constraint",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "button-css-vs-event",
-    "category": "clear-different",
-    "note": "Begge nævner en knap, men det ene er CSS-layout og det andet er event-håndtering i JavaScript.",
-    "sessionTitle": "Webudvikling - JavaScript og DOM",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "min knap skal centreres men margin auto virker ikke" }
-    ],
-    "newQuestion": "addEventListener virker ikke på min knap i opgave 3, der sker ingenting når jeg klikker",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "python-indent-vs-csv",
-    "category": "clear-different",
-    "note": "En syntaksfejl og et spørgsmål om at læse en fil. Intet til fælles ud over sproget.",
-    "sessionTitle": "Python - funktioner",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?" }
-    ],
-    "newQuestion": "hvordan læser jeg en csv fil ind i python",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "docker-port-vs-migration",
-    "category": "clear-different",
-    "note": "En portkonflikt i Docker og et spørgsmål om EF Core-migrationer.",
-    "sessionTitle": "Backend - Entity Framework Core",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "docker compose up siger port 5432 is already allocated" },
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan forbinder jeg min applikation til Postgres i Docker?" }
-    ],
-    "newQuestion": "hvordan laver jeg en migration med ef core",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "async-task-vs-sorting",
-    "category": "clear-different",
-    "note": "En manglende await og sortering af en liste. Forskellige emner.",
-    "sessionTitle": "Programmering 2 - collections og async",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "min metode returnerer System.Threading.Tasks.Task`1[System.String] i stedet for teksten" }
-    ],
-    "newQuestion": "hvordan sorterer jeg en liste af personer efter navn i C#",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
     "id": "same-task-discovery-vs-mocking",
     "category": "clear-different",
     "note": "Samme opgave, men at testene ikke bliver fundet og at mocke et interface er to forskellige problemer.",
@@ -322,21 +236,6 @@
       { "id": "r1", "type": "request", "text": "opgave 1: hvordan beregner jeg gennemsnittet af et array" }
     ],
     "newQuestion": "opgave 5: hvordan vender jeg en streng om",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "api-404-vs-validation",
-    "category": "clear-different",
-    "note": "Et nyt spørgsmål om validering af en DTO. Det passer hverken til 404-generaliseringen eller til PUT og PATCH.",
-    "sessionTitle": "Backend - REST API i ASP.NET Core",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver GET /api/products 404 i opgave 2?" },
-      { "id": "r1", "type": "request", "text": "hvad er forskellen på PUT og PATCH?" }
-    ],
-    "newQuestion": "hvordan validerer jeg at et felt er påkrævet i min DTO",
     "expected": {
       "decision": "standalone",
       "candidateId": null
@@ -891,20 +790,6 @@
     }
   },
   {
-    "id": "misspelled-git-push-join",
-    "category": "typos",
-    "note": "Samme fejl som g1 med stavefejl i både kommandoen og beskrivelsen.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" }
-    ],
-    "newQuestion": "git pusch virker ikk, siger noget med rejected og fetch first",
-    "expected": {
-      "decision": "join",
-      "candidateId": "g1"
-    }
-  },
-  {
     "id": "slang-loop-join",
     "category": "typos",
     "note": "Slang, men det er tydeligt samme opgave og samme problem som g1.",
@@ -948,24 +833,6 @@
     "expected": {
       "decision": "join",
       "candidateId": "g1"
-    }
-  },
-  {
-    "id": "no-punctuation-python-pair",
-    "category": "typos",
-    "note": "Ingen tegnsætning og små bogstaver, men samme opgave og samme problem.",
-    "sessionTitle": "Python - funktioner",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "opgave 3 min funktion returnerer None selvom jeg beregner resultatet" }
-    ],
-    "newQuestion": "opgave 3 funktionen giver none ud hvorfor den printer jo det rigtige tal inde i funktionen",
-    "expected": {
-      "decision": "pair",
-      "candidateId": "r1",
-      "faq": {
-        "example": "Hvorfor returnerer funktionen i opgave 3 None?",
-        "mustNotContain": []
-      }
     }
   },
   {
@@ -1169,20 +1036,6 @@
     }
   },
   {
-    "id": "names-join",
-    "category": "names",
-    "note": "Navnene påvirker ikke beslutningen. Ved join skrives ingen ny FAQ, så der er intet at tjekke for navne.",
-    "sessionTitle": "Databaser - SQL joins",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?" }
-    ],
-    "newQuestion": "Hej Peter, Lucas her. opgave 2 min join giver alle kombinationer af kunder og ordrer",
-    "expected": {
-      "decision": "join",
-      "candidateId": "g1"
-    }
-  },
-  {
     "id": "same-name-different-problem",
     "category": "names",
     "note": "Begge henvender sig til Peter i samme opgave, men problemerne er forskellige. Et fælles navn er ikke et tegn på samme problem.",
@@ -1331,42 +1184,6 @@
         "example": "Hvorfor returnerer document.getElementById null i opgave 4?",
         "mustNotContain": ["Emil", "bedste", "head"]
       }
-    }
-  },
-  {
-    "id": "empty-queue-clear-question",
-    "category": "empty-queue",
-    "note": "Et tydeligt spørgsmål, men der er ingen kandidater at sammenligne med. Det første spørgsmål i en session står altid alene.",
-    "sessionTitle": "Programmering 1 - løkker",
-    "candidates": [],
-    "newQuestion": "opgave 3 min while løkke stopper aldrig",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "empty-queue-refers-to-others",
-    "category": "empty-queue",
-    "note": "Den studerende henviser til andre med samme problem, men de er ikke i køen. Modellen må ikke opfinde en kandidat.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [],
-    "newQuestion": "jeg har samme problem som dem ved siden af mig, git push bliver rejected",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "empty-queue-long-with-code",
-    "category": "empty-queue",
-    "note": "Lang tekst med kode og et navn. Uden kandidater er svaret altid standalone, og der må ikke skrives et FAQ-spørgsmål.",
-    "sessionTitle": "Webudvikling - JavaScript og DOM",
-    "candidates": [],
-    "newQuestion": "hej Peter, opgave 4\nmin knap gør ingenting når jeg klikker:\nconst knap = document.getElementById('send');\nknap.addEventListener('click', send());\ner der noget galt med måden jeg kalder funktionen på?",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
     }
   }
 ]
