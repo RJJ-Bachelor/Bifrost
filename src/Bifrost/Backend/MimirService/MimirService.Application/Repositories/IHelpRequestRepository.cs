@@ -16,4 +16,7 @@ public interface IHelpRequestRepository
 
     Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
         CancellationToken cancellationToken);
+
+    Task<(int Requests, int Generalizations)> DeleteSessionDataAsync(Guid sessionId, int? beforeGeneration,
+        CancellationToken cancellationToken);
 }

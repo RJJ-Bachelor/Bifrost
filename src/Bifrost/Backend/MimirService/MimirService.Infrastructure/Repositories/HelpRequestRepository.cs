@@ -55,4 +55,21 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
             return false;
         }
     }
+
+    public async Task<(int Requests, int Generalizations)> DeleteSessionDataAsync(Guid sessionId, int? beforeGeneration,
+        CancellationToken cancellationToken)
+    {
+        var requests = dbContext.Requests.Where(request => request.SessionId == sessionId);
+        var generalizations = dbContext.Generalizations.Where(generalization => generalization.SessionId == sessionId);
+        if (beforeGeneration is { } generation)
+        {
+            requests = requests.Where(request => request.Generation < generation);
+            generalizations = generalizations.Where(generalization => generalization.Generation < generation);
+        }
+
+        // Requests reference generalizations, so they go first. If the second delete fails, the redelivered message deletes the rest.
+        var deletedRequests = await requests.ExecuteDeleteAsync(cancellationToken);
+        var deletedGeneralizations = await generalizations.ExecuteDeleteAsync(cancellationToken);
+        return (deletedRequests, deletedGeneralizations);
+    }
 }

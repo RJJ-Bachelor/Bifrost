@@ -145,6 +145,8 @@ public sealed class HelpRequestMessageHandlerTests
             Added.Add((request, generalization, reply));
             return Task.FromResult(true);
         }
+        public Task<(int Requests, int Generalizations)> DeleteSessionDataAsync(Guid sessionId, int? beforeGeneration,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class RecordingDecider : IGeneralizationDecider
