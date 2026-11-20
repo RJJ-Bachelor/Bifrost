@@ -58,7 +58,8 @@ public sealed partial class SessionIntegrationTests
             await using var mimir = await bus.SubscribeAsync<SessionUpdatedIntegrationEvent>(mimirQueue,
                 MessageRoutes.Sessions, MessageRoutes.SessionUpdated, async (message, ct) =>
                 {
-                    await new MimirSessionUpdatedHandler(NullLogger<MimirSessionUpdatedHandler>.Instance).HandleAsync(message, ct);
+                    // Archived only logs, so the repository is never used.
+                    await new MimirSessionUpdatedHandler(NullLogger<MimirSessionUpdatedHandler>.Instance, null!).HandleAsync(message, ct);
                     received.TrySetResult(message.Payload);
                 });
             var update = await received.Task.WaitAsync(TimeSpan.FromSeconds(20));
