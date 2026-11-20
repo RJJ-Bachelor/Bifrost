@@ -13,6 +13,14 @@ export class PwaService {
     typeof window !== 'undefined' &&
     window.isSecureContext;
 
+  readonly isIos =
+    typeof navigator !== 'undefined' &&
+    /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  readonly isPwa =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(display-mode: standalone)').matches;
+
   constructor() {
     if (!this.isSupported) {
       return;

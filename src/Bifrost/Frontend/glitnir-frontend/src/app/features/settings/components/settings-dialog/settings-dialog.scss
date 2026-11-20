@@ -70,6 +70,24 @@
   color: var(--color-grey-800);
 }
 
+.settings-ios-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  font-size: var(--font-size-sm);
+  line-height: 1.4;
+  color: var(--color-grey-800);
+
+  p, ol {
+    margin: 0;
+  }
+
+  ol {
+    padding-left: var(--space-5);
+  }
+}
+
 .transfer-choose {
   display: flex;
   flex-direction: column;

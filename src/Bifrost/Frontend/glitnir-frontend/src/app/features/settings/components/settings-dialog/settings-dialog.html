@@ -3,7 +3,16 @@
     <section class="settings-section">
       <h3 class="settings-section__title">Notifikationer</h3>
 
-      @if (!push.isSupported) {
+      @if (pwa.isIos && !pwa.isPwa) {
+        <div class="surface-box settings-ios-warning">
+          <p><strong>Bemærk:</strong> På iOS virker notifikationer kun, når Bifrost er installeret på din hjemmeskærm.</p>
+          <ol>
+            <li>Åbn siden i <strong>Safari</strong> og tryk på <strong>Del</strong>-ikonet.</li>
+            <li>Vælg <strong>Føj til hjemmeskærm</strong>.</li>
+            <li>Åbn Bifrost fra hjemmeskærmen og slå notifikationer til her.</li>
+          </ol>
+        </div>
+      } @else if (!push.isSupported) {
         <p class="settings-section__desc">
           Notifikationer er ikke understøttet i denne browser eller tilstand.
         </p>
