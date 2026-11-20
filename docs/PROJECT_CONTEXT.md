@@ -324,3 +324,13 @@ When evaluating Pull Requests, the AI Reviewer must verify:
 - Module message routing abstracts transport selection per route, allowing transparent switching between local in-process delivery and RabbitMQ.
 - PostgreSQL execution resilience with automatic connection retry is configured for database contexts across distributed services.
 - KnowledgeBase supports FAQ question updates through `FaqQuestionChangedIntegrationEvent` to propagate revised generalization text.
+
+---
+
+## Update 2026-11-20
+
+- `MimirService` automatically purges stored help requests and generalizations upon processing `SessionUpdated` integration events for deleted sessions or cleared generations.
+- Help request and generalization cleanups are scoped by generation when a session is cleared, ensuring older generation artifacts are removed while active data remains intact.
+- Global session deletion events trigger the removal of all associated help requests and generalizations across every generation in `MimirService`.
+- Repository implementations execute bulk delete operations via Entity Framework Core to efficiently remove session-scoped intelligence data.
+- Archived session events are logged by `MimirService` without triggering data deletion or modification.
