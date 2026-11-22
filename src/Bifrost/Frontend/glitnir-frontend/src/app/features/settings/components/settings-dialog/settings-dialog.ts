@@ -4,6 +4,7 @@ import {FormField, form, required, validate} from '@angular/forms/signals';
 import {IdentityTransferCode} from '../../../../core/auth/auth.model';
 import {AuthApi} from '../../../../core/auth/services/auth-api';
 import {PushNotificationService} from '../../../../core/pwa/services/push-notification.service';
+import {PwaService} from '../../../../core/pwa/services/pwa.service';
 import {Dialog} from '../../../../shared/components/dialog/dialog';
 
 type TransferStep = 'choose' | 'share' | 'import';
@@ -21,6 +22,7 @@ interface ImportFormModel {
 export class SettingsDialog {
   private readonly authApi = inject(AuthApi);
   protected readonly push = inject(PushNotificationService);
+  protected readonly pwa = inject(PwaService);
 
   readonly open = input.required<boolean>();
   readonly showTransfer = input(false);

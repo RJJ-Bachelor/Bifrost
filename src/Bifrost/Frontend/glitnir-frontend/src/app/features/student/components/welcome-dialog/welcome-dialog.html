@@ -1,0 +1,23 @@
+<bifrost-dialog [open]="open()" title="Velkommen til Bifrost" (closed)="dismiss()">
+  <div class="welcome-dialog">
+    <p>
+      Din oplevelse med Bifrost bliver væsentligt forbedret, hvis du slår
+      <strong>notifikationer</strong> til, så du får besked med det samme, når der er nyt i dine spørgsmål.
+    </p>
+    <p>
+      Du kan også tilgå Bifrost på telefonen og <strong>overføre din anonyme brugerdata</strong> til mobilen,
+      så notifikationer også modtages der.
+    </p>
+    <p>
+      Begge dele finder du under
+      <strong>Indstillinger</strong>
+      (<span class="icon-mask settings-button__icon welcome-dialog__icon" aria-hidden="true"></span>)
+      i øverste højre hjørne.
+    </p>
+    <div class="form-actions">
+      <button type="button" class="btn btn--primary" (click)="dismiss()">
+        Det er forstået
+      </button>
+    </div>
+  </div>
+</bifrost-dialog>
