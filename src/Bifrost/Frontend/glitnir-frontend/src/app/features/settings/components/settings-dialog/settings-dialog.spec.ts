@@ -62,7 +62,7 @@ describe('SettingsDialog', () => {
     HTMLDialogElement.prototype.close = vi.fn();
   });
 
-  function setup(options: { open?: boolean; showTransfer?: boolean; isSupported?: boolean } = {}): {
+  function setup(options: { open?: boolean; showTransfer?: boolean; isSupported?: boolean; isIos?: boolean; isPwa?: boolean } = {}): {
     fixture: ComponentFixture<SettingsDialog>;
     component: SettingsDialogInternals;
   } {
@@ -82,8 +82,8 @@ describe('SettingsDialog', () => {
     };
 
     pwaMock = {
-      isIos: false,
-      isPwa: false,
+      isIos: options.isIos ?? false,
+      isPwa: options.isPwa ?? false,
     };
 
     TestBed.configureTestingModule({
@@ -141,10 +141,7 @@ describe('SettingsDialog', () => {
     });
 
     it('shows iOS PWA warning and guide instead of toggle on non-standalone iOS', () => {
-      const { fixture } = setup();
-      pwaMock.isIos = true;
-      pwaMock.isPwa = false;
-      fixture.detectChanges();
+      const { fixture } = setup({ isIos: true, isPwa: false });
 
       const el = fixture.nativeElement as HTMLElement;
       expect(el.textContent ?? '').toContain('Føj til hjemmeskærm');
