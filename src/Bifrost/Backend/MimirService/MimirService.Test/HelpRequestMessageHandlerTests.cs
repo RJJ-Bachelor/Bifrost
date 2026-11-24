@@ -138,6 +138,9 @@ public sealed class HelpRequestMessageHandlerTests
                 .Where(request => request.GeneralizationId == generalizationId)
                 .Select(request => request.Id)
                 .ToArray());
+        public Task<Generalization?> GetGeneralizationAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
             CancellationToken cancellationToken)
         {

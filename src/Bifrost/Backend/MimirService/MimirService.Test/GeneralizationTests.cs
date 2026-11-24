@@ -36,6 +36,32 @@ public sealed class GeneralizationTests
             new string('a', Generalization.MaxQuestionLength + 1), DateTimeOffset.UtcNow));
 
     [Fact]
+    public void ChangeQuestionTrimsAndReplacesTheQuestion()
+    {
+        var generalization = NewGeneralization(SessionId, 1);
+        generalization.ChangeQuestion("  How do I use recursion in Python?  ");
+        Assert.Equal("How do I use recursion in Python?", generalization.Question);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ChangeQuestionRejectsBlankQuestionAndKeepsTheOldOne(string question)
+    {
+        var generalization = NewGeneralization(SessionId, 1);
+        Assert.Throws<ArgumentException>(() => generalization.ChangeQuestion(question));
+        Assert.Equal("Question", generalization.Question);
+    }
+
+    [Fact]
+    public void ChangeQuestionRejectsTooLongQuestionAndKeepsTheOldOne()
+    {
+        var generalization = NewGeneralization(SessionId, 1);
+        Assert.Throws<ArgumentException>(() => generalization.ChangeQuestion(new string('a', Generalization.MaxQuestionLength + 1)));
+        Assert.Equal("Question", generalization.Question);
+    }
+
+    [Fact]
     public void LinkingSetsTheGeneralizationId()
     {
         var request = HelpRequest.Create(Guid.NewGuid(), SessionId, 1, "Help me");

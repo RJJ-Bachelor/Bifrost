@@ -31,9 +31,17 @@ public sealed class Generalization : AggregateRoot<Guid>
         if (id == Guid.Empty) throw new ArgumentException("An id is required.", nameof(id));
         if (sessionId == Guid.Empty || generation < 1)
             throw new ArgumentException("A session and positive generation are required.");
+
+        return new Generalization(id, sessionId, generation, ValidQuestion(question), now.ToUniversalTime());
+    }
+
+    // The teacher can rephrase the FAQ question when answering it.
+    public void ChangeQuestion(string question) => Question = ValidQuestion(question);
+
+    private static string ValidQuestion(string question)
+    {
         if (string.IsNullOrWhiteSpace(question) || question.Trim().Length > MaxQuestionLength)
             throw new ArgumentException("The question must contain between 1 and 4000 characters.", nameof(question));
-
-        return new Generalization(id, sessionId, generation, question.Trim(), now.ToUniversalTime());
+        return question.Trim();
     }
 }

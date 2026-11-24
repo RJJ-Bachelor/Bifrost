@@ -35,6 +35,11 @@ public sealed class HelpRequestRepository(MimirRequestDbContext dbContext, TimeP
             .Select(request => request.Id)
             .ToArrayAsync(cancellationToken);
 
+    public Task<Generalization?> GetGeneralizationAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Generalizations.SingleOrDefaultAsync(generalization => generalization.Id == id, cancellationToken);
+
+    public Task SaveChangesAsync(CancellationToken cancellationToken) => dbContext.SaveChangesAsync(cancellationToken);
+
     public async Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
         CancellationToken cancellationToken)
     {
