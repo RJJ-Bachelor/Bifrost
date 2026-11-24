@@ -214,92 +214,6 @@
     }
   },
   {
-    "id": "git-conflict-vs-ignore",
-    "category": "clear-different",
-    "note": "Begge handler om git, men merge-konflikter og .gitignore er to forskellige ting.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan løser jeg en merge-konflikt i git?" }
-    ],
-    "newQuestion": "hvordan får jeg git til at ignorere bin og obj mapperne",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "sql-left-join-vs-foreign-key",
-    "category": "clear-different",
-    "note": "Et spørgsmål om syntaks for LEFT JOIN og en fejl ved INSERT. Ingen af kandidaterne passer.",
-    "sessionTitle": "Databaser - SQL joins",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "hvordan laver jeg en LEFT JOIN" },
-      { "id": "r2", "type": "request", "text": "hvad er forskellen på WHERE og HAVING?" }
-    ],
-    "newQuestion": "min INSERT i opgave 4 fejler med violates foreign key constraint",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "button-css-vs-event",
-    "category": "clear-different",
-    "note": "Begge nævner en knap, men det ene er CSS-layout og det andet er event-håndtering i JavaScript.",
-    "sessionTitle": "Webudvikling - JavaScript og DOM",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "min knap skal centreres men margin auto virker ikke" }
-    ],
-    "newQuestion": "addEventListener virker ikke på min knap i opgave 3, der sker ingenting når jeg klikker",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "python-indent-vs-csv",
-    "category": "clear-different",
-    "note": "En syntaksfejl og et spørgsmål om at læse en fil. Intet til fælles ud over sproget.",
-    "sessionTitle": "Python - funktioner",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?" }
-    ],
-    "newQuestion": "hvordan læser jeg en csv fil ind i python",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "docker-port-vs-migration",
-    "category": "clear-different",
-    "note": "En portkonflikt i Docker og et spørgsmål om EF Core-migrationer.",
-    "sessionTitle": "Backend - Entity Framework Core",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "docker compose up siger port 5432 is already allocated" },
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvordan forbinder jeg min applikation til Postgres i Docker?" }
-    ],
-    "newQuestion": "hvordan laver jeg en migration med ef core",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "async-task-vs-sorting",
-    "category": "clear-different",
-    "note": "En manglende await og sortering af en liste. Forskellige emner.",
-    "sessionTitle": "Programmering 2 - collections og async",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "min metode returnerer System.Threading.Tasks.Task`1[System.String] i stedet for teksten" }
-    ],
-    "newQuestion": "hvordan sorterer jeg en liste af personer efter navn i C#",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
     "id": "same-task-discovery-vs-mocking",
     "category": "clear-different",
     "note": "Samme opgave, men at testene ikke bliver fundet og at mocke et interface er to forskellige problemer.",
@@ -322,21 +236,6 @@
       { "id": "r1", "type": "request", "text": "opgave 1: hvordan beregner jeg gennemsnittet af et array" }
     ],
     "newQuestion": "opgave 5: hvordan vender jeg en streng om",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "api-404-vs-validation",
-    "category": "clear-different",
-    "note": "Et nyt spørgsmål om validering af en DTO. Det passer hverken til 404-generaliseringen eller til PUT og PATCH.",
-    "sessionTitle": "Backend - REST API i ASP.NET Core",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver GET /api/products 404 i opgave 2?" },
-      { "id": "r1", "type": "request", "text": "hvad er forskellen på PUT og PATCH?" }
-    ],
-    "newQuestion": "hvordan validerer jeg at et felt er påkrævet i min DTO",
     "expected": {
       "decision": "standalone",
       "candidateId": null
@@ -873,6 +772,108 @@
     }
   },
   {
+    "id": "queue-long-pair-middle",
+    "category": "multi-candidate",
+    "note": "Lang kø med 28 kandidater som i en travl session, og den rigtige står midt i listen. r11 er samme opgave og samme fejl. r5 har også en FormatException, men ved int.Parse i opgave 2. Datoen nævner kun r11, og filen nævner kun det nye spørgsmål.",
+    "sessionTitle": "Softwareudvikling - øvelsestime",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvorfor returnerer document.getElementById null i opgave 4?" },
+      { "id": "g3", "type": "generalization", "faqQuestion": "Hvorfor kan dotnet ef ikke finde en DbContext, når jeg laver en migration?" },
+      { "id": "g4", "type": "generalization", "faqQuestion": "Hvorfor stopper løkken i opgave 3 aldrig?" },
+      { "id": "g5", "type": "generalization", "faqQuestion": "Hvorfor får jeg en CORS-fejl, når frontenden kalder API'et?" },
+      { "id": "g6", "type": "generalization", "faqQuestion": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?" },
+      { "id": "r1", "type": "request", "text": "hvordan laver jeg en ny branch?" },
+      { "id": "r2", "type": "request", "text": "IndentationError: unexpected indent i opgave 1, jeg kan ikke se hvad der er galt" },
+      { "id": "r3", "type": "request", "text": "mine tests dukker ikke op i test explorer i opgave 3" },
+      { "id": "r4", "type": "request", "text": "mit endpoint GET /api/products giver 404 i opgave 2 selvom controlleren er lavet" },
+      { "id": "r5", "type": "request", "text": "opgave 2 mit program crasher med FormatException når jeg bruger int.Parse" },
+      { "id": "r6", "type": "request", "text": "hvad er forskellen på et interface og en abstract class" },
+      { "id": "r7", "type": "request", "text": "hvordan laver jeg en pull request på github" },
+      { "id": "r8", "type": "request", "text": "kan du komme forbi?" },
+      { "id": "r9", "type": "request", "text": "NullReferenceException i opgave 5 når jeg kalder metoden på kunden" },
+      { "id": "r10", "type": "request", "text": "når jeg åbner swagger siger chrome 'Your connection is not private'" },
+      { "id": "r11", "type": "request", "text": "opgave 5 DateTime.Parse giver FormatException på datoen 31-12-2024" },
+      { "id": "r12", "type": "request", "text": "opgave 5 hvordan vender jeg en streng om" },
+      { "id": "r13", "type": "request", "text": "opgave 4 hvordan tæller jeg kun lige tal" },
+      { "id": "r14", "type": "request", "text": "min knap skal centreres men margin auto virker ikke" },
+      { "id": "r15", "type": "request", "text": "git push siger Permission denied (publickey)" },
+      { "id": "r16", "type": "request", "text": "hvad er forskellen på WHERE og HAVING?" },
+      { "id": "r17", "type": "request", "text": "docker compose up siger port 5432 is already allocated" },
+      { "id": "r18", "type": "request", "text": "opgave 3 mit POST endpoint får altid null i body" },
+      { "id": "r19", "type": "request", "text": "hvordan læser jeg en csv fil ind i python" },
+      { "id": "r20", "type": "request", "text": "opgave 3 min funktion returnerer None selvom jeg beregner resultatet" },
+      { "id": "r21", "type": "request", "text": "min metode returnerer System.Threading.Tasks.Task`1[System.String] i stedet for teksten" },
+      { "id": "r22", "type": "request", "text": "opgave 6 min fetch returnerer et Promise i stedet for dataen" }
+    ],
+    "newQuestion": "opg 5 når jeg læser datoerne fra filen står der String was not recognized as a valid DateTime",
+    "expected": {
+      "decision": "pair",
+      "candidateId": "r11",
+      "faq": {
+        "example": "Hvorfor kan DateTime.Parse ikke læse datoerne i opgave 5?",
+        "mustNotContain": ["31-12-2024", "filen"]
+      }
+    }
+  },
+  {
+    "id": "queue-long-standalone",
+    "category": "multi-candidate",
+    "note": "Lang kø med 28 kandidater som i en travl session. g1, g2, r1 og r2 handler også om tests, og r3 nævner en lignende exception, men ingen af dem handler om at teste, at en metode kaster en exception.",
+    "sessionTitle": "Softwareudvikling - øvelsestime",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver testene i opgave 3 ikke fundet?" },
+      { "id": "g2", "type": "generalization", "faqQuestion": "Hvordan mocker jeg et interface med Moq?" },
+      { "id": "g3", "type": "generalization", "faqQuestion": "Hvorfor kan jeg ikke starte API'et, fordi porten allerede er i brug?" },
+      { "id": "g4", "type": "generalization", "faqQuestion": "Hvorfor kommer det sidste element ikke med i løkken i opgave 2?" },
+      { "id": "g5", "type": "generalization", "faqQuestion": "Hvordan løser jeg en merge-konflikt i git?" },
+      { "id": "g6", "type": "generalization", "faqQuestion": "Hvorfor får jeg 'IndentationError: unexpected indent' i opgave 1?" },
+      { "id": "r1", "type": "request", "text": "hvad er forskellen på [Fact] og [Theory]" },
+      { "id": "r2", "type": "request", "text": "opgave 5 min test crasher med NullReferenceException fordi listen i klassen aldrig bliver oprettet" },
+      { "id": "r3", "type": "request", "text": "ArgumentOutOfRangeException når jeg fjerner elementer fra listen inde i en for løkke" },
+      { "id": "r4", "type": "request", "text": "hvordan laver man en constructor med flere parametre?" },
+      { "id": "r5", "type": "request", "text": "opgave 2 min join giver 500 rækker men der er kun 20 ordrer" },
+      { "id": "r6", "type": "request", "text": "min fetch til localhost:5000 fejler med 'blocked by CORS policy'" },
+      { "id": "r7", "type": "request", "text": "hvordan seeder man data i EF Core?" },
+      { "id": "r8", "type": "request", "text": "opgave 1: hvordan beregner jeg gennemsnittet af et array" },
+      { "id": "r9", "type": "request", "text": "jeg er gået i stå i opgave 4" },
+      { "id": "r10", "type": "request", "text": "jeg forstår ikke rekursion" },
+      { "id": "r11", "type": "request", "text": "git status siger fatal: not a git repository" },
+      { "id": "r12", "type": "request", "text": "hvordan laver jeg en do while" },
+      { "id": "r13", "type": "request", "text": "opgave 5 når jeg submitter formen bliver siden genindlæst og mine data forsvinder" },
+      { "id": "r14", "type": "request", "text": "hvad er forskellen på let og const" },
+      { "id": "r15", "type": "request", "text": "min INSERT i opgave 4 fejler med violates foreign key constraint" },
+      { "id": "r16", "type": "request", "text": "når jeg kører database update får jeg 'password authentication failed for user postgres'" },
+      { "id": "r17", "type": "request", "text": "opgave 2 hvad betyder virtual og override" },
+      { "id": "r18", "type": "request", "text": "kan du godkende opgave 1?" },
+      { "id": "r19", "type": "request", "text": "hvordan returnerer jeg 201 created med location header" },
+      { "id": "r20", "type": "request", "text": "min wpf app fryser når jeg kalder .Result på en task" },
+      { "id": "r21", "type": "request", "text": "hvordan sender jeg json med fetch" },
+      { "id": "r22", "type": "request", "text": "hvad er forskellen på localStorage og sessionStorage" }
+    ],
+    "newQuestion": "opg 3 hvordan skriver jeg en test der tjekker at metoden kaster ArgumentException når tallet er negativt",
+    "expected": {
+      "decision": "standalone",
+      "candidateId": null
+    }
+  },
+  {
+    "id": "queue-request-and-generalization-match",
+    "category": "multi-candidate",
+    "note": "Både g1 og r1 passer: samme fejl i samme opgave. r1 er ikke kommet med i g1, fx fordi den blev overset. join genbruger den eksisterende FAQ og dens svar, mens pair ville lave endnu en FAQ om det samme. Gruppen bør bekræfte, at join er den ønskede regel.",
+    "sessionTitle": "Programmering 1 - variabler og løkker",
+    "candidates": [
+      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor får jeg fejlen 'The name does not exist in the current context' i opgave 3?" },
+      { "id": "r1", "type": "request", "text": "opg 3 visual studio siger CS0103 the name 'sum' does not exist in the current context" },
+      { "id": "r2", "type": "request", "text": "hvordan laver jeg en do while" }
+    ],
+    "newQuestion": "opgave 3 jeg får CS0103 på min variabel, den siger den ikke findes selvom jeg har lavet den inde i løkken",
+    "expected": {
+      "decision": "join",
+      "candidateId": "g1"
+    }
+  },
+  {
     "id": "misspelled-exception-pair",
     "category": "typos",
     "note": "Samme opgave og samme exception, bare stavet forkert. FAQ'en skal staves rigtigt.",
@@ -888,20 +889,6 @@
         "example": "Hvorfor får jeg en NullReferenceException i opgave 5?",
         "mustNotContain": ["nullrefrence", "exeption"]
       }
-    }
-  },
-  {
-    "id": "misspelled-git-push-join",
-    "category": "typos",
-    "note": "Samme fejl som g1 med stavefejl i både kommandoen og beskrivelsen.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor bliver git push afvist med fejlen 'Updates were rejected'?" }
-    ],
-    "newQuestion": "git pusch virker ikk, siger noget med rejected og fetch first",
-    "expected": {
-      "decision": "join",
-      "candidateId": "g1"
     }
   },
   {
@@ -948,24 +935,6 @@
     "expected": {
       "decision": "join",
       "candidateId": "g1"
-    }
-  },
-  {
-    "id": "no-punctuation-python-pair",
-    "category": "typos",
-    "note": "Ingen tegnsætning og små bogstaver, men samme opgave og samme problem.",
-    "sessionTitle": "Python - funktioner",
-    "candidates": [
-      { "id": "r1", "type": "request", "text": "opgave 3 min funktion returnerer None selvom jeg beregner resultatet" }
-    ],
-    "newQuestion": "opgave 3 funktionen giver none ud hvorfor den printer jo det rigtige tal inde i funktionen",
-    "expected": {
-      "decision": "pair",
-      "candidateId": "r1",
-      "faq": {
-        "example": "Hvorfor returnerer funktionen i opgave 3 None?",
-        "mustNotContain": []
-      }
     }
   },
   {
@@ -1169,20 +1138,6 @@
     }
   },
   {
-    "id": "names-join",
-    "category": "names",
-    "note": "Navnene påvirker ikke beslutningen. Ved join skrives ingen ny FAQ, så der er intet at tjekke for navne.",
-    "sessionTitle": "Databaser - SQL joins",
-    "candidates": [
-      { "id": "g1", "type": "generalization", "faqQuestion": "Hvorfor giver JOIN-forespørgslen i opgave 2 alt for mange rækker?" }
-    ],
-    "newQuestion": "Hej Peter, Lucas her. opgave 2 min join giver alle kombinationer af kunder og ordrer",
-    "expected": {
-      "decision": "join",
-      "candidateId": "g1"
-    }
-  },
-  {
     "id": "same-name-different-problem",
     "category": "names",
     "note": "Begge henvender sig til Peter i samme opgave, men problemerne er forskellige. Et fælles navn er ikke et tegn på samme problem.",
@@ -1334,36 +1289,14 @@
     }
   },
   {
-    "id": "empty-queue-clear-question",
-    "category": "empty-queue",
-    "note": "Et tydeligt spørgsmål, men der er ingen kandidater at sammenligne med. Det første spørgsmål i en session står altid alene.",
-    "sessionTitle": "Programmering 1 - løkker",
-    "candidates": [],
-    "newQuestion": "opgave 3 min while løkke stopper aldrig",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "empty-queue-refers-to-others",
-    "category": "empty-queue",
-    "note": "Den studerende henviser til andre med samme problem, men de er ikke i køen. Modellen må ikke opfinde en kandidat.",
-    "sessionTitle": "Git og versionsstyring",
-    "candidates": [],
-    "newQuestion": "jeg har samme problem som dem ved siden af mig, git push bliver rejected",
-    "expected": {
-      "decision": "standalone",
-      "candidateId": null
-    }
-  },
-  {
-    "id": "empty-queue-long-with-code",
-    "category": "empty-queue",
-    "note": "Lang tekst med kode og et navn. Uden kandidater er svaret altid standalone, og der må ikke skrives et FAQ-spørgsmål.",
+    "id": "teasing-not-a-question",
+    "category": "off-topic",
+    "note": "Næsten samme tekst, men ingen af dem er et fagligt spørgsmål. Det er drilleri om en person, så der er intet, underviseren kan svare på én gang for alle, og en FAQ ville vise det til hele holdet. Fundet ved test i Aspire.",
     "sessionTitle": "Webudvikling - JavaScript og DOM",
-    "candidates": [],
-    "newQuestion": "hej Peter, opgave 4\nmin knap gør ingenting når jeg klikker:\nconst knap = document.getElementById('send');\nknap.addEventListener('click', send());\ner der noget galt med måden jeg kalder funktionen på?",
+    "candidates": [
+      { "id": "r1", "type": "request", "text": "niels er grim i opgave 4 hahaha" }
+    ],
+    "newQuestion": "opgave 4: niels er grim 😂",
     "expected": {
       "decision": "standalone",
       "candidateId": null
