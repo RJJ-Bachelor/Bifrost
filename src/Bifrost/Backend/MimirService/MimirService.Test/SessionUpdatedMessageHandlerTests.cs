@@ -117,6 +117,9 @@ public sealed class SessionUpdatedMessageHandlerTests
             CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<Guid>> GetGeneralizationMemberIdsAsync(Guid generalizationId,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Generalization?> GetGeneralizationAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<bool> TryAddAsync(HelpRequest request, Generalization? generalization, OutgoingMessage? reply,
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
